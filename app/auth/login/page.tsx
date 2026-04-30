@@ -18,15 +18,19 @@ const showDemoLogin =
   process.env.NODE_ENV === 'development' ||
   process.env.NEXT_PUBLIC_SHOW_DEMO_LOGIN === 'true';
 
+function isConfiguredValue(v: string | undefined) {
+  if (!v) return false;
+  const trimmed = v.trim();
+  if (!trimmed) return false;
+  if (trimmed.includes('YOUR_')) return false;
+  return true;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const isSupabaseConfigured =
-    Boolean(supabaseUrl && supabaseAnonKey) &&
-    Boolean(supabaseUrl!.includes('.supabase.co')) &&
-    !supabaseUrl!.includes('YOUR_') &&
-    !supabaseAnonKey!.includes('YOUR_');
+  const isSupabaseConfigured = isConfiguredValue(supabaseUrl) && isConfiguredValue(supabaseAnonKey);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -61,7 +65,9 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     if (!isSupabaseConfigured) {
-      setError('Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local');
+      setError(
+        'Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (local: .env.local, production: Vercel Environment Variables).'
+      );
       return;
     }
     setLoading(true);
@@ -128,7 +134,9 @@ export default function LoginPage() {
           )}
           {!isSupabaseConfigured && !error && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
-              Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` to enable sign in.
+              Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+              in `.env.local` (local) or in Vercel Environment Variables (production)
+              to enable sign in.
             </div>
           )}
 

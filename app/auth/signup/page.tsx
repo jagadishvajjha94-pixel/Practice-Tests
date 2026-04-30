@@ -8,15 +8,19 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 
+function isConfiguredValue(v: string | undefined) {
+  if (!v) return false;
+  const trimmed = v.trim();
+  if (!trimmed) return false;
+  if (trimmed.includes('YOUR_')) return false;
+  return true;
+}
+
 export default function SignUpPage() {
   const router = useRouter();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const isSupabaseConfigured =
-    Boolean(supabaseUrl && supabaseAnonKey) &&
-    Boolean(supabaseUrl!.includes('.supabase.co')) &&
-    !supabaseUrl!.includes('YOUR_') &&
-    !supabaseAnonKey!.includes('YOUR_');
+  const isSupabaseConfigured = isConfiguredValue(supabaseUrl) && isConfiguredValue(supabaseAnonKey);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -26,8 +30,11 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Initialize database on mount
+  // Local-only convenience setup; disabled in production unless explicitly enabled.
   useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+    if (process.env.NEXT_PUBLIC_AUTO_DB_SETUP !== 'true') return;
+
     const initDb = async () => {
       try {
         // Initialize database with direct SQL
@@ -54,7 +61,9 @@ export default function SignUpPage() {
     setError(null);
 
     if (!isSupabaseConfigured) {
-      setError('Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local');
+      setError(
+        'Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (local: .env.local, production: Vercel Environment Variables).'
+      );
       return;
     }
 
@@ -138,7 +147,9 @@ export default function SignUpPage() {
           )}
           {!isSupabaseConfigured && !error && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
-              Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` to enable sign up.
+              Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+              in `.env.local` (local) or in Vercel Environment Variables (production)
+              to enable sign up.
             </div>
           )}
 
