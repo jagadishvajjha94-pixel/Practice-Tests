@@ -21,7 +21,7 @@ export default function BlogPage() {
         const { data, error } = await supabase
           .from('blog_posts')
           .select('*')
-          .eq('published_at', null, { isNot: true })
+          .not('published_at', 'is', null)
           .order('published_at', { ascending: false });
 
         if (error) throw error;

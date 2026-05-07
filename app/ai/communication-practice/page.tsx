@@ -6,6 +6,19 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
+type BrowserSpeechRecognition = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type BrowserSpeechRecognitionCtor = new () => BrowserSpeechRecognition;
+
 type Analysis = {
   fluency: number;
   grammar: number;
@@ -68,11 +81,11 @@ export default function CommunicationPracticePage() {
   const prompt = useMemo(() => PROMPTS[promptIndex], [promptIndex]);
 
   const startVoiceInput = () => {
-    const SpeechRecognition =
-      (window as Window & { webkitSpeechRecognition?: typeof window.SpeechRecognition })
-        .SpeechRecognition ||
-      (window as Window & { webkitSpeechRecognition?: typeof window.SpeechRecognition })
-        .webkitSpeechRecognition;
+    const w = window as Window & {
+      SpeechRecognition?: BrowserSpeechRecognitionCtor;
+      webkitSpeechRecognition?: BrowserSpeechRecognitionCtor;
+    };
+    const SpeechRecognition = w.SpeechRecognition ?? w.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       alert('Speech recognition is not available in this browser. You can still type your answer.');
@@ -86,10 +99,10 @@ export default function CommunicationPracticePage() {
 
     recognition.onstart = () => setListening(true);
     recognition.onend = () => setListening(false);
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event) => {
       let transcript = '';
       for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript + ' ';
+        transcript += (event.results[i]?.[0]?.transcript ?? '') + ' ';
       }
       setAnswer(transcript.trim());
     };

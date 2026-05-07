@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [attempts, setAttempts] = useState<DashboardAttempt[]>([]);
   const [loading, setLoading] = useState(true);
   const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
+  const [isAdminUser, setIsAdminUser] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -67,6 +68,14 @@ export default function DashboardPage() {
           router.push('/auth/login');
           return;
         }
+
+        // Check admin role so we can hide candidate-only actions.
+        const { data: adminRow } = await supabase
+          .from('admin_users')
+          .select('id')
+          .eq('user_id', authUser.id)
+          .maybeSingle();
+        setIsAdminUser(!!adminRow);
 
         // Fetch user profile
         let { data: userData, error: userError } = await supabase
@@ -224,11 +233,17 @@ export default function DashboardPage() {
               <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
               <p className="text-gray-600 mt-1">Welcome back, {user.full_name || user.email}</p>
             </div>
-            <Link href="/tests">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                Take a Test
-              </Button>
-            </Link>
+            {isAdminUser ? (
+              <Link href="/admin">
+                <Button variant="outline">Open Admin Panel</Button>
+              </Link>
+            ) : (
+              <Link href="/tests">
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                  Take a Test
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -303,11 +318,19 @@ export default function DashboardPage() {
           {attempts.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-600 mb-4">You haven&apos;t taken any tests yet.</p>
-              <Link href="/tests">
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                  Start Your First Test
-                </Button>
-              </Link>
+              {!isAdminUser ? (
+                <Link href="/tests">
+                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                    Start Your First Test
+                  </Button>
+                </Link>
+              ) : (
+                <Link href="/admin/tests">
+                  <Button variant="outline">
+                    View Student Test Monitoring
+                  </Button>
+                </Link>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">

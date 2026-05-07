@@ -86,6 +86,11 @@ export function getFallbackTestById(testId: string): Test | null {
 
 export function getFallbackQuestionsByTestId(testId: string): Question[] {
   if (testId !== 'fallback-psychometric-1') return [];
+  return getPsychometricQuestionsForTestId(testId);
+}
+
+/** Generate psychometric paper for any test id (session-seeded, no repeats inside the paper). */
+export function getPsychometricQuestionsForTestId(testId: string): Question[] {
 
   const paperId = ensurePsychometricPaperId(testId);
   const seed = hashStringToSeed(`${paperId}║${testId}`);

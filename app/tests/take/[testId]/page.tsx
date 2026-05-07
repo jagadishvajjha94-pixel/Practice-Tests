@@ -12,7 +12,9 @@ import TestInterface from './test-interface';
 import {
   getFallbackQuestionsByTestId,
   getFallbackTestById,
+  getPsychometricQuestionsForTestId,
   isSchemaMissingError,
+  PSYCHOMETRIC_FALLBACK_QUESTION_COUNT,
 } from '@/lib/fallback-question-bank';
 
 export default function TakeTestPage({
@@ -49,7 +51,7 @@ export default function TakeTestPage({
           .single();
 
         if (testError) throw testError;
-        setTest(adaptTestRow(testData as Record<string, unknown>));
+        const adaptedTest = adaptTestRow(testData as Record<string, unknown>);
 
         // Fetch questions for this test
         const { data: testQuestions, error: questionsError } = await supabase
@@ -74,6 +76,29 @@ export default function TakeTestPage({
           if (!directErr && directQs?.length) {
             questionsData = directQs.map((q) => adaptQuestionRow(q as Record<string, unknown>));
           }
+        }
+
+        const psychometricLike =
+          /psychometric/i.test(testId) ||
+          /psychometric/i.test(adaptedTest.name ?? '') ||
+          /psychometric/i.test(adaptedTest.description ?? '');
+
+        if (
+          psychometricLike &&
+          questionsData.length < PSYCHOMETRIC_FALLBACK_QUESTION_COUNT
+        ) {
+          questionsData = getPsychometricQuestionsForTestId(testId);
+          setTest({
+            ...adaptedTest,
+            total_questions: PSYCHOMETRIC_FALLBACK_QUESTION_COUNT,
+            duration: Math.max(adaptedTest.duration ?? 0, 30),
+            question_time_limit_sec: null,
+            description:
+              adaptedTest.description ??
+              '200 visual/pattern psychometric items in 30 minutes.',
+          });
+        } else {
+          setTest(adaptedTest);
         }
 
         setQuestions(questionsData);

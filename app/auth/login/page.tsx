@@ -71,7 +71,6 @@ export default function LoginPage() {
       await signInWithEmailPassword(formData.email, formData.password);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Login failed. Please try again.';
-      console.error('[v0] Login error:', errorMsg);
       setError(errorMsg);
     } finally {
       setLoading(false);

@@ -23,8 +23,12 @@ export default function ResendConfirmationPage() {
       if (!supabase) {
         throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
       }
-      const { error } = await supabase.auth.resendEmailConfirmation(email, {
-        redirectTo: `${window.location.origin}/auth/callback`,
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
 
       if (error) {
