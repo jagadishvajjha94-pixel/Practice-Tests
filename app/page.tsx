@@ -9,48 +9,53 @@ export const metadata = {
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       {/* Navigation */}
-      <nav className="border-b border-gray-200 bg-white sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="text-2xl font-bold text-blue-600">PrepIndia</div>
-          <div className="flex gap-4 items-center">
-            <Link href="/tests" className="text-gray-600 hover:text-gray-900">
+      <nav className="sticky top-0 z-50 border-b border-white/20 bg-background/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+          <div className="lux-heading text-2xl font-black">PrepIndia</div>
+          <div className="flex items-center gap-4">
+            <Link href="/tests" className="text-sm text-muted-foreground transition hover:text-foreground">
               Tests
             </Link>
-            <Link href="/blog" className="text-gray-600 hover:text-gray-900">
+            <Link href="/blog" className="text-sm text-muted-foreground transition hover:text-foreground">
               Blog
             </Link>
-            <Link href="/setup" className="text-gray-600 hover:text-gray-900 text-sm">
+            <Link href="/setup" className="text-sm text-muted-foreground transition hover:text-foreground">
               Setup
             </Link>
             <Link href="/auth/login">
               <Button variant="outline">Sign In</Button>
             </Link>
             <Link href="/auth/signup">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                Sign Up
-              </Button>
+              <Button>Sign Up</Button>
             </Link>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-600 to-blue-700 text-white py-20">
-        <div className="max-w-6xl mx-auto px-4 text-center">
-          <h1 className="text-5xl font-bold mb-6">Master Your Placement Preparation</h1>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+      <section className="relative overflow-hidden py-24">
+        <div className="lux-grid absolute inset-0 opacity-25" />
+        <div className="absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/25 blur-3xl" />
+        <div className="relative mx-auto max-w-6xl px-4 text-center">
+          <p className="mb-4 inline-flex rounded-full border border-white/40 bg-white/30 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-foreground/80 backdrop-blur">
+            Ultra Performance Test Platform
+          </p>
+          <h1 className="mx-auto mb-6 max-w-4xl text-5xl font-black leading-tight md:text-6xl">
+            <span className="lux-heading">Master Your Placement Preparation</span>
+          </h1>
+          <p className="mx-auto mb-10 max-w-2xl text-lg text-muted-foreground md:text-xl">
             Practice aptitude tests, crack interviews, and land your dream job. Join thousands of students already preparing with PrepIndia.
           </p>
-          <div className="flex gap-4 justify-center">
+          <div className="flex flex-wrap justify-center gap-4">
             <Link href="/tests">
-              <Button className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3 text-lg font-semibold">
+              <Button className="px-8 py-3 text-lg">
                 Practice Free Tests
               </Button>
             </Link>
             <Link href="/auth/signup">
-              <Button variant="outline" className="border-white text-white hover:bg-blue-600 px-8 py-3 text-lg font-semibold">
+              <Button variant="outline" className="border-primary/30 bg-white/60 px-8 py-3 text-lg backdrop-blur hover:bg-white/90">
                 Get Started
               </Button>
             </Link>
@@ -59,28 +64,28 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-6xl mx-auto px-4">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">Why Choose PrepIndia?</h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            <Card className="p-6">
+      <section className="py-16">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="mb-12 text-center text-3xl font-black text-foreground md:text-4xl">Why Choose PrepIndia?</h2>
+          <div className="grid gap-8 md:grid-cols-3">
+            <Card className="p-6 transition duration-300 hover:-translate-y-1 hover:shadow-2xl">
               <div className="text-4xl mb-4">📊</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">5000+ Questions</h3>
-              <p className="text-gray-600">
+              <h3 className="mb-2 text-xl font-semibold text-foreground">5000+ Questions</h3>
+              <p className="text-muted-foreground">
                 Comprehensive question bank covering all types of aptitude tests and company-specific assessments.
               </p>
             </Card>
-            <Card className="p-6">
+            <Card className="p-6 transition duration-300 hover:-translate-y-1 hover:shadow-2xl">
               <div className="text-4xl mb-4">⚡</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Real-time Feedback</h3>
-              <p className="text-gray-600">
+              <h3 className="mb-2 text-xl font-semibold text-foreground">Real-time Feedback</h3>
+              <p className="text-muted-foreground">
                 Get instant results with detailed explanations for every question to learn from your mistakes.
               </p>
             </Card>
-            <Card className="p-6">
+            <Card className="p-6 transition duration-300 hover:-translate-y-1 hover:shadow-2xl">
               <div className="text-4xl mb-4">🏆</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Expert Content</h3>
-              <p className="text-gray-600">
+              <h3 className="mb-2 text-xl font-semibold text-foreground">Expert Content</h3>
+              <p className="text-muted-foreground">
                 Content designed by placement experts and verified by top company professionals.
               </p>
             </Card>
@@ -106,26 +111,28 @@ export default function Home() {
       </section>
 
       {/* Stats Section */}
-      <section className="bg-blue-600 text-white py-16">
-        <div className="max-w-6xl mx-auto px-4">
+      <section className="py-16">
+        <div className="mx-auto max-w-6xl px-4">
+          <Card className="bg-gradient-to-br from-primary via-primary to-accent p-10 text-primary-foreground">
           <div className="grid md:grid-cols-4 gap-8 text-center">
             <div>
               <div className="text-4xl font-bold mb-2">10000+</div>
-              <p className="text-blue-100">Active Students</p>
+              <p className="text-primary-foreground/80">Active Students</p>
             </div>
             <div>
               <div className="text-4xl font-bold mb-2">5000+</div>
-              <p className="text-blue-100">Practice Questions</p>
+              <p className="text-primary-foreground/80">Practice Questions</p>
             </div>
             <div>
               <div className="text-4xl font-bold mb-2">50+</div>
-              <p className="text-blue-100">Full Tests</p>
+              <p className="text-primary-foreground/80">Full Tests</p>
             </div>
             <div>
               <div className="text-4xl font-bold mb-2">95%</div>
-              <p className="text-blue-100">Success Rate</p>
+              <p className="text-primary-foreground/80">Success Rate</p>
             </div>
           </div>
+          </Card>
         </div>
       </section>
 
@@ -179,53 +186,57 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="bg-blue-600 text-white py-16">
+      <section className="py-16">
         <div className="max-w-4xl mx-auto px-4 text-center">
+          <Card className="bg-gradient-to-r from-primary via-primary to-accent p-10 text-primary-foreground">
           <h2 className="text-3xl font-bold mb-6">Start Your Preparation Journey Today</h2>
-          <p className="text-blue-100 mb-8">Join thousands of students who have already started preparing with PrepIndia</p>
+          <p className="mb-8 text-primary-foreground/80">Join thousands of students who have already started preparing with PrepIndia</p>
           <Link href="/auth/signup">
-            <Button className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3 text-lg font-semibold">
+            <Button variant="outline" className="border-white/70 bg-white/90 px-8 py-3 text-lg font-semibold text-primary hover:bg-white">
               Sign Up for Free
             </Button>
           </Link>
+          </Card>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
+      <footer className="py-12 text-foreground">
         <div className="max-w-6xl mx-auto px-4">
+          <Card className="p-8">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <h4 className="font-bold mb-4">PrepIndia</h4>
-              <p className="text-gray-400 text-sm">Master your placement preparation with our comprehensive platform.</p>
+              <p className="text-sm text-muted-foreground">Master your placement preparation with our comprehensive platform.</p>
             </div>
             <div>
               <h4 className="font-bold mb-4">Quick Links</h4>
-              <ul className="space-y-2 text-gray-400 text-sm">
-                <li><Link href="/tests" className="hover:text-white">Tests</Link></li>
-                <li><Link href="/blog" className="hover:text-white">Blog</Link></li>
-                <li><Link href="/auth/signup" className="hover:text-white">Get Started</Link></li>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><Link href="/tests" className="hover:text-foreground">Tests</Link></li>
+                <li><Link href="/blog" className="hover:text-foreground">Blog</Link></li>
+                <li><Link href="/auth/signup" className="hover:text-foreground">Get Started</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="font-bold mb-4">Support</h4>
-              <ul className="space-y-2 text-gray-400 text-sm">
-                <li><a href="#" className="hover:text-white">Contact Us</a></li>
-                <li><a href="#" className="hover:text-white">FAQ</a></li>
-                <li><a href="#" className="hover:text-white">Help</a></li>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#" className="hover:text-foreground">Contact Us</a></li>
+                <li><a href="#" className="hover:text-foreground">FAQ</a></li>
+                <li><a href="#" className="hover:text-foreground">Help</a></li>
               </ul>
             </div>
             <div>
               <h4 className="font-bold mb-4">Legal</h4>
-              <ul className="space-y-2 text-gray-400 text-sm">
-                <li><a href="#" className="hover:text-white">Privacy</a></li>
-                <li><a href="#" className="hover:text-white">Terms</a></li>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#" className="hover:text-foreground">Privacy</a></li>
+                <li><a href="#" className="hover:text-foreground">Terms</a></li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-800 pt-8 text-center text-gray-400">
+          <div className="border-t border-border pt-8 text-center text-muted-foreground">
             <p>&copy; 2024 PrepIndia. All rights reserved.</p>
           </div>
+          </Card>
         </div>
       </footer>
     </div>
