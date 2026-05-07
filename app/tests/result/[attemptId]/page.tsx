@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { TestAttempt, Test, Question } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { adaptQuestionRow, adaptTestRow, answersMatchMcq } from '@/lib/practice-mappers';
 import { formatSupabaseError } from '@/lib/utils';
 
@@ -24,6 +25,7 @@ export default function TestResultPage({
   const { attemptId } = use(params);
   const [resultData, setResultData] = useState<ResultData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchResult = async () => {
@@ -97,6 +99,7 @@ export default function TestResultPage({
         });
       } catch (error) {
         console.error('Error fetching result:', formatSupabaseError(error), error);
+        setFetchError(formatSupabaseError(error));
       } finally {
         setLoading(false);
       }
@@ -115,8 +118,8 @@ export default function TestResultPage({
 
   if (!resultData) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <p className="text-gray-600">Results not found</p>
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4 text-center">
+        <p className="text-gray-600 mb-2">{fetchError ?? 'Results not found'}</p>
       </div>
     );
   }

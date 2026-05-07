@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -27,21 +27,48 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
     answers,
     timeRemaining,
     setTimeRemaining,
-    isSubmitted,
     setIsSubmitted,
   } = useTest();
 
   const [submitting, setSubmitting] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
-  // Initialize timer
+  const speedSecRaw = test.question_time_limit_sec;
+  const speedActive =
+    typeof speedSecRaw === 'number' && speedSecRaw > 0 ? true : false;
+  const speedSec = speedActive ? Math.floor(Number(speedSecRaw)) : 0;
+  const [questionTimeLeft, setQuestionTimeLeft] = useState(-1);
+
+  const submitRef = useRef<() => Promise<void>>(async () => {});
+
+  // Overall test countdown (minutes → seconds in context)
   useEffect(() => {
     setTimeRemaining(test.duration * 60);
   }, [test.duration, setTimeRemaining]);
 
+  // Per-question speed clock (psychometric rapid items)
+  useEffect(() => {
+    if (!speedActive || !speedSec) return;
+
+    let timeoutId = 0;
+    let cancelled = false;
+    const end = Date.now() + speedSec * 1000;
+
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      setQuestionTimeLeft(left);
+      if (cancelled || left <= 0) return;
+      timeoutId = window.setTimeout(tick, 1000);
+    };
+    tick();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [speedActive, speedSec, currentQuestionIndex]);
+
   const currentQuestion = questions[currentQuestionIndex];
-  const answered = answers[currentQuestion?.id]?.userAnswer !== null && answers[currentQuestion?.id]?.userAnswer !== undefined;
-  const markedForReview = answers[currentQuestion?.id]?.isMarkedForReview || false;
 
   const answeredCount = Object.values(answers).filter(a => a.userAnswer !== null && a.userAnswer !== undefined).length;
   const markedCount = Object.values(answers).filter(a => a.isMarkedForReview).length;
@@ -71,8 +98,8 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
     router.push(`/tests/result/${localAttemptId}`);
   };
 
-  const handleSubmitTest = async () => {
-    if (!currentQuestion) return;
+  async function handleSubmitTest() {
+    if (!currentQuestion || submitting) return;
 
     setSubmitting(true);
     try {
@@ -87,6 +114,10 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
       const scorePercent = (score / questions.length) * 100;
 
       const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        saveLocalAttemptAndNavigate(scorePercent);
+        return;
+      }
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
@@ -143,7 +174,27 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
     } finally {
       setSubmitting(false);
     }
-  };
+  }
+
+  submitRef.current = handleSubmitTest;
+
+  useEffect(() => {
+    if (!speedActive || questionTimeLeft !== 0) return;
+    const run = window.setTimeout(() => {
+      if (currentQuestionIndex >= questions.length - 1) {
+        void submitRef.current();
+      } else {
+        setCurrentQuestionIndex((i) => Math.min(i + 1, questions.length - 1));
+      }
+    }, 0);
+    return () => clearTimeout(run);
+  }, [
+    questionTimeLeft,
+    speedActive,
+    currentQuestionIndex,
+    questions.length,
+    setCurrentQuestionIndex,
+  ]);
 
   if (!currentQuestion) {
     return (
@@ -157,9 +208,24 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-4 flex-wrap">
           <h1 className="text-xl font-semibold text-gray-900">{test.name}</h1>
-          <TestTimer duration={test.duration} />
+          <div className="flex items-center gap-6">
+            {speedActive && questionTimeLeft >= 0 ? (
+              <div
+                className={`text-base font-bold tabular-nums ${
+                  questionTimeLeft <= 3 ? 'text-red-600' : 'text-amber-700'
+                }`}
+                title={`About ${speedSec}s per visual item`}
+              >
+                Question: {questionTimeLeft}s
+              </div>
+            ) : null}
+            <TestTimer
+              duration={test.duration}
+              warnBelowSec={speedActive ? 90 : 300}
+            />
+          </div>
         </div>
       </div>
 
@@ -173,7 +239,7 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
                   Question {currentQuestionIndex + 1} of {questions.length}
                 </span>
                 <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded">
-                  {currentQuestion.difficulty}
+                  {speedActive ? 'Speed / visual' : currentQuestion.difficulty}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
@@ -186,7 +252,7 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
               </div>
             </div>
 
-            <QuestionDisplay question={currentQuestion} />
+            <QuestionDisplay question={currentQuestion} speedMode={speedActive} />
           </Card>
 
           {/* Navigation Buttons */}
@@ -228,14 +294,23 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
                 <span className="text-green-700">✓ Answered</span>
                 <span className="font-semibold text-gray-900">{answeredCount}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-yellow-700">⚑ Review</span>
-                <span className="font-semibold text-gray-900">{markedCount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">○ Not Visited</span>
-                <span className="font-semibold text-gray-900">{unattendedCount}</span>
-              </div>
+              {speedActive ? (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Unanswered</span>
+                  <span className="font-semibold text-gray-900">{unattendedCount}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-yellow-700">⚑ Review</span>
+                    <span className="font-semibold text-gray-900">{markedCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">○ Not Visited</span>
+                    <span className="font-semibold text-gray-900">{unattendedCount}</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="border-t border-gray-200 pt-4">

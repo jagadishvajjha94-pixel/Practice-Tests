@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 
 export default function ResendConfirmationPage() {
   const [email, setEmail] = useState('');
@@ -19,6 +20,9 @@ export default function ResendConfirmationPage() {
 
     try {
       const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
+      }
       const { error } = await supabase.auth.resendEmailConfirmation(email, {
         redirectTo: `${window.location.origin}/auth/callback`,
       });

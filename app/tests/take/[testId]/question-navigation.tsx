@@ -20,7 +20,7 @@ export default function QuestionNavigation({
   return (
     <div>
       <p className="text-xs font-semibold text-gray-700 uppercase mb-3">Questions</p>
-      <div className="grid grid-cols-5 gap-1">
+      <div className="grid grid-cols-5 gap-1 max-h-[min(60vh,560px)] overflow-y-auto pr-1">
         {questions.map((question, index) => {
           const answered = answers[question.id]?.userAnswer !== null && answers[question.id]?.userAnswer !== undefined;
           const isMarked = answers[question.id]?.isMarkedForReview;

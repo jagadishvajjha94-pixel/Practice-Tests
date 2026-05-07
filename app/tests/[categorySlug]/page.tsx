@@ -6,6 +6,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Test, TestCategory } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import {
+  isMissingPublicSupabaseConfigError,
+  isSupabasePublicEnvConfigured,
+} from '@/lib/supabase-public-env';
 import { adaptTestRow } from '@/lib/practice-mappers';
 import { formatSupabaseError } from '@/lib/utils';
 import {
@@ -35,7 +39,20 @@ export default function CategoryTestsPage({
       }
       setLoadError(null);
       try {
+        if (!isSupabasePublicEnvConfigured()) {
+          const fallbackCategory = getFallbackCategoryBySlug(categorySlug);
+          setCategory(fallbackCategory);
+          setTests(getFallbackTestsByCategorySlug(categorySlug));
+          return;
+        }
+
         const supabase = getSupabaseBrowserClient();
+        if (!supabase) {
+          const fallbackCategory = getFallbackCategoryBySlug(categorySlug);
+          setCategory(fallbackCategory);
+          setTests(getFallbackTestsByCategorySlug(categorySlug));
+          return;
+        }
         const { data: categoryData, error: categoryError } = await supabase
           .from('test_categories')
           .select('*')
@@ -93,6 +110,12 @@ export default function CategoryTestsPage({
         );
       } catch (error) {
         if (isSchemaMissingError(error)) {
+          const fallbackCategory = getFallbackCategoryBySlug(categorySlug);
+          setCategory(fallbackCategory);
+          setTests(getFallbackTestsByCategorySlug(categorySlug));
+          return;
+        }
+        if (isMissingPublicSupabaseConfigError(error)) {
           const fallbackCategory = getFallbackCategoryBySlug(categorySlug);
           setCategory(fallbackCategory);
           setTests(getFallbackTestsByCategorySlug(categorySlug));

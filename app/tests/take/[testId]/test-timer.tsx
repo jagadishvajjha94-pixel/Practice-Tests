@@ -5,9 +5,11 @@ import { useTest } from './test-context';
 
 interface TestTimerProps {
   duration: number;
+  /** Seconds remaining at which countdown turns amber/red (default ~5 min tests: 300) */
+  warnBelowSec?: number;
 }
 
-export default function TestTimer({ duration }: TestTimerProps) {
+export default function TestTimer({ duration, warnBelowSec = 300 }: TestTimerProps) {
   const { timeRemaining, setTimeRemaining } = useTest();
 
   useEffect(() => {
@@ -29,10 +31,13 @@ export default function TestTimer({ duration }: TestTimerProps) {
 
   const minutes = Math.floor(timeRemaining / 60);
   const seconds = timeRemaining % 60;
-  const isLowTime = timeRemaining < 300; // Less than 5 minutes
+  const isLowTime = timeRemaining < warnBelowSec;
 
   return (
-    <div className={`text-lg font-semibold ${isLowTime ? 'text-red-600' : 'text-gray-900'}`}>
+    <div
+      title="Total test time"
+      className={`text-lg font-semibold tabular-nums ${isLowTime ? 'text-red-600' : 'text-gray-900'}`}
+    >
       ⏱ {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
     </div>
   );

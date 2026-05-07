@@ -51,6 +51,8 @@ export interface Test {
   is_paid: boolean;
   created_at: string;
   updated_at: string;
+  /** If set, each question has this many seconds (speed / cognitive-style tests). */
+  question_time_limit_sec?: number | null;
 }
 
 export interface TestQuestion {

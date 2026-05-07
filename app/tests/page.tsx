@@ -28,7 +28,7 @@ export default function TestsPage() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-2">{category.name}</h2>
                 <p className="text-sm text-gray-600">
                   {category.id === 'psychometric'
-                    ? 'Understand personality patterns, consistency, and behavioral preferences.'
+                    ? 'Quick visual and pattern drills — think fast in seconds per item, not long reading.'
                     : 'Practice mock interviews, communication drills, and resume review in SWARX.'}
                 </p>
                 <div className="mt-4 text-blue-600 text-sm font-medium">

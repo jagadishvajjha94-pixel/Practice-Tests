@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Question, TestCategory } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 
 export default function QuestionsManagementPage() {
   const router = useRouter();
@@ -19,6 +20,7 @@ export default function QuestionsManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
   const [formData, setFormData] = useState({
     question_text: '',
     category_id: '',
@@ -32,6 +34,12 @@ export default function QuestionsManagementPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const supabase = getSupabaseBrowserClient();
+        if (!supabase) {
+          setSupabaseEnvMissing(true);
+          setLoading(false);
+          return;
+        }
         const { data: { user } } = await supabase.auth.getUser();
 
         if (!user) {
@@ -138,6 +146,10 @@ export default function QuestionsManagementPage() {
 
     try {
       const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        alert(SUPABASE_PUBLIC_ENV_MESSAGE);
+        return;
+      }
       const { error } = await supabase.from('questions').insert({
         question_text: formData.question_text,
         category_id: formData.category_id,
@@ -184,6 +196,14 @@ export default function QuestionsManagementPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-gray-600">Loading...</p>
+      </div>
+    );
+  }
+
+  if (supabaseEnvMissing) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <p className="text-gray-600 text-center max-w-lg">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
       </div>
     );
   }

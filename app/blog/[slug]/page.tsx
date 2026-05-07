@@ -23,6 +23,10 @@ export default function BlogPostPage({
     const fetchPost = async () => {
       try {
         const supabase = getSupabaseBrowserClient();
+        if (!supabase) {
+          setLoading(false);
+          return;
+        }
         const { data, error } = await supabase
           .from('blog_posts')
           .select('*')

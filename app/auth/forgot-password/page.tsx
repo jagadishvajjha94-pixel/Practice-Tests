@@ -6,14 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
-
-function isConfiguredValue(v: string | undefined) {
-  if (!v) return false;
-  const trimmed = v.trim();
-  if (!trimmed) return false;
-  if (trimmed.includes('YOUR_')) return false;
-  return true;
-}
+import {
+  isSupabasePublicEnvConfigured,
+  SUPABASE_PUBLIC_ENV_MESSAGE,
+} from '@/lib/supabase-public-env';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -21,10 +17,7 @@ export default function ForgotPasswordPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const isSupabaseConfigured =
-    isConfiguredValue(supabaseUrl) && isConfiguredValue(supabaseAnonKey);
+  const isSupabaseConfigured = isSupabasePublicEnvConfigured();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -32,15 +25,16 @@ export default function ForgotPasswordPage() {
     setMessage(null);
 
     if (!isSupabaseConfigured) {
-      setError(
-        'Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
-      );
+      setError(SUPABASE_PUBLIC_ENV_MESSAGE);
       return;
     }
 
     setLoading(true);
     try {
       const supabase = createSupabaseBrowserClient();
+      if (!supabase) {
+        throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
+      }
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email,
         {

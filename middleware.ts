@@ -1,5 +1,10 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import {
+  getPublicSupabaseAnonKey,
+  getPublicSupabaseUrl,
+  isSupabasePublicEnvConfigured,
+} from '@/lib/supabase-public-env'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -8,19 +13,13 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const isConfigured =
-    !!supabaseUrl &&
-    !!supabaseAnonKey &&
-    supabaseUrl.includes('.supabase.co') &&
-    !supabaseUrl.includes('YOUR_') &&
-    !supabaseAnonKey.includes('YOUR_')
-
-  // In local/dev, avoid crashing middleware when Supabase env is not configured yet.
-  if (!isConfigured) {
+  // Avoid crashing when Supabase env is missing, whitespace-only, or still set to template placeholders.
+  if (!isSupabasePublicEnvConfigured()) {
     return response
   }
+
+  const supabaseUrl = getPublicSupabaseUrl()!
+  const supabaseAnonKey = getPublicSupabaseAnonKey()!
 
   const supabase = createServerClient(
     supabaseUrl,
@@ -31,7 +30,10 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          response = NextResponse.next()
+          // Must forward request headers so refreshed auth cookies apply to this request (Supabase SSR + Vercel).
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          })
           response.cookies.set({
             name,
             value,
@@ -39,7 +41,9 @@ export async function middleware(request: NextRequest) {
           })
         },
         remove(name: string, options: CookieOptions) {
-          response = NextResponse.next()
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          })
           response.cookies.delete({
             name,
             ...options,

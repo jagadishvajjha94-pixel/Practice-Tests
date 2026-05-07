@@ -31,6 +31,16 @@ export default function TakeTestPage({
     const fetchTest = async () => {
       try {
         const supabase = getSupabaseBrowserClient();
+        if (!supabase) {
+          const fallbackTest = getFallbackTestById(testId);
+          const fallbackQuestions = getFallbackQuestionsByTestId(testId);
+          if (fallbackTest && fallbackQuestions.length > 0) {
+            setTest(fallbackTest);
+            setQuestions(fallbackQuestions);
+          }
+          setLoading(false);
+          return;
+        }
         // Fetch test details
         const { data: testData, error: testError } = await supabase
           .from('tests')
@@ -133,8 +143,31 @@ export default function TakeTestPage({
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <p className="text-sm text-blue-900">
-              <strong>Instructions:</strong> {test.description || 'Answer all questions within the given time limit. You can review your answers before submission.'}
+              <strong>Instructions:</strong>{' '}
+              {test.question_time_limit_sec ? (
+                <>
+                  <span className="block mb-2">
+                    Each question runs on a short timer (about {test.question_time_limit_sec} seconds).
+                    Use quick, instinctive answers — minimal reading. Time running out skips to the next item
+                    (last item auto-finishes); you can still use Previous / Next.
+                  </span>
+                  {test.description ? (
+                    <span className="block opacity-95">{test.description}</span>
+                  ) : null}
+                </>
+              ) : (
+                test.description ||
+                'Answer all questions within the given time limit. You can review your answers before submission.'
+              )}
             </p>
+            {test.id.startsWith('fallback-psychometric') ? (
+              <p className="text-xs text-blue-900/90 mt-3 leading-relaxed">
+                This paper draws <strong>200 different</strong> visual/pattern items per session from a large
+                bank (about 128k variants). Your set does not repeat inside the 30 minutes; other candidates
+                normally get a different mix. For a fresh draw on the same device, open a new browser tab in
+                incognito/private mode (or clear session storage for this site) before starting.
+              </p>
+            ) : null}
           </div>
 
           <Button

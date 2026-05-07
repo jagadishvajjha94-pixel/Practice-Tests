@@ -34,7 +34,7 @@ export const PRICING_PLANS = {
 };
 
 export const TEST_CATEGORIES = [
-  { id: 'psychometric', name: 'Psychometric Tests', icon: '🎭' },
+  { id: 'psychometric', name: 'Psychometric Tests', icon: '🧠' },
   { id: 'swarx', name: 'SWARX Communication', icon: '🗣️' },
 ];
 

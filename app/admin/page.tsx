@@ -6,11 +6,13 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 
 export default function AdminPage() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalTests: 0,
@@ -22,6 +24,11 @@ export default function AdminPage() {
     const checkAdminAccess = async () => {
       try {
         const supabase = getSupabaseBrowserClient();
+        if (!supabase) {
+          setSupabaseEnvMissing(true);
+          setLoading(false);
+          return;
+        }
         const { data: { user } } = await supabase.auth.getUser();
 
         if (!user) {
@@ -76,6 +83,14 @@ export default function AdminPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-gray-600">Loading admin panel...</p>
+      </div>
+    );
+  }
+
+  if (supabaseEnvMissing) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <p className="text-gray-600 text-center max-w-lg">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
       </div>
     );
   }

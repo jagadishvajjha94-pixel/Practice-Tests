@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { User, TestAttempt } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { adaptQuestionRow, answersMatchMcq } from '@/lib/practice-mappers';
 import { formatSupabaseError } from '@/lib/utils';
 import { jsPDF } from 'jspdf';
@@ -59,11 +61,17 @@ export default function UsersManagementPage() {
   const [reportLoadingUserId, setReportLoadingUserId] = useState<string | null>(null);
   const [selectedReport, setSelectedReport] = useState<StudentReport | null>(null);
   const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
+  const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const supabase = getSupabaseBrowserClient();
+        if (!supabase) {
+          setSupabaseEnvMissing(true);
+          setLoading(false);
+          return;
+        }
         const { data: { user: authUser } } = await supabase.auth.getUser();
 
         if (!authUser) {
@@ -110,7 +118,7 @@ export default function UsersManagementPage() {
   const activeUsers = users.length;
 
   const getAttemptQuestions = async (
-    supabase: ReturnType<typeof getSupabaseBrowserClient>,
+    supabase: SupabaseClient,
     attempt: AttemptRow
   ) => {
     const testId = String(attempt.test_id ?? '');
@@ -142,6 +150,9 @@ export default function UsersManagementPage() {
 
   const buildStudentReport = async (student: User): Promise<StudentReport> => {
     const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
+    }
     const { data: attemptsData, error: attemptsError } = await supabase
       .from('test_attempts')
       .select('*, test:tests(*)')
@@ -341,6 +352,14 @@ export default function UsersManagementPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-gray-600">Loading...</p>
+      </div>
+    );
+  }
+
+  if (supabaseEnvMissing) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <p className="text-gray-600 text-center max-w-lg">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
       </div>
     );
   }

@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { User, TestAttempt, Test } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { formatSupabaseError } from '@/lib/utils';
 
 type DashboardAttempt = TestAttempt & { test: Test };
@@ -47,11 +48,19 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [attempts, setAttempts] = useState<DashboardAttempt[]>([]);
   const [loading, setLoading] = useState(true);
+  const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         const supabase = getSupabaseBrowserClient();
+        if (!supabase) {
+          console.warn(SUPABASE_PUBLIC_ENV_MESSAGE);
+          setSupabaseEnvMissing(true);
+          setAttempts(getLocalAttempts());
+          setLoading(false);
+          return;
+        }
         const { data: { user: authUser } } = await supabase.auth.getUser();
 
         if (!authUser) {
@@ -177,6 +186,22 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-gray-600">Loading dashboard...</p>
+      </div>
+    );
+  }
+
+  if (supabaseEnvMissing) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+        <Card className="max-w-lg p-6">
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Supabase is not configured</h1>
+          <p className="text-gray-600 text-sm mb-4">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
+          {attempts.length > 0 && (
+            <p className="text-sm text-gray-700">
+              Showing {attempts.length} practice result(s) saved in this browser only.
+            </p>
+          )}
+        </Card>
       </div>
     );
   }

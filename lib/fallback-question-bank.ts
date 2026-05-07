@@ -1,68 +1,68 @@
 import type { Question, Test, TestCategory } from '@/lib/types';
+import {
+  hashStringToSeed,
+  PSYCHOMETRIC_POOL_SIZE,
+  psychometricQuestionFromIndex,
+  sampleUniqueIndices,
+} from '@/lib/psychometric-question-gen';
 
 const now = new Date().toISOString();
-const QUESTIONS_PER_ATTEMPT = 15;
+
+/** Fallback psychometric: 30 min, 200 unique items sampled from ~128k pool */
+export const PSYCHOMETRIC_FALLBACK_QUESTION_COUNT = 200;
+
+/** sessionStorage — one randomized question set per test per browser tab session */
+const PAPER_STORAGE_PREFIX = 'prepIndiaPsychPaper:v2:';
 
 const categories: TestCategory[] = [
-  { id: '1', name: 'Psychometric Prep', slug: 'psychometric', description: 'Personality and behavioral style questions', icon: '🎭', order: 1, created_at: now },
+  {
+    id: '1',
+    name: 'Psychometric Prep',
+    slug: 'psychometric',
+    description:
+      `Full paper: ${PSYCHOMETRIC_FALLBACK_QUESTION_COUNT} visual / pattern MCQs in 30 minutes. Each candidate gets a different draw from the same large pool.`,
+    icon: '🧠',
+    order: 1,
+    created_at: now,
+  },
 ];
 
 const tests: Test[] = [
-  { id: 'fallback-psychometric-1', name: 'Psychometric Practice Set', category_id: '1', duration: 20, total_questions: 5, passing_score: null, description: 'Behavior and preference style questions', difficulty_level: 'easy', is_paid: false, created_at: now, updated_at: now },
-];
-
-function mcq(id: string, text: string, a: string, b: string, c: string, d: string, correct: string): Question {
-  return {
-    id,
-    category_id: '',
-    difficulty: 'easy',
-    question_text: text,
-    type: 'MCQ',
-    options: null,
-    correct_answer: correct,
-    explanation: null,
-    tags: null,
+  {
+    id: 'fallback-psychometric-1',
+    name: 'Psychometric — full paper (patterns & visuals)',
+    category_id: '1',
+    duration: 30,
+    total_questions: PSYCHOMETRIC_FALLBACK_QUESTION_COUNT,
+    passing_score: null,
+    description:
+      '200 picture-style reasoning items—sequences, rotations, grids, parity, counting. Total time 30 minutes. Your 200 questions are drawn once per session from ~128 000 variants (no repeats within your paper); other candidates receive different mixes.',
+    difficulty_level: 'medium',
+    is_paid: false,
     created_at: now,
     updated_at: now,
-    question_type: 'mcq',
-    option_a: a,
-    option_b: b,
-    option_c: c,
-    option_d: d,
-  };
-}
+  },
+];
 
-function randShuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+/** Stable UUID per psychometric sitting; avoids reshuffling mid-attempt on refresh */
+export function ensurePsychometricPaperId(testId: string): string {
+  const key = `${PAPER_STORAGE_PREFIX}${testId}`;
+  if (typeof window === 'undefined') {
+    return `ssr-placeholder-${testId}`;
   }
-  return a;
+  let id = sessionStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem(key, id);
+  }
+  return id;
 }
 
-function buildPsychometricPool(): Question[] {
-  const prompts = [
-    'Best response strategy in psychometric tests is:',
-    'Psychometric tests are mainly used to assess:',
-    'Consistency in psychometric answers indicates:',
-  ];
-  return Array.from({ length: 35 }, (_, i) =>
-    mcq(
-      `q-ps-${i + 1}`,
-      prompts[i % prompts.length],
-      'Random choice every time',
-      'Honest and consistent preference',
-      'Always choose extreme options',
-      'Skip uncertain items',
-      'B'
-    )
-  );
+/** Start a completely new randomly drawn deck (e.g. new candidate on same browser) */
+export function resetPsychometricPaperSession(testId: string): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem(`${PAPER_STORAGE_PREFIX}${testId}`);
 }
-
-const questionsByTestId: Record<string, Question[]> = {
-  'fallback-psychometric-1': buildPsychometricPool(),
-};
 
 export function isSchemaMissingError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -85,26 +85,21 @@ export function getFallbackTestById(testId: string): Test | null {
 }
 
 export function getFallbackQuestionsByTestId(testId: string): Question[] {
-  const pool = questionsByTestId[testId] ?? [];
-  if (pool.length <= QUESTIONS_PER_ATTEMPT) return pool;
+  if (testId !== 'fallback-psychometric-1') return [];
 
-  if (typeof window === 'undefined') {
-    return randShuffle(pool).slice(0, QUESTIONS_PER_ATTEMPT);
-  }
+  const paperId = ensurePsychometricPaperId(testId);
+  const seed = hashStringToSeed(`${paperId}║${testId}`);
+  const indices = sampleUniqueIndices(
+    seed,
+    PSYCHOMETRIC_FALLBACK_QUESTION_COUNT,
+    PSYCHOMETRIC_POOL_SIZE
+  );
 
-  const seenKey = `fallbackSeen:${testId}`;
-  const seenRaw = window.localStorage.getItem(seenKey);
-  const seen = new Set<string>(seenRaw ? (JSON.parse(seenRaw) as string[]) : []);
-
-  let unseen = pool.filter((q) => !seen.has(q.id));
-  if (unseen.length < QUESTIONS_PER_ATTEMPT) {
-    seen.clear();
-    unseen = [...pool];
-  }
-
-  const selected = randShuffle(unseen).slice(0, QUESTIONS_PER_ATTEMPT);
-  for (const q of selected) seen.add(q.id);
-  window.localStorage.setItem(seenKey, JSON.stringify(Array.from(seen)));
-
-  return selected;
+  return indices.map((globalIdx, slot) => {
+    const row = psychometricQuestionFromIndex(globalIdx);
+    return {
+      ...row,
+      id: `ps:${paperId.slice(0, 8)}:${slot}:${globalIdx}`,
+    };
+  });
 }

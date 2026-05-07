@@ -8,6 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import {
+  isSupabasePublicEnvConfigured,
+  SUPABASE_PUBLIC_ENV_MESSAGE,
+} from '@/lib/supabase-public-env';
+import {
   DEMO_ADMIN_EMAIL,
   DEMO_PASSWORD,
   DEMO_SWARX_EMAIL,
@@ -18,19 +22,9 @@ const showDemoLogin =
   process.env.NODE_ENV === 'development' ||
   process.env.NEXT_PUBLIC_SHOW_DEMO_LOGIN === 'true';
 
-function isConfiguredValue(v: string | undefined) {
-  if (!v) return false;
-  const trimmed = v.trim();
-  if (!trimmed) return false;
-  if (trimmed.includes('YOUR_')) return false;
-  return true;
-}
-
 export default function LoginPage() {
   const router = useRouter();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const isSupabaseConfigured = isConfiguredValue(supabaseUrl) && isConfiguredValue(supabaseAnonKey);
+  const isSupabaseConfigured = isSupabasePublicEnvConfigured();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -42,6 +36,9 @@ export default function LoginPage() {
 
   const signInWithEmailPassword = async (email: string, password: string) => {
     const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
+    }
     const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -65,9 +62,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     if (!isSupabaseConfigured) {
-      setError(
-        'Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (local: .env.local, production: Vercel Environment Variables).'
-      );
+      setError(SUPABASE_PUBLIC_ENV_MESSAGE);
       return;
     }
     setLoading(true);
@@ -134,9 +129,7 @@ export default function LoginPage() {
           )}
           {!isSupabaseConfigured && !error && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
-              Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-              in `.env.local` (local) or in Vercel Environment Variables (production)
-              to enable sign in.
+              {SUPABASE_PUBLIC_ENV_MESSAGE}
             </div>
           )}
 

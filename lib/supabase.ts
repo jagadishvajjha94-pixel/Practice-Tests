@@ -1,21 +1,42 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import {
+  getPublicSupabaseAnonKey,
+  getPublicSupabaseUrl,
+  SUPABASE_PUBLIC_ENV_MESSAGE,
+} from './supabase-public-env';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+let _client: SupabaseClient | undefined;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
+function getClient(): SupabaseClient {
+  if (_client) return _client;
+  const url = getPublicSupabaseUrl();
+  const key = getPublicSupabaseAnonKey();
+  if (!url || !key) {
+    throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
+  }
+  _client = createClient(url, key);
+  return _client;
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+/** Lazy Supabase client — safe to import without env at module load time */
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop, receiver) {
+    const c = getClient();
+    const value = Reflect.get(c, prop, receiver);
+    if (typeof value === 'function') {
+      return value.bind(c);
+    }
+    return value;
+  },
+});
 
 export async function getCurrentUser() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await getClient().auth.getUser();
   return user;
 }
 
 export async function getUserProfile(userId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from('users')
     .select('*')
     .eq('id', userId)
@@ -26,7 +47,7 @@ export async function getUserProfile(userId: string) {
 }
 
 export async function updateUserProfile(userId: string, updates: Record<string, any>) {
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from('users')
     .update(updates)
     .eq('id', userId)
@@ -38,6 +59,6 @@ export async function updateUserProfile(userId: string, updates: Record<string, 
 }
 
 export async function signOut() {
-  const { error } = await supabase.auth.signOut();
+  const { error } = await getClient().auth.signOut();
   if (error) throw error;
 }

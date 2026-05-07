@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { User } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -18,11 +19,17 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [envMissing, setEnvMissing] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
       try {
         const supabase = getSupabaseBrowserClient();
+        if (!supabase) {
+          setEnvMissing(true);
+          setLoading(false);
+          return;
+        }
         const { data: { user: authUser } } = await supabase.auth.getUser();
 
         if (!authUser) {
@@ -66,6 +73,10 @@ export default function ProfilePage() {
 
     try {
       const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        setMessage({ type: 'error', text: SUPABASE_PUBLIC_ENV_MESSAGE });
+        return;
+      }
       const { error } = await supabase
         .from('users')
         .update(formData)
@@ -89,6 +100,14 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-gray-600">Loading profile...</p>
+      </div>
+    );
+  }
+
+  if (envMissing) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <p className="text-gray-600 text-center max-w-md">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
       </div>
     );
   }

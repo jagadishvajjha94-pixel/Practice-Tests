@@ -22,6 +22,10 @@ export function adaptTestRow(row: Record<string, unknown>): Test {
     | 'medium'
     | 'hard';
 
+  const qLimit = row.question_time_limit_sec ?? row.question_time_seconds;
+  const question_time_limit_sec =
+    qLimit != null && !Number.isNaN(Number(qLimit)) ? Number(qLimit) : null;
+
   return {
     id: String(row.id),
     name: title,
@@ -34,6 +38,7 @@ export function adaptTestRow(row: Record<string, unknown>): Test {
     is_paid: Boolean(row.is_paid ?? false),
     created_at: (row.created_at as string | undefined) ?? new Date().toISOString(),
     updated_at: (row.updated_at as string | undefined) ?? new Date().toISOString(),
+    question_time_limit_sec,
   };
 }
 
