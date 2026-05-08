@@ -110,16 +110,16 @@ export default function TestResultPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <p className="text-gray-600">Loading results...</p>
+      <div className="exam-mode min-h-screen bg-white text-gray-900 flex items-center justify-center">
+        <p className="text-gray-700">Loading results...</p>
       </div>
     );
   }
 
   if (!resultData) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4 text-center">
-        <p className="text-gray-600 mb-2">{fetchError ?? 'Results not found'}</p>
+      <div className="exam-mode min-h-screen bg-white text-gray-900 flex flex-col items-center justify-center px-4 text-center">
+        <p className="text-gray-700 mb-2">{fetchError ?? 'Results not found'}</p>
       </div>
     );
   }
@@ -143,7 +143,7 @@ export default function TestResultPage({
   const isPassed = percentage >= (test.passing_score || 40);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white py-12">
+    <div className="exam-mode min-h-screen bg-white text-gray-900 py-12">
       <div className="max-w-4xl mx-auto px-4">
         {/* Result Header */}
         <div className="text-center mb-8">
@@ -153,33 +153,33 @@ export default function TestResultPage({
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             {isPassed ? '🎉 Congratulations!' : 'Result'}
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-700">
             {isPassed ? 'You passed the test!' : 'Keep practicing to improve your score'}
           </p>
         </div>
 
         {/* Score Cards */}
         <div className="grid md:grid-cols-4 gap-4 mb-8">
-          <Card className="p-6 text-center">
+          <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <div className="text-2xl font-bold text-blue-600 mb-2">{correctCount}</div>
-            <p className="text-gray-600 text-sm">Correct Answers</p>
+            <p className="text-gray-700 text-sm">Correct Answers</p>
           </Card>
-          <Card className="p-6 text-center">
+          <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <div className="text-2xl font-bold text-orange-600 mb-2">{questions.length - correctCount}</div>
-            <p className="text-gray-600 text-sm">Incorrect Answers</p>
+            <p className="text-gray-700 text-sm">Incorrect Answers</p>
           </Card>
-          <Card className="p-6 text-center">
+          <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <div className="text-2xl font-bold text-purple-600 mb-2">{questions.length - answeredCount}</div>
-            <p className="text-gray-600 text-sm">Unanswered</p>
+            <p className="text-gray-700 text-sm">Unanswered</p>
           </Card>
-          <Card className="p-6 text-center">
+          <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <div className="text-2xl font-bold text-green-600 mb-2">{attempt.time_taken ? Math.floor(attempt.time_taken / 60) : 0}m</div>
-            <p className="text-gray-600 text-sm">Time Taken</p>
+            <p className="text-gray-700 text-sm">Time Taken</p>
           </Card>
         </div>
 
         {/* Detailed Answers */}
-        <Card className="p-6 mb-8">
+        <Card className="p-6 mb-8 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Detailed Answers</h2>
 
           <div className="space-y-6">
@@ -221,7 +221,7 @@ export default function TestResultPage({
         {/* Action Buttons */}
         <div className="flex gap-4 justify-center">
           <Link href="/dashboard">
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white px-8">
+            <Button className="px-8">
               Go to Dashboard
             </Button>
           </Link>
