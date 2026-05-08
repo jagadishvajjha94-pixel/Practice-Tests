@@ -111,7 +111,11 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
           <Button
             onClick={() => markForReview(question.id, !isMarked)}
             variant="outline"
-            className="flex-1"
+            className={`flex-1 font-semibold ${
+              isMarked
+                ? 'border-yellow-500 bg-yellow-300 text-yellow-950 hover:bg-yellow-300'
+                : 'border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200'
+            }`}
           >
             {isMarked ? '⚑ Marked for Review' : '○ Mark for Review'}
           </Button>

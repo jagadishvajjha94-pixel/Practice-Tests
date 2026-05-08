@@ -123,20 +123,20 @@ export default function TakeTestPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <p className="text-gray-600">Loading test...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Loading test...</p>
       </div>
     );
   }
 
   if (!test) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <Card className="p-8 text-center max-w-md">
-          <p className="text-gray-600 mb-4">Test not found</p>
+          <p className="text-muted-foreground mb-4">Test not found</p>
           <Button
             onClick={() => router.back()}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="w-full"
           >
             Go Back
           </Button>
@@ -147,27 +147,27 @@ export default function TakeTestPage({
 
   if (!testStarted) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <Card className="max-w-md w-full p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">{test.name}</h1>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="max-w-md w-full p-8 border-white/25 bg-white/10 backdrop-blur-2xl">
+          <h1 className="text-2xl font-bold lux-heading mb-4">{test.name}</h1>
           
-          <div className="space-y-4 mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="space-y-4 mb-6 p-4 bg-white/10 border border-white/20 rounded-lg">
             <div className="flex justify-between">
-              <span className="text-gray-600">Questions:</span>
-              <span className="font-semibold text-gray-900">{test.total_questions}</span>
+              <span className="text-muted-foreground">Questions:</span>
+              <span className="font-semibold text-foreground">{test.total_questions}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Duration:</span>
-              <span className="font-semibold text-gray-900">{test.duration} minutes</span>
+              <span className="text-muted-foreground">Duration:</span>
+              <span className="font-semibold text-foreground">{test.duration} minutes</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Difficulty:</span>
-              <span className="font-semibold text-gray-900 capitalize">{test.difficulty_level}</span>
+              <span className="text-muted-foreground">Difficulty:</span>
+              <span className="font-semibold text-foreground capitalize">{test.difficulty_level}</span>
             </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-blue-900">
+          <div className="bg-black/20 border border-white/20 rounded-lg p-4 mb-6">
+            <p className="text-sm text-violet-100">
               <strong>Instructions:</strong>{' '}
               {test.question_time_limit_sec ? (
                 <>
@@ -177,7 +177,7 @@ export default function TakeTestPage({
                     (last item auto-finishes); you can still use Previous / Next.
                   </span>
                   {test.description ? (
-                    <span className="block opacity-95">{test.description}</span>
+                    <span className="block opacity-95 text-violet-100/85">{test.description}</span>
                   ) : null}
                 </>
               ) : (
@@ -186,7 +186,7 @@ export default function TakeTestPage({
               )}
             </p>
             {test.id.startsWith('fallback-psychometric') ? (
-              <p className="text-xs text-blue-900/90 mt-3 leading-relaxed">
+              <p className="text-xs text-violet-100/85 mt-3 leading-relaxed">
                 This paper draws <strong>200 different</strong> visual/pattern items per session from a large
                 bank (about 128k variants). Your set does not repeat inside the 30 minutes; other candidates
                 normally get a different mix. For a fresh draw on the same device, open a new browser tab in
@@ -197,7 +197,7 @@ export default function TakeTestPage({
 
           <Button
             onClick={() => setTestStarted(true)}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white mb-2"
+            className="w-full mb-2"
           >
             Start Test
           </Button>

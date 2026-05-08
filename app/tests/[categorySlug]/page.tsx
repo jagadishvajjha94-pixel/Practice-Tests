@@ -136,16 +136,16 @@ export default function CategoryTestsPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <p className="text-gray-600">Loading tests...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Loading tests...</p>
       </div>
     );
   }
 
   if (!category) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4 px-4">
-        <p className="text-gray-900 font-medium">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-4">
+        <p className="text-foreground font-medium">
           {loadError
             ? 'Could not load this category'
             : categorySlug !== 'psychometric'
@@ -153,9 +153,9 @@ export default function CategoryTestsPage({
               : 'Category not found'}
         </p>
         {loadError && (
-          <p className="text-sm text-red-600 max-w-lg text-center">{loadError}</p>
+          <p className="text-sm text-red-300 max-w-lg text-center">{loadError}</p>
         )}
-        <Link href="/tests" className="text-blue-600 hover:text-blue-700">
+        <Link href="/tests" className="text-violet-200 hover:text-white">
           Back to categories
         </Link>
       </div>
@@ -163,24 +163,24 @@ export default function CategoryTestsPage({
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       {loadError ? (
         <div className="max-w-6xl mx-auto px-4 pt-8">
-          <p className="text-sm text-red-600 rounded-md border border-red-100 bg-red-50 px-4 py-3">
+          <p className="text-sm text-red-100 rounded-md border border-red-300/40 bg-red-500/15 px-4 py-3">
             {loadError}
           </p>
         </div>
       ) : null}
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-12">
+      <div className="py-12 border-b border-white/15 bg-black/20 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex items-center gap-4 mb-4">
             <span className="text-4xl">{category.icon}</span>
             <div>
-              <h1 className="text-4xl font-bold">{category.name}</h1>
+              <h1 className="text-4xl font-bold lux-heading">{category.name}</h1>
             </div>
           </div>
-          <p className="text-blue-100 text-lg">{category.description}</p>
+          <p className="text-muted-foreground text-lg">{category.description}</p>
         </div>
       </div>
 
@@ -188,33 +188,33 @@ export default function CategoryTestsPage({
       <div className="max-w-6xl mx-auto px-4 py-12">
         {tests.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-600 mb-4">No tests available in this category yet.</p>
-            <Link href="/tests" className="text-blue-600 hover:text-blue-700">
+            <p className="text-muted-foreground mb-4">No tests available in this category yet.</p>
+            <Link href="/tests" className="text-violet-200 hover:text-white">
               Back to categories
             </Link>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 gap-6">
             {tests.map((test) => (
-              <Card key={test.id} className="p-6">
+              <Card key={test.id} className="p-6 hover:-translate-y-1 hover:border-white/30 transition-all duration-300">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">{test.name}</h2>
-                    <p className="text-sm text-gray-600 mt-1">{test.description}</p>
+                    <h2 className="text-xl font-semibold text-foreground">{test.name}</h2>
+                    <p className="text-sm text-muted-foreground mt-1">{test.description}</p>
                   </div>
-                  <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                  <span className="px-3 py-1 bg-white/10 text-violet-100 text-xs font-medium rounded-full border border-white/20">
                     {test.difficulty_level}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-6 py-4 border-y border-gray-200">
+                <div className="grid grid-cols-2 gap-4 mb-6 py-4 border-y border-white/15">
                   <div>
-                    <p className="text-sm text-gray-600">Questions</p>
-                    <p className="text-lg font-semibold text-gray-900">{test.total_questions}</p>
+                    <p className="text-sm text-muted-foreground">Questions</p>
+                    <p className="text-lg font-semibold text-foreground">{test.total_questions}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Duration</p>
-                    <p className="text-lg font-semibold text-gray-900">{test.duration} min</p>
+                    <p className="text-sm text-muted-foreground">Duration</p>
+                    <p className="text-lg font-semibold text-foreground">{test.duration} min</p>
                   </div>
                 </div>
 

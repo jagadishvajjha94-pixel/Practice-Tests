@@ -193,20 +193,20 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Loading dashboard...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Loading dashboard...</p>
       </div>
     );
   }
 
   if (supabaseEnvMissing) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+      <div className="min-h-screen flex flex-col items-center justify-center px-4">
         <Card className="max-w-lg p-6">
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">Supabase is not configured</h1>
-          <p className="text-gray-600 text-sm mb-4">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
+          <h1 className="text-xl font-semibold text-foreground mb-2">Supabase is not configured</h1>
+          <p className="text-muted-foreground text-sm mb-4">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
           {attempts.length > 0 && (
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-muted-foreground">
               Showing {attempts.length} practice result(s) saved in this browser only.
             </p>
           )}
@@ -217,21 +217,21 @@ export default function DashboardPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Unable to load user data</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Unable to load user data</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="border-b border-white/15 bg-black/20 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-gray-600 mt-1">Welcome back, {user.full_name || user.email}</p>
+              <h1 className="text-3xl font-bold lux-heading">Dashboard</h1>
+              <p className="text-muted-foreground mt-1">Welcome back, {user.full_name || user.email}</p>
             </div>
             {isAdminUser ? (
               <Link href="/admin">
@@ -253,18 +253,18 @@ export default function DashboardPage() {
         {/* Stats Cards */}
         <div className="grid md:grid-cols-4 gap-4 mb-8">
           <Card className="p-6">
-            <div className="text-gray-600 text-sm font-medium mb-2">Tests Attempted</div>
-            <div className="text-3xl font-bold text-blue-600">{attempts.length}</div>
+            <div className="text-muted-foreground text-sm font-medium mb-2">Tests Attempted</div>
+            <div className="text-3xl font-bold text-cyan-300">{attempts.length}</div>
           </Card>
           <Card className="p-6">
-            <div className="text-gray-600 text-sm font-medium mb-2">Completed Tests</div>
-            <div className="text-3xl font-bold text-indigo-600">
+            <div className="text-muted-foreground text-sm font-medium mb-2">Completed Tests</div>
+            <div className="text-3xl font-bold text-violet-300">
               {attempts.filter((a) => a.status === 'completed').length}
             </div>
           </Card>
           <Card className="p-6">
-            <div className="text-gray-600 text-sm font-medium mb-2">Average Score</div>
-            <div className="text-3xl font-bold text-green-600">
+            <div className="text-muted-foreground text-sm font-medium mb-2">Average Score</div>
+            <div className="text-3xl font-bold text-emerald-300">
               {attempts.length > 0
                 ? Math.round(
                     attempts.reduce((sum, a) => sum + (a.score || 0), 0) / attempts.length
@@ -274,8 +274,8 @@ export default function DashboardPage() {
             </div>
           </Card>
           <Card className="p-6">
-            <div className="text-gray-600 text-sm font-medium mb-2">Best Score</div>
-            <div className="text-3xl font-bold text-purple-600">
+            <div className="text-muted-foreground text-sm font-medium mb-2">Best Score</div>
+            <div className="text-3xl font-bold text-fuchsia-300">
               {attempts.length > 0 ? Math.max(...attempts.map(a => a.score || 0)) : 0}%
             </div>
           </Card>
@@ -283,23 +283,23 @@ export default function DashboardPage() {
 
         {/* Profile Section */}
         <Card className="p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Profile Information</h2>
+          <h2 className="text-xl font-semibold text-foreground mb-4">Profile Information</h2>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Email</p>
-              <p className="font-semibold text-gray-900">{user.email}</p>
+              <p className="text-sm text-muted-foreground mb-1">Email</p>
+              <p className="font-semibold text-foreground">{user.email}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600 mb-1">Full Name</p>
-              <p className="font-semibold text-gray-900">{user.full_name || 'Not set'}</p>
+              <p className="text-sm text-muted-foreground mb-1">Full Name</p>
+              <p className="font-semibold text-foreground">{user.full_name || 'Not set'}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600 mb-1">Phone</p>
-              <p className="font-semibold text-gray-900">{user.phone || 'Not set'}</p>
+              <p className="text-sm text-muted-foreground mb-1">Phone</p>
+              <p className="font-semibold text-foreground">{user.phone || 'Not set'}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600 mb-1">Joined</p>
-              <p className="font-semibold text-gray-900">
+              <p className="text-sm text-muted-foreground mb-1">Joined</p>
+              <p className="font-semibold text-foreground">
                 {new Date(user.created_at).toLocaleDateString()}
               </p>
             </div>
@@ -313,11 +313,11 @@ export default function DashboardPage() {
 
         {/* Test History */}
         <Card className="p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Test Attempts</h2>
+          <h2 className="text-xl font-semibold text-foreground mb-4">Recent Test Attempts</h2>
 
           {attempts.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-600 mb-4">You haven&apos;t taken any tests yet.</p>
+              <p className="text-muted-foreground mb-4">You haven&apos;t taken any tests yet.</p>
               {!isAdminUser ? (
                 <Link href="/tests">
                   <Button className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -336,33 +336,33 @@ export default function DashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Test Name</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Score</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Action</th>
+                  <tr className="border-b border-white/15">
+                    <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Test Name</th>
+                    <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Score</th>
+                    <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Status</th>
+                    <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Date</th>
+                    <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {attempts.map((attempt) => (
-                    <tr key={attempt.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 text-gray-900">{attempt.test?.name}</td>
+                    <tr key={attempt.id} className="border-b border-white/10 hover:bg-white/5">
+                      <td className="py-3 px-4 text-foreground">{attempt.test?.name}</td>
                       <td className="py-3 px-4">
-                        <span className={`font-semibold ${attempt.score! >= 40 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`font-semibold ${attempt.score! >= 40 ? 'text-emerald-300' : 'text-red-300'}`}>
                           {Math.round(attempt.score || 0)}%
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="px-3 py-1 bg-gray-100 text-gray-700 text-sm font-medium rounded capitalize">
+                        <span className="px-3 py-1 bg-white/10 text-foreground text-sm font-medium rounded capitalize">
                           {attempt.status}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-gray-600">
+                      <td className="py-3 px-4 text-muted-foreground">
                         {new Date(attempt.created_at).toLocaleDateString()}
                       </td>
                       <td className="py-3 px-4">
-                        <Link href={`/tests/result/${attempt.id}`} className="text-blue-600 hover:text-blue-700 font-medium">
+                        <Link href={`/tests/result/${attempt.id}`} className="text-violet-200 hover:text-white font-medium">
                           View
                         </Link>
                       </td>

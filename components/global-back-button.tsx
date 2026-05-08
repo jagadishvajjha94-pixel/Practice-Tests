@@ -6,16 +6,20 @@ export default function GlobalBackButton() {
   const router = useRouter();
   const pathname = usePathname();
 
-  if (!pathname || pathname === '/') return null;
+  const isExamPage = pathname?.startsWith('/tests/take/');
+  if (!pathname || pathname === '/' || isExamPage) return null;
 
   return (
     <button
       type="button"
       onClick={() => router.back()}
-      className="fixed top-4 left-4 z-[100] rounded-md border border-gray-300 bg-white/95 px-3 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50"
+      className="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-[120] inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-xl backdrop-blur-2xl transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/20"
       aria-label="Go back"
     >
-      ← Back
+      <span aria-hidden="true" className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs">
+        ←
+      </span>
+      <span>Back</span>
     </button>
   );
 }

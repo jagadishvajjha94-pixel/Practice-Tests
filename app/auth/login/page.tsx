@@ -115,26 +115,26 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md border-white/25 bg-white/12 shadow-2xl backdrop-blur-2xl">
         <div className="p-6 sm:p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome Back</h1>
-          <p className="text-gray-600 mb-6">Sign in to your account to continue</p>
+          <h1 className="text-2xl font-bold text-white mb-2">Welcome Back</h1>
+          <p className="text-white/80 mb-6">Sign in to your account to continue</p>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <div className="mb-4 p-3 bg-red-500/15 border border-red-300/40 rounded-lg text-sm text-red-100">
               {error}
             </div>
           )}
           {!isSupabaseConfigured && !error && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+            <div className="mb-4 p-3 bg-amber-400/15 border border-amber-300/40 rounded-lg text-sm text-amber-100">
               {SUPABASE_PUBLIC_ENV_MESSAGE}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-white mb-1">
                 Email
               </label>
               <Input
@@ -144,12 +144,13 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 value={formData.email}
                 onChange={handleChange}
+                className="bg-white/90 text-gray-900 placeholder:text-gray-500 border-white/60"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-white mb-1">
                 Password
               </label>
               <Input
@@ -159,6 +160,7 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 value={formData.password}
                 onChange={handleChange}
+                className="bg-white/90 text-gray-900 placeholder:text-gray-500 border-white/60"
                 required
               />
             </div>
@@ -173,36 +175,36 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-4 text-center">
-            <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:text-blue-700">
+            <Link href="/auth/forgot-password" className="text-sm text-blue-200 hover:text-white">
               Forgot password?
             </Link>
           </div>
 
-          <p className="mt-6 text-center text-sm text-gray-600">
+          <p className="mt-6 text-center text-sm text-white/80">
             Don&apos;t have an account?{' '}
-            <Link href="/auth/signup" className="text-blue-600 hover:text-blue-700 font-medium">
+            <Link href="/auth/signup" className="text-blue-200 hover:text-white font-medium">
               Sign up
             </Link>
           </p>
 
           {showDemoLogin && (
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+            <div className="mt-6 pt-6 border-t border-white/20">
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/70 mb-2">
                 Demo login (testing)
               </p>
-              <p className="text-xs text-gray-600 mb-3">
+              <p className="text-xs text-white/75 mb-3">
                 Password for both accounts:{' '}
-                <code className="bg-gray-100 px-1 py-0.5 rounded">{DEMO_PASSWORD}</code>
+                <code className="bg-white/20 px-1 py-0.5 rounded text-white">{DEMO_PASSWORD}</code>
               </p>
-              <ul className="text-xs text-gray-700 space-y-1 mb-4 font-mono break-all">
+              <ul className="text-xs text-white/85 space-y-1 mb-4 font-mono break-all">
                 <li>
-                  <span className="text-gray-500">Student:</span> {DEMO_STUDENT_EMAIL}
+                  <span className="text-white/60">Student:</span> {DEMO_STUDENT_EMAIL}
                 </li>
                 <li>
-                  <span className="text-gray-500">SWARX:</span> {DEMO_SWARX_EMAIL}
+                  <span className="text-white/60">SWARX:</span> {DEMO_SWARX_EMAIL}
                 </li>
                 <li>
-                  <span className="text-gray-500">Admin:</span> {DEMO_ADMIN_EMAIL}
+                  <span className="text-white/60">Admin:</span> {DEMO_ADMIN_EMAIL}
                 </li>
               </ul>
 
@@ -245,13 +247,13 @@ export default function LoginPage() {
                 </Button>
               </div>
               {demoSeedMessage && (
-                <p className="mt-2 text-xs text-gray-600">{demoSeedMessage}</p>
+                <p className="mt-2 text-xs text-white/80">{demoSeedMessage}</p>
               )}
-              <p className="mt-2 text-[11px] text-gray-500">
+              <p className="mt-2 text-[11px] text-white/60">
                 Shown because you are in development or{' '}
-                <code className="bg-gray-100 px-1 rounded">NEXT_PUBLIC_SHOW_DEMO_LOGIN=true</code>.
+                <code className="bg-white/20 px-1 rounded text-white">NEXT_PUBLIC_SHOW_DEMO_LOGIN=true</code>.
                 Requires Supabase keys and{' '}
-                <Link href="/setup" className="text-blue-600 underline">
+                <Link href="/setup" className="text-blue-200 underline">
                   DB setup
                 </Link>{' '}
                 for first-time installs.

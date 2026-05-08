@@ -205,7 +205,7 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="exam-mode min-h-screen bg-white text-gray-900 flex flex-col">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-4 flex-wrap">
@@ -232,7 +232,7 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
       <div className="flex-1 max-w-7xl mx-auto w-full grid md:grid-cols-4 gap-4 p-4">
         {/* Question Display */}
         <div className="md:col-span-3">
-          <Card className="p-6 mb-4">
+          <Card className="p-6 mb-4 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-600">
@@ -260,7 +260,6 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
             <Button
               onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
               disabled={currentQuestionIndex === 0}
-              variant="outline"
               className="flex-1"
             >
               ← Previous
@@ -270,14 +269,14 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
                 setCurrentQuestionIndex(Math.min(questions.length - 1, currentQuestionIndex + 1))
               }
               disabled={currentQuestionIndex === questions.length - 1}
-              variant="outline"
               className="flex-1"
             >
               Next →
             </Button>
             <Button
               onClick={() => setShowSubmitConfirm(true)}
-              className="bg-green-600 hover:bg-green-700 text-white px-6"
+              variant="outline"
+              className="px-6"
             >
               Submit Test
             </Button>
@@ -286,7 +285,7 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
 
         {/* Sidebar */}
         <div className="md:col-span-1">
-          <Card className="p-4 sticky top-20">
+          <Card className="p-4 sticky top-20 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <h3 className="font-semibold text-gray-900 mb-4">Test Status</h3>
 
             <div className="space-y-2 mb-4 text-sm">
@@ -327,7 +326,7 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
       {/* Submit Confirmation Modal */}
       {showSubmitConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-md">
+          <Card className="w-full max-w-md bg-white border-gray-200 text-gray-900 shadow-xl backdrop-blur-none">
             <div className="p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Submit Test?</h2>
               <div className="space-y-2 mb-6 text-sm text-gray-600">
@@ -345,7 +344,7 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
                 <Button
                   onClick={handleSubmitTest}
                   disabled={submitting}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  className="flex-1"
                 >
                   {submitting ? 'Submitting...' : 'Submit Test'}
                 </Button>
