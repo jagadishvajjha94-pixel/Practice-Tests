@@ -23,6 +23,9 @@ import { isSignupDisabled } from '@/lib/auth-features';
 
 /** `pending` = waiting on Supabase session; avoid starting the test until resolved (prevents full-paper race). */
 type PracticeAccessState = 'pending' | 'guest' | 'full';
+const SIGNED_IN_QUESTION_TARGET = 200;
+const SIGNED_IN_DURATION_MINUTES = 30;
+const GUEST_DURATION_MINUTES = 5;
 
 export default function TakeTestPage({
   params,
@@ -141,7 +144,8 @@ export default function TakeTestPage({
         const psychometricLike =
           /psychometric/i.test(testId) ||
           /psychometric/i.test(adaptedTest.name ?? '') ||
-          /psychometric/i.test(adaptedTest.description ?? '');
+          /psychometric/i.test(adaptedTest.description ?? '') ||
+          ((adaptedTest.total_questions ?? 0) <= 20 && (adaptedTest.duration ?? 0) <= 5);
 
         if (
           psychometricLike &&
@@ -205,6 +209,15 @@ export default function TakeTestPage({
     );
   }
 
+  const shownQuestionCount =
+    practiceAccess === 'full' ? SIGNED_IN_QUESTION_TARGET : PRACTICE_PREVIEW_QUESTION_LIMIT;
+  const shownDurationMinutes =
+    practiceAccess === 'full' ? SIGNED_IN_DURATION_MINUTES : GUEST_DURATION_MINUTES;
+  const runtimeTest =
+    practiceAccess === 'full'
+      ? { ...test, duration: SIGNED_IN_DURATION_MINUTES, total_questions: SIGNED_IN_QUESTION_TARGET }
+      : { ...test, duration: GUEST_DURATION_MINUTES, total_questions: PRACTICE_PREVIEW_QUESTION_LIMIT };
+
   if (!testStarted) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -214,11 +227,11 @@ export default function TakeTestPage({
           <div className="space-y-4 mb-6 p-4 bg-white/10 border border-white/20 rounded-lg">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Questions:</span>
-              <span className="font-semibold text-foreground">{test.total_questions}</span>
+              <span className="font-semibold text-foreground">{shownQuestionCount}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Duration:</span>
-              <span className="font-semibold text-foreground">{test.duration} minutes</span>
+              <span className="font-semibold text-foreground">{shownDurationMinutes} minutes</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Difficulty:</span>
@@ -311,7 +324,7 @@ export default function TakeTestPage({
 
   return (
     <TestProvider>
-      <TestInterface test={test} questions={questions} fullAccess={practiceAccess === 'full'} />
+      <TestInterface test={runtimeTest} questions={questions} fullAccess={practiceAccess === 'full'} />
     </TestProvider>
   );
 }
