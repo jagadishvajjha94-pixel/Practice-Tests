@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { User } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
+import { formatSupabaseError } from '@/lib/utils';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [envMissing, setEnvMissing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -50,7 +52,7 @@ export default function ProfilePage() {
           phone: userData.phone || '',
         });
       } catch (error) {
-        console.error('Error fetching user:', error);
+        setFetchError(formatSupabaseError(error));
       } finally {
         setLoading(false);
       }
@@ -108,6 +110,17 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <p className="text-gray-600 text-center max-w-md">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
+      </div>
+    );
+  }
+
+  if (fetchError && !user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 gap-4">
+        <p className="text-red-700 text-center max-w-md">{fetchError}</p>
+        <Button type="button" variant="outline" onClick={() => router.push('/dashboard')}>
+          Go to dashboard
+        </Button>
       </div>
     );
   }

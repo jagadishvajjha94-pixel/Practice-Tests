@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { isSignupDisabled } from '@/lib/auth-features';
 
 export const metadata = {
   title: 'PrepIndia - Master Placements & Aptitude Tests',
@@ -8,6 +9,8 @@ export const metadata = {
 };
 
 export default function Home() {
+  const signupClosed = isSignupDisabled();
+
   return (
     <div className="min-h-screen">
       {/* Navigation */}
@@ -27,9 +30,15 @@ export default function Home() {
             <Link href="/auth/login">
               <Button variant="outline">Sign In</Button>
             </Link>
-            <Link href="/auth/signup">
-              <Button>Sign Up</Button>
-            </Link>
+            {signupClosed ? (
+              <Button variant="secondary" disabled title="Registration is temporarily closed">
+                Sign up closed
+              </Button>
+            ) : (
+              <Link href="/auth/signup">
+                <Button>Sign Up</Button>
+              </Link>
+            )}
           </div>
         </div>
       </nav>
@@ -54,11 +63,18 @@ export default function Home() {
                 Practice Free Tests
               </Button>
             </Link>
-            <Link href="/auth/signup">
+            <Link href="/auth/login">
               <Button variant="outline" className="border-primary/30 bg-white/60 px-8 py-3 text-lg backdrop-blur hover:bg-white/90">
-                Get Started
+                Student sign in
               </Button>
             </Link>
+            {!signupClosed ? (
+              <Link href="/auth/signup">
+                <Button variant="outline" className="border-primary/30 bg-white/60 px-8 py-3 text-lg backdrop-blur hover:bg-white/90">
+                  Get Started
+                </Button>
+              </Link>
+            ) : null}
           </div>
         </div>
       </section>
@@ -145,13 +161,21 @@ export default function Home() {
               PrepIndia now provides all practice features at no cost.
             </p>
             <p className="text-gray-600 mb-8">
-              Create your account and start practicing tests immediately across all categories.
+              {signupClosed
+                ? 'Sign in with the account provided by your institution. New registration is temporarily closed.'
+                : 'Create your account and start practicing tests immediately across all categories.'}
             </p>
-            <Link href="/auth/signup">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white px-8">
-                Create Free Account
-              </Button>
-            </Link>
+            {signupClosed ? (
+              <Link href="/auth/login">
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white px-8">Sign in</Button>
+              </Link>
+            ) : (
+              <Link href="/auth/signup">
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white px-8">
+                  Create Free Account
+                </Button>
+              </Link>
+            )}
           </Card>
         </div>
       </section>
@@ -191,9 +215,9 @@ export default function Home() {
           <Card className="bg-gradient-to-r from-primary via-primary to-accent p-10 text-primary-foreground">
           <h2 className="text-3xl font-bold mb-6">Start Your Preparation Journey Today</h2>
           <p className="mb-8 text-primary-foreground/80">Join thousands of students who have already started preparing with PrepIndia</p>
-          <Link href="/auth/signup">
+          <Link href={signupClosed ? '/auth/login' : '/auth/signup'}>
             <Button variant="outline" className="border-white/70 bg-white/90 px-8 py-3 text-lg font-semibold text-primary hover:bg-white">
-              Sign Up for Free
+              {signupClosed ? 'Student sign in' : 'Sign up for free'}
             </Button>
           </Link>
           </Card>
@@ -214,7 +238,9 @@ export default function Home() {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link href="/tests" className="hover:text-foreground">Tests</Link></li>
                 <li><Link href="/blog" className="hover:text-foreground">Blog</Link></li>
-                <li><Link href="/auth/signup" className="hover:text-foreground">Get Started</Link></li>
+                <li><Link href={signupClosed ? '/auth/login' : '/auth/signup'} className="hover:text-foreground">
+                  {signupClosed ? 'Sign in' : 'Get Started'}
+                </Link></li>
               </ul>
             </div>
             <div>

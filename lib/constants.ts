@@ -1,5 +1,9 @@
 export const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '';
 
+/** Guest users can practise this many questions per test without signing in; full paper unlocks after login. */
+export const PRACTICE_PREVIEW_QUESTION_LIMIT = 10;
+
+
 // Payment Plans
 export const PAYMENT_AMOUNTS = {
   premium: 499, // ₹499 per month

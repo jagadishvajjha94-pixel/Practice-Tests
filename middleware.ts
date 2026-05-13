@@ -7,6 +7,16 @@ import {
 } from '@/lib/supabase-public-env'
 
 export async function middleware(request: NextRequest) {
+  if (
+    process.env.NEXT_PUBLIC_SIGNUP_DISABLED === 'true' &&
+    request.nextUrl.pathname === '/auth/signup'
+  ) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth/login'
+    url.searchParams.set('notice', 'signup_closed')
+    return NextResponse.redirect(url)
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,

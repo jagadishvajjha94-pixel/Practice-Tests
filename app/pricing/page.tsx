@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { isSignupDisabled } from '@/lib/auth-features';
 
 export const metadata = {
   title: 'Access - PrepIndia',
@@ -8,6 +9,8 @@ export const metadata = {
 };
 
 export default function PricingPage() {
+  const signupClosed = isSignupDisabled();
+
   return (
     <div className="min-h-screen bg-white">
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-16">
@@ -39,9 +42,9 @@ export default function PricingPage() {
         <div className="max-w-2xl mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold mb-4">Ready to start?</h2>
           <p className="text-blue-100 mb-8">Join thousands of students preparing for success</p>
-          <Link href="/auth/signup">
+          <Link href={signupClosed ? '/auth/login' : '/auth/signup'}>
             <Button className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3 font-semibold">
-              Create Free Account
+              {signupClosed ? 'Student sign in' : 'Create Free Account'}
             </Button>
           </Link>
         </div>

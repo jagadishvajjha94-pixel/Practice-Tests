@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -11,19 +11,25 @@ import {
   isSupabasePublicEnvConfigured,
   SUPABASE_PUBLIC_ENV_MESSAGE,
 } from '@/lib/supabase-public-env';
-import {
-  DEMO_ADMIN_EMAIL,
-  DEMO_PASSWORD,
-  DEMO_SWARX_EMAIL,
-  DEMO_STUDENT_EMAIL,
-} from '@/lib/demo-accounts';
+import { isSignupDisabled } from '@/lib/auth-features';
 
-const showDemoLogin =
-  process.env.NODE_ENV === 'development' ||
-  process.env.NEXT_PUBLIC_SHOW_DEMO_LOGIN === 'true';
+function authRedirectTarget(raw: string | null, fallback = '/dashboard'): string {
+  if (!raw || typeof raw !== 'string') return fallback;
+  const t = raw.trim();
+  if (!t.startsWith('/') || t.startsWith('//')) return fallback;
+  return t;
+}
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectParam = searchParams.get('redirect');
+  const notice = searchParams.get('notice');
+  const postLoginPath = authRedirectTarget(redirectParam);
+  const signupDisabled = isSignupDisabled();
+  const signupHref = redirectParam
+    ? `/auth/signup?redirect=${encodeURIComponent(redirectParam)}`
+    : '/auth/signup';
   const isSupabaseConfigured = isSupabasePublicEnvConfigured();
   const [formData, setFormData] = useState({
     email: '',
@@ -31,8 +37,6 @@ export default function LoginPage() {
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [demoSeedMessage, setDemoSeedMessage] = useState<string | null>(null);
-  const [demoSeeding, setDemoSeeding] = useState(false);
 
   const signInWithEmailPassword = async (email: string, password: string) => {
     const supabase = createSupabaseBrowserClient();
@@ -50,7 +54,7 @@ export default function LoginPage() {
       throw new Error('Login failed: No user found');
     }
 
-    router.push('/dashboard');
+    router.push(postLoginPath);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,49 +81,20 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoSeed = async () => {
-    setDemoSeedMessage(null);
-    setDemoSeeding(true);
-    try {
-      const res = await fetch('/api/dev/seed-demo-users', { method: 'POST' });
-      const json = await res.json();
-      if (!res.ok) {
-        setDemoSeedMessage(
-          typeof json.error === 'string'
-            ? json.error
-            : 'Could not create demo users. Ensure DB tables exist (/setup + POSTGRES_URL).'
-        );
-        return;
-      }
-      setDemoSeedMessage(json.message ?? 'Demo users are ready.');
-    } catch {
-      setDemoSeedMessage('Request failed. Is the dev server running?');
-    } finally {
-      setDemoSeeding(false);
-    }
-  };
-
-  const handleQuickDemo = async (email: string) => {
-    if (!isSupabaseConfigured) return;
-    setError(null);
-    setLoading(true);
-    try {
-      setFormData({ email, password: DEMO_PASSWORD });
-      await signInWithEmailPassword(email, DEMO_PASSWORD);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Demo sign-in failed.';
-      setError(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md border-white/25 bg-white/12 shadow-2xl backdrop-blur-2xl">
         <div className="p-6 sm:p-8">
-          <h1 className="text-2xl font-bold text-white mb-2">Welcome Back</h1>
-          <p className="text-white/80 mb-6">Sign in to your account to continue</p>
+          <h1 className="text-2xl font-bold text-white mb-2">Student sign in</h1>
+          <p className="text-white/80 mb-6">
+            Use the email and password you were given. If login fails, wait a moment and try again — many students may sign in at the same time.
+          </p>
+
+          {notice === 'signup_closed' ? (
+            <div className="mb-4 p-3 rounded-lg border border-amber-300/50 bg-amber-500/15 text-sm text-amber-50">
+              New registrations are closed for now. Please sign in with your existing account.
+            </div>
+          ) : null}
 
           {error && (
             <div className="mb-4 p-3 bg-red-500/15 border border-red-300/40 rounded-lg text-sm text-red-100">
@@ -144,7 +119,7 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 value={formData.email}
                 onChange={handleChange}
-                className="bg-white/90 text-gray-900 placeholder:text-gray-500 border-white/60"
+                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
                 required
               />
             </div>
@@ -160,7 +135,7 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 value={formData.password}
                 onChange={handleChange}
-                className="bg-white/90 text-gray-900 placeholder:text-gray-500 border-white/60"
+                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
                 required
               />
             </div>
@@ -170,7 +145,7 @@ export default function LoginPage() {
               disabled={loading || !isSupabaseConfigured}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Signing in...' : 'Sign in'}
             </Button>
           </form>
 
@@ -180,88 +155,34 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <p className="mt-6 text-center text-sm text-white/80">
-            Don&apos;t have an account?{' '}
-            <Link href="/auth/signup" className="text-blue-200 hover:text-white font-medium">
-              Sign up
-            </Link>
-          </p>
-
-          {showDemoLogin && (
-            <div className="mt-6 pt-6 border-t border-white/20">
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/70 mb-2">
-                Demo login (testing)
-              </p>
-              <p className="text-xs text-white/75 mb-3">
-                Password for both accounts:{' '}
-                <code className="bg-white/20 px-1 py-0.5 rounded text-white">{DEMO_PASSWORD}</code>
-              </p>
-              <ul className="text-xs text-white/85 space-y-1 mb-4 font-mono break-all">
-                <li>
-                  <span className="text-white/60">Student:</span> {DEMO_STUDENT_EMAIL}
-                </li>
-                <li>
-                  <span className="text-white/60">SWARX:</span> {DEMO_SWARX_EMAIL}
-                </li>
-                <li>
-                  <span className="text-white/60">Admin:</span> {DEMO_ADMIN_EMAIL}
-                </li>
-              </ul>
-
-              <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={loading || demoSeeding || !isSupabaseConfigured}
-                  className="w-full border-dashed"
-                  onClick={() => handleQuickDemo(DEMO_STUDENT_EMAIL)}
-                >
-                  Sign in as demo student
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={loading || demoSeeding || !isSupabaseConfigured}
-                  className="w-full border-dashed"
-                  onClick={() => handleQuickDemo(DEMO_ADMIN_EMAIL)}
-                >
-                  Sign in as demo admin
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={loading || demoSeeding || !isSupabaseConfigured}
-                  className="w-full border-dashed"
-                  onClick={() => handleQuickDemo(DEMO_SWARX_EMAIL)}
-                >
-                  Sign in as demo SWARX user
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={demoSeeding || loading || !isSupabaseConfigured}
-                  className="w-full text-sm"
-                  onClick={handleDemoSeed}
-                >
-                  {demoSeeding ? 'Creating demo users…' : 'Create / reset demo users (API)'}
-                </Button>
-              </div>
-              {demoSeedMessage && (
-                <p className="mt-2 text-xs text-white/80">{demoSeedMessage}</p>
-              )}
-              <p className="mt-2 text-[11px] text-white/60">
-                Shown because you are in development or{' '}
-                <code className="bg-white/20 px-1 rounded text-white">NEXT_PUBLIC_SHOW_DEMO_LOGIN=true</code>.
-                Requires Supabase keys and{' '}
-                <Link href="/setup" className="text-blue-200 underline">
-                  DB setup
-                </Link>{' '}
-                for first-time installs.
-              </p>
-            </div>
+          {!signupDisabled ? (
+            <p className="mt-6 text-center text-sm text-white/80">
+              Don&apos;t have an account?{' '}
+              <Link href={signupHref} className="text-blue-200 hover:text-white font-medium">
+                Sign up
+              </Link>
+            </p>
+          ) : (
+            <p className="mt-6 text-center text-sm text-white/60">
+              Need an account? Contact your coordinator — online signup is temporarily disabled.
+            </p>
           )}
         </div>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center p-4 text-white/70">
+          Loading…
+        </div>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
   );
 }

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -11,9 +11,58 @@ import {
   isSupabasePublicEnvConfigured,
   SUPABASE_PUBLIC_ENV_MESSAGE,
 } from '@/lib/supabase-public-env';
+import { isSignupDisabled } from '@/lib/auth-features';
 
-export default function SignUpPage() {
+function authRedirectTarget(raw: string | null, fallback = '/dashboard'): string {
+  if (!raw || typeof raw !== 'string') return fallback;
+  const t = raw.trim();
+  if (!t.startsWith('/') || t.startsWith('//')) return fallback;
+  return t;
+}
+
+function toFriendlySignupError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : 'Sign up failed. Please try again.';
+  const normalized = raw.toLowerCase();
+  if (normalized.includes('email rate limit') || normalized.includes('rate limit')) {
+    return 'Signup traffic is high right now. Please try again shortly.';
+  }
+  if (normalized.includes('failed to fetch')) {
+    return 'Network error while signing up. Please check your connection and try again.';
+  }
+  if (normalized.includes('already registered')) {
+    return 'This email is already registered. Please sign in instead.';
+  }
+  return raw;
+}
+
+function SignUpPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectParam = searchParams.get('redirect');
+  const postSignupPath = authRedirectTarget(redirectParam);
+  const loginHref = redirectParam
+    ? `/auth/login?redirect=${encodeURIComponent(redirectParam)}`
+    : '/auth/login';
+
+  if (isSignupDisabled()) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 p-4">
+        <Card className="w-full max-w-md border-white/20 bg-white/10 shadow-2xl backdrop-blur-2xl p-8 text-center">
+          <h1 className="text-2xl font-bold text-white mb-3">Registration closed</h1>
+          <p className="text-white/80 mb-6 text-sm leading-relaxed">
+            New accounts cannot be created on the website right now. Please sign in with the email and password from your institution.
+          </p>
+          <Button
+            className="w-full bg-indigo-500 hover:bg-indigo-400 text-white"
+            onClick={() => router.push(`${loginHref}${loginHref.includes('?') ? '&' : '?'}notice=signup_closed`)}
+          >
+            Go to sign in
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   const isSupabaseConfigured = isSupabasePublicEnvConfigured();
   const [formData, setFormData] = useState({
     fullName: '',
@@ -79,49 +128,65 @@ export default function SignUpPage() {
         throw new Error('Full name is required');
       }
 
-      // Sign up with Supabase
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            full_name: formData.fullName,
-          },
-        },
+      // Use server signup API first (can create confirmed users when service role key is available).
+      const signupRes = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          fullName: formData.fullName,
+          next: postSignupPath,
+        }),
       });
-
-      if (signUpError) {
-        throw new Error(signUpError.message);
+      const signupJson = (await signupRes.json().catch(() => ({}))) as {
+        error?: string;
+        user_id?: string | null;
+        email_confirmed?: boolean;
+      };
+      if (!signupRes.ok) {
+        throw new Error(signupJson.error || 'Sign up failed. Please try again.');
       }
 
-      if (!authData.user) {
-        throw new Error('Sign up failed: No user created');
-      }
+      const userId = signupJson.user_id ?? null;
 
       // Create user profile in database
-      const { error: profileError } = await supabase
-        .from('users')
-        .insert([
-          {
-            id: authData.user.id,
-            email: formData.email,
-            full_name: formData.fullName,
-            subscription_status: 'free',
-          },
-        ]);
+      if (userId) {
+        const { error: profileError } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: userId,
+              email: formData.email,
+              full_name: formData.fullName,
+              subscription_status: 'free',
+            },
+          ]);
 
-      if (profileError) {
-        console.warn('Profile creation warning:', profileError);
-        // Don't fail if profile creation fails - user is already signed up
+        if (profileError) {
+          console.warn('Profile creation warning:', profileError);
+          // Don't fail if profile creation fails - user is already signed up
+        }
       }
 
-      // For testing without email confirmation, redirect directly to dashboard
+      // Sign in immediately; if backend still requires confirmation, route to login page.
+      const signInResult = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      });
+      if (signInResult.error) {
+        router.push(loginHref);
+        return;
+      }
+
       setError(null);
-      router.push('/dashboard');
+      router.push(postSignupPath);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Sign up failed. Please try again.';
-      console.error('[v0] Sign up error:', errorMsg);
+      const errorMsg = toFriendlySignupError(err);
+      // Rate-limit and network failures are expected operational states; keep console quieter for users.
+      if (!/too many signup attempts|signup traffic is high|network error|already registered/i.test(errorMsg)) {
+        console.error('[v0] Sign up error:', errorMsg);
+      }
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -129,26 +194,26 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 p-4">
+      <Card className="w-full max-w-md border-white/20 bg-white/10 shadow-2xl backdrop-blur-2xl">
         <div className="p-6 sm:p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Join PrepIndia</h1>
-          <p className="text-gray-600 mb-6">Create your account to start preparing</p>
+          <h1 className="text-2xl font-bold text-white mb-2">Join PrepIndia</h1>
+          <p className="text-white/80 mb-6">Create your account to start preparing</p>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <div className="mb-4 p-3 bg-red-500/15 border border-red-300/40 rounded-lg text-sm text-red-100">
               {error}
             </div>
           )}
           {!isSupabaseConfigured && !error && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+            <div className="mb-4 p-3 bg-amber-400/15 border border-amber-300/40 rounded-lg text-sm text-amber-100">
               {SUPABASE_PUBLIC_ENV_MESSAGE}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="fullName" className="block text-sm font-medium text-white mb-1">
                 Full Name
               </label>
               <Input
@@ -158,12 +223,13 @@ export default function SignUpPage() {
                 placeholder="John Doe"
                 value={formData.fullName}
                 onChange={handleChange}
+                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-white mb-1">
                 Email
               </label>
               <Input
@@ -173,12 +239,13 @@ export default function SignUpPage() {
                 placeholder="you@example.com"
                 value={formData.email}
                 onChange={handleChange}
+                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-white mb-1">
                 Password
               </label>
               <Input
@@ -188,12 +255,13 @@ export default function SignUpPage() {
                 placeholder="Min 6 characters"
                 value={formData.password}
                 onChange={handleChange}
+                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-white mb-1">
                 Confirm Password
               </label>
               <Input
@@ -203,6 +271,7 @@ export default function SignUpPage() {
                 placeholder="Confirm password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
+                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
                 required
               />
             </div>
@@ -210,20 +279,34 @@ export default function SignUpPage() {
             <Button
               type="submit"
               disabled={loading || !isSupabaseConfigured}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              className="w-full bg-indigo-500 hover:bg-indigo-400 text-white"
             >
               {loading ? 'Creating account...' : 'Sign Up'}
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-600">
+          <p className="mt-6 text-center text-sm text-white/80">
             Already have an account?{' '}
-            <Link href="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium">
+            <Link href={loginHref} className="text-blue-200 hover:text-white font-medium">
               Sign in
             </Link>
           </p>
         </div>
       </Card>
     </div>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 p-4 text-white/70">
+          Loading…
+        </div>
+      }
+    >
+      <SignUpPageContent />
+    </Suspense>
   );
 }

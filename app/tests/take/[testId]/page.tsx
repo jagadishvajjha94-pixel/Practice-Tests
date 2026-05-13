@@ -1,7 +1,9 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import type { Session } from '@supabase/supabase-js';
+import Link from 'next/link';
+import { use, useEffect, useLayoutEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Test, Question } from '@/lib/types';
@@ -16,6 +18,11 @@ import {
   isSchemaMissingError,
   PSYCHOMETRIC_FALLBACK_QUESTION_COUNT,
 } from '@/lib/fallback-question-bank';
+import { PRACTICE_PREVIEW_QUESTION_LIMIT } from '@/lib/constants';
+import { isSignupDisabled } from '@/lib/auth-features';
+
+/** `pending` = waiting on Supabase session; avoid starting the test until resolved (prevents full-paper race). */
+type PracticeAccessState = 'pending' | 'guest' | 'full';
 
 export default function TakeTestPage({
   params,
@@ -24,10 +31,63 @@ export default function TakeTestPage({
 }) {
   const { testId } = use(params);
   const router = useRouter();
+  const pathname = usePathname();
+  const signupClosed = isSignupDisabled();
   const [test, setTest] = useState<Test | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [testStarted, setTestStarted] = useState(false);
+  const [practiceAccess, setPracticeAccess] = useState<PracticeAccessState>('pending');
+
+  useLayoutEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      setPracticeAccess('full');
+    }
+  }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return undefined;
+
+    const applySession = (session: Session | null) => {
+      setPracticeAccess(session?.user ? 'full' : 'guest');
+    };
+
+    const refreshAccess = async () => {
+      try {
+        // getUser validates current auth state with Supabase and is safer than local session-only checks.
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+        if (error) {
+          setPracticeAccess('guest');
+          return;
+        }
+        setPracticeAccess(user ? 'full' : 'guest');
+      } catch {
+        setPracticeAccess('guest');
+      }
+    };
+
+    void refreshAccess();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      applySession(session);
+    });
+    const onWindowFocus = () => {
+      void refreshAccess();
+    };
+    window.addEventListener('focus', onWindowFocus);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('focus', onWindowFocus);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchTest = async () => {
@@ -166,6 +226,41 @@ export default function TakeTestPage({
             </div>
           </div>
 
+          {practiceAccess === 'pending' ? (
+            <p className="mb-6 text-center text-sm text-violet-100/90">Checking sign-in status…</p>
+          ) : null}
+
+          {questions.length > PRACTICE_PREVIEW_QUESTION_LIMIT && practiceAccess === 'guest' ? (
+            <div className="mb-6 rounded-lg border border-amber-400/40 bg-amber-500/15 p-4 text-sm text-amber-50">
+              <p className="font-semibold text-amber-100">Free preview — first {PRACTICE_PREVIEW_QUESTION_LIMIT} questions</p>
+              <p className="mt-2 text-violet-100/90 leading-relaxed">
+                Without an account you can only attempt <strong>{PRACTICE_PREVIEW_QUESTION_LIMIT}</strong> questions (
+                this test has {questions.length} total).
+                {signupClosed
+                  ? ' Sign in with your student account to unlock every question and submit the full test.'
+                  : ' Sign in or create an account to unlock every question and submit the full test.'}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  className="bg-amber-500 text-amber-950 hover:bg-amber-400"
+                  onClick={() =>
+                    router.push(`/auth/login?redirect=${encodeURIComponent(pathname ?? `/tests/take/${testId}`)}`)
+                  }
+                >
+                  Sign in to unlock full test
+                </Button>
+                {!signupClosed ? (
+                  <Button type="button" variant="outline" className="border-white/35" asChild>
+                    <Link href={`/auth/signup?redirect=${encodeURIComponent(pathname ?? `/tests/take/${testId}`)}`}>
+                      Create account
+                    </Link>
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           <div className="bg-black/20 border border-white/20 rounded-lg p-4 mb-6">
             <p className="text-sm text-violet-100">
               <strong>Instructions:</strong>{' '}
@@ -197,9 +292,10 @@ export default function TakeTestPage({
 
           <Button
             onClick={() => setTestStarted(true)}
+            disabled={practiceAccess === 'pending'}
             className="w-full mb-2"
           >
-            Start Test
+            {practiceAccess === 'pending' ? 'Checking account…' : 'Start Test'}
           </Button>
           <Button
             onClick={() => router.back()}
@@ -215,7 +311,7 @@ export default function TakeTestPage({
 
   return (
     <TestProvider>
-      <TestInterface test={test} questions={questions} />
+      <TestInterface test={test} questions={questions} fullAccess={practiceAccess === 'full'} />
     </TestProvider>
   );
 }

@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Test, Question } from '@/lib/types';
+import { PRACTICE_PREVIEW_QUESTION_LIMIT } from '@/lib/constants';
 import { useTest } from './test-context';
 import QuestionDisplay from './question-display';
 import QuestionNavigation from './question-navigation';
@@ -17,10 +20,18 @@ import { isSchemaMissingError } from '@/lib/fallback-question-bank';
 interface TestInterfaceProps {
   test: Test;
   questions: Question[];
+  /** When false, only the first {@link PRACTICE_PREVIEW_QUESTION_LIMIT} questions are usable until the user signs in. */
+  fullAccess: boolean;
 }
 
-export default function TestInterface({ test, questions }: TestInterfaceProps) {
+export default function TestInterface({ test, questions, fullAccess }: TestInterfaceProps) {
   const router = useRouter();
+  const pathname = usePathname();
+
+  const loginHref = useMemo(
+    () => `/auth/login?redirect=${encodeURIComponent(pathname || '/')}`,
+    [pathname]
+  );
   const {
     currentQuestionIndex,
     setCurrentQuestionIndex,
@@ -68,11 +79,30 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
     };
   }, [speedActive, speedSec, currentQuestionIndex]);
 
+  const unlockedCount = useMemo(
+    () =>
+      fullAccess
+        ? questions.length
+        : Math.min(PRACTICE_PREVIEW_QUESTION_LIMIT, questions.length),
+    [fullAccess, questions.length]
+  );
+
+  useEffect(() => {
+    if (fullAccess) return;
+    const maxAllowed = Math.max(0, unlockedCount - 1);
+    setCurrentQuestionIndex(Math.min(currentQuestionIndex, maxAllowed));
+  }, [fullAccess, unlockedCount, currentQuestionIndex, setCurrentQuestionIndex]);
+
   const currentQuestion = questions[currentQuestionIndex];
 
-  const answeredCount = Object.values(answers).filter(a => a.userAnswer !== null && a.userAnswer !== undefined).length;
-  const markedCount = Object.values(answers).filter(a => a.isMarkedForReview).length;
-  const unattendedCount = questions.length - answeredCount;
+  const scopeQuestions = fullAccess ? questions : questions.slice(0, unlockedCount);
+  const answeredCount = scopeQuestions.filter(
+    (q) => answers[q.id]?.userAnswer !== null && answers[q.id]?.userAnswer !== undefined
+  ).length;
+  const markedCount = scopeQuestions.filter((q) => answers[q.id]?.isMarkedForReview).length;
+  const unattendedCount = scopeQuestions.length - answeredCount;
+
+  const isPreviewMode = !fullAccess && questions.length > unlockedCount;
 
   const saveLocalAttemptAndNavigate = (scorePercent: number) => {
     const localAttemptId = `local-${Date.now()}`;
@@ -124,7 +154,7 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
         if (test.id.startsWith('fallback-')) {
           saveLocalAttemptAndNavigate(scorePercent);
         } else {
-          router.push('/auth/login');
+          router.push(loginHref);
         }
         return;
       }
@@ -181,10 +211,15 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
   useEffect(() => {
     if (!speedActive || questionTimeLeft !== 0) return;
     const run = window.setTimeout(() => {
-      if (currentQuestionIndex >= questions.length - 1) {
+      if (!fullAccess && currentQuestionIndex >= unlockedCount - 1) {
+        router.push(loginHref);
+        return;
+      }
+      if (fullAccess && currentQuestionIndex >= questions.length - 1) {
         void submitRef.current();
       } else {
-        setCurrentQuestionIndex((i) => Math.min(i + 1, questions.length - 1));
+        const cap = fullAccess ? questions.length - 1 : unlockedCount - 1;
+        setCurrentQuestionIndex(Math.min(currentQuestionIndex + 1, cap));
       }
     }, 0);
     return () => clearTimeout(run);
@@ -194,6 +229,10 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
     currentQuestionIndex,
     questions.length,
     setCurrentQuestionIndex,
+    fullAccess,
+    unlockedCount,
+    router,
+    loginHref,
   ]);
 
   if (!currentQuestion) {
@@ -209,7 +248,18 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-4 flex-wrap">
-          <h1 className="text-xl font-semibold text-gray-900">{test.name}</h1>
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">{test.name}</h1>
+            {isPreviewMode ? (
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-amber-800">
+                <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                Preview: {unlockedCount} of {questions.length} questions —{' '}
+                <Link href={loginHref} className="font-medium underline underline-offset-2 hover:text-amber-950">
+                  Sign in to unlock all
+                </Link>
+              </p>
+            ) : null}
+          </div>
           <div className="flex items-center gap-6">
             {speedActive && questionTimeLeft >= 0 ? (
               <div
@@ -236,7 +286,14 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-600">
-                  Question {currentQuestionIndex + 1} of {questions.length}
+                  Question {currentQuestionIndex + 1} of{' '}
+                  {isPreviewMode ? (
+                    <>
+                      {unlockedCount} <span className="text-gray-500">(preview of {questions.length})</span>
+                    </>
+                  ) : (
+                    questions.length
+                  )}
                 </span>
                 <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded">
                   {speedActive ? 'Speed / visual' : currentQuestion.difficulty}
@@ -246,7 +303,7 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
                 <div
                   className="bg-blue-600 h-2 rounded-full transition-all"
                   style={{
-                    width: `${((currentQuestionIndex + 1) / questions.length) * 100}%`,
+                    width: `${((currentQuestionIndex + 1) / (isPreviewMode ? unlockedCount : questions.length)) * 100}%`,
                   }}
                 />
               </div>
@@ -265,20 +322,33 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
               ← Previous
             </Button>
             <Button
-              onClick={() =>
-                setCurrentQuestionIndex(Math.min(questions.length - 1, currentQuestionIndex + 1))
-              }
-              disabled={currentQuestionIndex === questions.length - 1}
+              onClick={() => {
+                if (isPreviewMode && currentQuestionIndex >= unlockedCount - 1) {
+                  router.push(loginHref);
+                  return;
+                }
+                const cap = fullAccess ? questions.length - 1 : unlockedCount - 1;
+                setCurrentQuestionIndex(Math.min(cap, currentQuestionIndex + 1));
+              }}
+              disabled={fullAccess ? currentQuestionIndex >= questions.length - 1 : false}
               className="flex-1"
             >
-              Next →
+              {isPreviewMode && currentQuestionIndex >= unlockedCount - 1
+                ? 'Sign in for more →'
+                : 'Next →'}
             </Button>
             <Button
-              onClick={() => setShowSubmitConfirm(true)}
+              onClick={() => {
+                if (isPreviewMode) {
+                  router.push(loginHref);
+                  return;
+                }
+                setShowSubmitConfirm(true);
+              }}
               variant="outline"
               className="px-6"
             >
-              Submit Test
+              {isPreviewMode ? 'Unlock full test' : 'Submit Test'}
             </Button>
           </div>
         </div>
@@ -317,6 +387,8 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
                 questions={questions}
                 currentIndex={currentQuestionIndex}
                 answers={answers}
+                unlockedCount={unlockedCount}
+                loginHref={loginHref}
               />
             </div>
           </Card>
@@ -330,7 +402,12 @@ export default function TestInterface({ test, questions }: TestInterfaceProps) {
             <div className="p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Submit Test?</h2>
               <div className="space-y-2 mb-6 text-sm text-gray-600">
-                <p>Questions Answered: <span className="font-semibold text-gray-900">{answeredCount}/{questions.length}</span></p>
+                <p>
+                  Questions Answered:{' '}
+                  <span className="font-semibold text-gray-900">
+                    {answeredCount}/{questions.length}
+                  </span>
+                </p>
                 <p>Once submitted, you cannot change your answers.</p>
               </div>
               <div className="flex gap-2">

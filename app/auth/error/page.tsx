@@ -5,10 +5,12 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { isSignupDisabled } from '@/lib/auth-features';
 
 function AuthErrorContent() {
   const searchParams = useSearchParams();
   const message = searchParams.get('message') || 'An error occurred during authentication';
+  const signupClosed = isSignupDisabled();
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
@@ -24,11 +26,13 @@ function AuthErrorContent() {
                 Back to Login
               </Button>
             </Link>
-            <Link href="/auth/signup" className="block">
-              <Button variant="outline" className="w-full">
-                Create New Account
-              </Button>
-            </Link>
+            {!signupClosed ? (
+              <Link href="/auth/signup" className="block">
+                <Button variant="outline" className="w-full">
+                  Create New Account
+                </Button>
+              </Link>
+            ) : null}
             <Link href="/" className="block">
               <Button variant="outline" className="w-full">
                 Back to Home
