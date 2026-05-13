@@ -3,6 +3,12 @@ export const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '';
 /** Guest users can practise this many questions per test without signing in; full paper unlocks after login. */
 export const PRACTICE_PREVIEW_QUESTION_LIMIT = 10;
 
+/** Psychometric paper: full attempt after sign-in (must match take-test runtime). */
+export const PSYCHOMETRIC_FULL_QUESTIONS = 200;
+export const PSYCHOMETRIC_FULL_MINUTES = 30;
+/** Guest preview timer for psychometric (questions use PRACTICE_PREVIEW_QUESTION_LIMIT). */
+export const PSYCHOMETRIC_GUEST_MINUTES = 5;
+
 
 // Payment Plans
 export const PAYMENT_AMOUNTS = {

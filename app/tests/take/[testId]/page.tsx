@@ -18,15 +18,16 @@ import {
   isSchemaMissingError,
   PSYCHOMETRIC_FALLBACK_QUESTION_COUNT,
 } from '@/lib/fallback-question-bank';
-import { PRACTICE_PREVIEW_QUESTION_LIMIT } from '@/lib/constants';
+import {
+  PRACTICE_PREVIEW_QUESTION_LIMIT,
+  PSYCHOMETRIC_FULL_MINUTES,
+  PSYCHOMETRIC_FULL_QUESTIONS,
+  PSYCHOMETRIC_GUEST_MINUTES,
+} from '@/lib/constants';
 import { isSignupDisabled } from '@/lib/auth-features';
 
 /** `pending` = waiting on Supabase session; avoid starting the test until resolved (prevents full-paper race). */
 type PracticeAccessState = 'pending' | 'guest' | 'full';
-const SIGNED_IN_QUESTION_TARGET = 200;
-const SIGNED_IN_DURATION_MINUTES = 30;
-const GUEST_DURATION_MINUTES = 5;
-
 export default function TakeTestPage({
   params,
 }: {
@@ -59,7 +60,12 @@ export default function TakeTestPage({
 
     const refreshAccess = async () => {
       try {
-        // getUser validates current auth state with Supabase and is safer than local session-only checks.
+        // Prefer local session first so right-after-login redirects show full paper immediately.
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session?.user) {
+          setPracticeAccess('full');
+          return;
+        }
         const {
           data: { user },
           error,
@@ -85,10 +91,15 @@ export default function TakeTestPage({
       void refreshAccess();
     };
     window.addEventListener('focus', onWindowFocus);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void refreshAccess();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       subscription.unsubscribe();
       window.removeEventListener('focus', onWindowFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 
@@ -210,13 +221,23 @@ export default function TakeTestPage({
   }
 
   const shownQuestionCount =
-    practiceAccess === 'full' ? SIGNED_IN_QUESTION_TARGET : PRACTICE_PREVIEW_QUESTION_LIMIT;
+    practiceAccess === 'full'
+      ? PSYCHOMETRIC_FULL_QUESTIONS
+      : practiceAccess === 'guest'
+        ? PRACTICE_PREVIEW_QUESTION_LIMIT
+        : null;
   const shownDurationMinutes =
-    practiceAccess === 'full' ? SIGNED_IN_DURATION_MINUTES : GUEST_DURATION_MINUTES;
+    practiceAccess === 'full'
+      ? PSYCHOMETRIC_FULL_MINUTES
+      : practiceAccess === 'guest'
+        ? PSYCHOMETRIC_GUEST_MINUTES
+        : null;
   const runtimeTest =
     practiceAccess === 'full'
-      ? { ...test, duration: SIGNED_IN_DURATION_MINUTES, total_questions: SIGNED_IN_QUESTION_TARGET }
-      : { ...test, duration: GUEST_DURATION_MINUTES, total_questions: PRACTICE_PREVIEW_QUESTION_LIMIT };
+      ? { ...test, duration: PSYCHOMETRIC_FULL_MINUTES, total_questions: PSYCHOMETRIC_FULL_QUESTIONS }
+      : practiceAccess === 'guest'
+        ? { ...test, duration: PSYCHOMETRIC_GUEST_MINUTES, total_questions: PRACTICE_PREVIEW_QUESTION_LIMIT }
+        : { ...test, duration: test.duration, total_questions: test.total_questions };
 
   if (!testStarted) {
     return (
@@ -227,15 +248,15 @@ export default function TakeTestPage({
           <div className="space-y-4 mb-6 p-4 bg-white/10 border border-white/20 rounded-lg">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Questions:</span>
-              <span className="font-semibold text-foreground">{shownQuestionCount}</span>
+              <span className="font-semibold text-foreground">
+                {shownQuestionCount == null ? '—' : shownQuestionCount}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Duration:</span>
-              <span className="font-semibold text-foreground">{shownDurationMinutes} minutes</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Difficulty:</span>
-              <span className="font-semibold text-foreground capitalize">{test.difficulty_level}</span>
+              <span className="font-semibold text-foreground">
+                {shownDurationMinutes == null ? '—' : `${shownDurationMinutes} minutes`}
+              </span>
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { use, useEffect, useLayoutEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,14 @@ import {
   getFallbackTestsByCategorySlug,
   isSchemaMissingError,
 } from '@/lib/fallback-question-bank';
+import {
+  PRACTICE_PREVIEW_QUESTION_LIMIT,
+  PSYCHOMETRIC_FULL_MINUTES,
+  PSYCHOMETRIC_FULL_QUESTIONS,
+  PSYCHOMETRIC_GUEST_MINUTES,
+} from '@/lib/constants';
+
+type ListAccessState = 'pending' | 'guest' | 'full';
 
 export default function CategoryTestsPage({
   params,
@@ -28,6 +37,66 @@ export default function CategoryTestsPage({
   const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [listAccess, setListAccess] = useState<ListAccessState>('pending');
+
+  useLayoutEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      setListAccess('full');
+    }
+  }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return undefined;
+
+    const applySession = (session: Session | null) => {
+      setListAccess(session?.user ? 'full' : 'guest');
+    };
+
+    const refreshAccess = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session?.user) {
+          setListAccess('full');
+          return;
+        }
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+        if (error) {
+          setListAccess('guest');
+          return;
+        }
+        setListAccess(user ? 'full' : 'guest');
+      } catch {
+        setListAccess('guest');
+      }
+    };
+
+    void refreshAccess();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      applySession(session);
+    });
+    const onFocus = () => {
+      void refreshAccess();
+    };
+    window.addEventListener('focus', onFocus);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void refreshAccess();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchCategoryAndTests = async () => {
@@ -134,6 +203,19 @@ export default function CategoryTestsPage({
     fetchCategoryAndTests();
   }, [categorySlug]);
 
+  const listedQuestions =
+    listAccess === 'full'
+      ? PSYCHOMETRIC_FULL_QUESTIONS
+      : listAccess === 'guest'
+        ? PRACTICE_PREVIEW_QUESTION_LIMIT
+        : null;
+  const listedMinutes =
+    listAccess === 'full'
+      ? PSYCHOMETRIC_FULL_MINUTES
+      : listAccess === 'guest'
+        ? PSYCHOMETRIC_GUEST_MINUTES
+        : null;
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -202,19 +284,20 @@ export default function CategoryTestsPage({
                     <h2 className="text-xl font-semibold text-foreground">{test.name}</h2>
                     <p className="text-sm text-muted-foreground mt-1">{test.description}</p>
                   </div>
-                  <span className="px-3 py-1 bg-white/10 text-violet-100 text-xs font-medium rounded-full border border-white/20">
-                    {test.difficulty_level}
-                  </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-6 py-4 border-y border-white/15">
                   <div>
                     <p className="text-sm text-muted-foreground">Questions</p>
-                    <p className="text-lg font-semibold text-foreground">{test.total_questions}</p>
+                    <p className="text-lg font-semibold text-foreground">
+                      {listedQuestions == null ? '—' : listedQuestions}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Duration</p>
-                    <p className="text-lg font-semibold text-foreground">{test.duration} min</p>
+                    <p className="text-lg font-semibold text-foreground">
+                      {listedMinutes == null ? '—' : `${listedMinutes} min`}
+                    </p>
                   </div>
                 </div>
 
