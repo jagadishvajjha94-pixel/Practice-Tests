@@ -17,6 +17,55 @@ interface ResultData {
   answers: Record<string, any>;
 }
 
+/** DB rows may use snake_case; some schemas use `question_answers` / `test_answers` instead of JSON `answers`. */
+type AnswerRow = {
+  question_id: unknown;
+  user_answer?: unknown;
+  userAnswer?: unknown;
+  marked_for_review?: unknown;
+};
+
+function mergeRowsIntoAnswers(
+  base: Record<string, unknown>,
+  rows: AnswerRow[] | null | undefined
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base };
+  if (!rows?.length) return out;
+  for (const row of rows) {
+    const qid = String(row.question_id);
+    const prev =
+      out[qid] != null && typeof out[qid] === 'object'
+        ? (out[qid] as Record<string, unknown>)
+        : {};
+    const ua = row.user_answer ?? row.userAnswer ?? prev.userAnswer;
+    out[qid] = {
+      ...prev,
+      userAnswer: ua,
+      isMarkedForReview: row.marked_for_review ?? prev.isMarkedForReview,
+    };
+  }
+  return out;
+}
+
+function answersHaveUserSelections(answers: Record<string, unknown>): boolean {
+  return Object.values(answers).some((entry) => {
+    if (entry == null || typeof entry !== 'object') return false;
+    const ua = (entry as { userAnswer?: unknown }).userAnswer;
+    return ua !== null && ua !== undefined && ua !== '';
+  });
+}
+
+type AttemptRow = TestAttempt & {
+  percentage_score?: number | string | null;
+  total_score?: number | string | null;
+};
+
+function toNum(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 export default function TestResultPage({
   params,
 }: {
@@ -46,6 +95,11 @@ export default function TestResultPage({
 
       try {
         const supabase = getSupabaseBrowserClient();
+        if (!supabase) {
+          setFetchError(SUPABASE_PUBLIC_ENV_MESSAGE);
+          return;
+        }
+
         // Fetch attempt
         const { data: attempt, error: attemptError } = await supabase
           .from('test_attempts')
@@ -54,6 +108,8 @@ export default function TestResultPage({
           .single();
 
         if (attemptError) throw attemptError;
+
+        const attemptTyped = attempt as AttemptRow;
 
         // Fetch test
         const { data: test, error: testError } = await supabase
@@ -74,7 +130,7 @@ export default function TestResultPage({
         if (questionsError) throw questionsError;
 
         let questions = (testQuestions ?? [])
-          .map((tq) => (tq as { question?: Record<string, unknown> }).question)
+          .map((tq) => (tq as unknown as { question?: Record<string, unknown> }).question)
           .filter((q): q is Record<string, unknown> => q != null)
           .map(adaptQuestionRow);
 
@@ -91,11 +147,34 @@ export default function TestResultPage({
           }
         }
 
+        const baseAnswers =
+          attemptTyped.answers != null && typeof attemptTyped.answers === 'object'
+            ? (attemptTyped.answers as Record<string, unknown>)
+            : {};
+
+        let mergedAnswers: Record<string, unknown> = { ...baseAnswers };
+
+        const { data: qaRows, error: qaErr } = await supabase
+          .from('question_answers')
+          .select('question_id,user_answer,marked_for_review')
+          .eq('attempt_id', attemptTyped.id);
+        if (!qaErr && qaRows?.length) {
+          mergedAnswers = mergeRowsIntoAnswers(mergedAnswers, qaRows as AnswerRow[]);
+        }
+
+        const { data: taRows, error: taErr } = await supabase
+          .from('test_answers')
+          .select('question_id,user_answer')
+          .eq('attempt_id', attemptTyped.id);
+        if (!taErr && taRows?.length) {
+          mergedAnswers = mergeRowsIntoAnswers(mergedAnswers, taRows as AnswerRow[]);
+        }
+
         setResultData({
-          attempt,
+          attempt: attemptTyped,
           test: adaptTestRow(test as Record<string, unknown>),
           questions,
-          answers: attempt.answers || {},
+          answers: mergedAnswers,
         });
       } catch (error) {
         console.error('Error fetching result:', formatSupabaseError(error), error);
@@ -125,13 +204,19 @@ export default function TestResultPage({
   }
 
   const { attempt, test, questions, answers } = resultData;
-  const score = attempt.score || 0;
-  const percentage = Math.round(score);
+  const attemptRow = attempt as AttemptRow;
+
+  const storedScore = toNum(attemptRow.score);
+  const storedPct = toNum(attemptRow.percentage_score);
+  const totalScoreDb = toNum(attemptRow.total_score);
+
   const answeredCount = Object.values(answers).filter(
-    (a: any) => a.userAnswer !== null && a.userAnswer !== undefined
+    (a: { userAnswer?: unknown }) =>
+      a?.userAnswer !== null && a?.userAnswer !== undefined && a?.userAnswer !== ''
   ).length;
 
-  // Calculate correct answers
+  const hasPerQuestion = answersHaveUserSelections(answers as Record<string, unknown>);
+
   let correctCount = 0;
   for (const question of questions) {
     const userAnswer = answers[question.id]?.userAnswer;
@@ -139,6 +224,35 @@ export default function TestResultPage({
       correctCount++;
     }
   }
+
+  if (!hasPerQuestion && questions.length > 0) {
+    if (totalScoreDb != null) {
+      correctCount = Math.min(questions.length, Math.max(0, Math.round(totalScoreDb)));
+    } else if (storedPct != null) {
+      correctCount = Math.min(
+        questions.length,
+        Math.max(0, Math.round((storedPct / 100) * questions.length))
+      );
+    }
+  }
+
+  const displayAnsweredCount =
+    hasPerQuestion
+      ? answeredCount
+      : questions.length > 0 &&
+          (totalScoreDb != null || storedPct != null || storedScore != null)
+        ? questions.length
+        : answeredCount;
+
+  const percentage =
+    questions.length > 0
+      ? Math.round((correctCount / questions.length) * 100)
+      : Math.round(storedPct ?? storedScore ?? 0);
+
+  const derivedFromAggregateOnly =
+    questions.length > 0 &&
+    !hasPerQuestion &&
+    (totalScoreDb != null || storedPct != null || storedScore != null);
 
   const isPassed = percentage >= (test.passing_score || 40);
 
@@ -156,6 +270,12 @@ export default function TestResultPage({
           <p className="text-gray-700">
             {isPassed ? 'You passed the test!' : 'Keep practicing to improve your score'}
           </p>
+          {derivedFromAggregateOnly ? (
+            <p className="text-sm text-gray-500 mt-3 max-w-xl mx-auto">
+              Your percentage and counts come from this attempt. Per-question responses are not stored in this
+              database layout.
+            </p>
+          ) : null}
         </div>
 
         {/* Score Cards */}
@@ -169,54 +289,69 @@ export default function TestResultPage({
             <p className="text-gray-700 text-sm">Incorrect Answers</p>
           </Card>
           <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
-            <div className="text-2xl font-bold text-purple-600 mb-2">{questions.length - answeredCount}</div>
+            <div className="text-2xl font-bold text-purple-600 mb-2">
+              {questions.length - displayAnsweredCount}
+            </div>
             <p className="text-gray-700 text-sm">Unanswered</p>
           </Card>
           <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
-            <div className="text-2xl font-bold text-green-600 mb-2">{attempt.time_taken ? Math.floor(attempt.time_taken / 60) : 0}m</div>
+            <div className="text-2xl font-bold text-green-600 mb-2">
+              {attempt.time_taken ? Math.floor(attempt.time_taken / 60) : 0}m
+            </div>
             <p className="text-gray-700 text-sm">Time Taken</p>
           </Card>
         </div>
 
         {/* Detailed Answers */}
-        <Card className="p-6 mb-8 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Detailed Answers</h2>
+        {derivedFromAggregateOnly ? (
+          <Card className="p-6 mb-8 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
+            <p className="text-gray-700 text-center">
+              Question-by-question review is not available for this attempt because only a summary score was
+              saved on the server.
+            </p>
+          </Card>
+        ) : (
+          <Card className="p-6 mb-8 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Detailed Answers</h2>
 
-          <div className="space-y-6">
-            {questions.map((question, index) => {
-              const userAnswer = answers[question.id]?.userAnswer;
-              const isCorrect = answersMatchMcq(userAnswer, question.correct_answer);
+            <div className="space-y-6">
+              {questions.map((question, index) => {
+                const userAnswer = answers[question.id]?.userAnswer;
+                const isCorrect = answersMatchMcq(userAnswer, question.correct_answer);
 
-              return (
-                <div key={question.id} className="pb-6 border-b border-gray-200 last:border-b-0">
-                  <div className="flex items-start gap-3 mb-3">
-                    <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-semibold text-white ${isCorrect ? 'bg-green-600' : 'bg-red-600'}`}>
-                      {index + 1}
-                    </span>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{question.question_text}</h3>
-                      <div className="mt-2 text-sm">
-                        <div className={`py-1 ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
-                          <strong>Your answer:</strong> {userAnswer || 'Not answered'}
+                return (
+                  <div key={question.id} className="pb-6 border-b border-gray-200 last:border-b-0">
+                    <div className="flex items-start gap-3 mb-3">
+                      <span
+                        className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-semibold text-white ${isCorrect ? 'bg-green-600' : 'bg-red-600'}`}
+                      >
+                        {index + 1}
+                      </span>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900">{question.question_text}</h3>
+                        <div className="mt-2 text-sm">
+                          <div className={`py-1 ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                            <strong>Your answer:</strong> {userAnswer || 'Not answered'}
+                          </div>
+                          {!isCorrect && (
+                            <div className="py-1 text-green-700">
+                              <strong>Correct answer:</strong> {question.correct_answer}
+                            </div>
+                          )}
+                          {question.explanation && (
+                            <div className="py-2 text-gray-700">
+                              <strong>Explanation:</strong> {question.explanation}
+                            </div>
+                          )}
                         </div>
-                        {!isCorrect && (
-                          <div className="py-1 text-green-700">
-                            <strong>Correct answer:</strong> {question.correct_answer}
-                          </div>
-                        )}
-                        {question.explanation && (
-                          <div className="py-2 text-gray-700">
-                            <strong>Explanation:</strong> {question.explanation}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
         {/* Action Buttons */}
         <div className="flex gap-4 justify-center">

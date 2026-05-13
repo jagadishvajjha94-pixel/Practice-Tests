@@ -16,6 +16,47 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { answersMatchMcq } from '@/lib/practice-mappers';
 import { formatSupabaseError } from '@/lib/utils';
 import { isSchemaMissingError } from '@/lib/fallback-question-bank';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { TestAnswer } from './test-context';
+
+/** When `test_attempts` has no JSON `answers`, some DBs keep rows in `question_answers` or `test_answers`. */
+async function persistOptionalPerQuestionRows(
+  supabase: SupabaseClient,
+  attemptId: string | number,
+  questions: Question[],
+  answers: Record<string, TestAnswer>
+) {
+  if (!questions.length) return;
+
+  const rows = questions.map((q) => {
+    const raw = answers[q.id]?.userAnswer;
+    const ua =
+      raw === null || raw === undefined ? null : typeof raw === 'string' ? raw : String(raw);
+    return {
+      attempt_id: attemptId,
+      question_id: q.id,
+      user_answer: ua,
+      is_correct: answersMatchMcq(raw, q.correct_answer),
+      marked_for_review: Boolean(answers[q.id]?.isMarkedForReview),
+    };
+  });
+
+  const { error: qaErr } = await supabase.from('question_answers').insert(rows);
+  if (!qaErr) return;
+
+  const rowsTa = questions.map((q) => {
+    const raw = answers[q.id]?.userAnswer;
+    const ua =
+      raw === null || raw === undefined ? null : typeof raw === 'string' ? raw : String(raw);
+    return {
+      attempt_id: attemptId,
+      question_id: q.id,
+      user_answer: ua,
+      is_correct: answersMatchMcq(raw, q.correct_answer),
+    };
+  });
+  await supabase.from('test_answers').insert(rowsTa);
+}
 
 interface TestInterfaceProps {
   test: Test;
@@ -234,6 +275,8 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
           throw updateAttemptError;
         }
       }
+
+      await persistOptionalPerQuestionRows(supabase, attempt.id, questions, answers);
 
       setIsSubmitted(true);
       router.push(`/tests/result/${attempt.id}`);
