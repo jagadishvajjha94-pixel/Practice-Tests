@@ -6,7 +6,7 @@ import {
   isSupabasePublicEnvConfigured,
 } from '@/lib/supabase-public-env'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (
     process.env.NEXT_PUBLIC_SIGNUP_DISABLED === 'true' &&
     request.nextUrl.pathname === '/auth/signup'
