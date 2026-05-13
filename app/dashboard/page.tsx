@@ -237,13 +237,7 @@ export default function DashboardPage() {
               <Link href="/admin">
                 <Button variant="outline">Open Admin Panel</Button>
               </Link>
-            ) : (
-              <Link href="/tests">
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                  Take a Test
-                </Button>
-              </Link>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -373,6 +367,22 @@ export default function DashboardPage() {
             </div>
           )}
         </Card>
+
+        {!isAdminUser ? (
+          <Card className="p-6 mt-8">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Ready for your next test?</h3>
+                <p className="text-sm text-muted-foreground">Start a new attempt from the practice tests page.</p>
+              </div>
+              <Link href="/tests">
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                  Take a Test
+                </Button>
+              </Link>
+            </div>
+          </Card>
+        ) : null}
       </div>
     </div>
   );

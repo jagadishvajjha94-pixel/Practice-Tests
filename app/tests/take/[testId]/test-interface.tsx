@@ -128,6 +128,12 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
     router.push(`/tests/result/${localAttemptId}`);
   };
 
+  const isMissingColumnError = (error: unknown, column: string) => {
+    if (!error || typeof error !== 'object') return false;
+    const e = error as { code?: string; message?: string };
+    return e.code === 'PGRST204' && (e.message ?? '').toLowerCase().includes(`'${column.toLowerCase()}'`);
+  };
+
   async function handleSubmitTest() {
     if (!currentQuestion || submitting) return;
 
@@ -159,29 +165,75 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
         return;
       }
 
-      // Create test attempt
-      const { data: attempt, error: attemptError } = await supabase
+      const nowIso = new Date().toISOString();
+      const elapsedSec = test.duration * 60 - timeRemaining;
+
+      // Create test attempt (new schema first, fallback to legacy schema without answers/time_taken).
+      let attempt: { id: string | number } | null = null;
+      const { data: createdAttempt, error: createAttemptError } = await supabase
         .from('test_attempts')
         .insert({
           user_id: user.id,
           test_id: test.id,
-          started_at: new Date().toISOString(),
-          completed_at: new Date().toISOString(),
+          started_at: nowIso,
+          completed_at: nowIso,
           status: 'completed',
-          time_taken: test.duration * 60 - timeRemaining,
-          answers: answers,
+          time_taken: elapsedSec,
+          answers,
         })
         .select()
         .single();
 
-      if (attemptError) throw attemptError;
+      if (!createAttemptError) {
+        attempt = createdAttempt as { id: string | number };
+      } else if (
+        isMissingColumnError(createAttemptError, 'answers') ||
+        isMissingColumnError(createAttemptError, 'time_taken') ||
+        isMissingColumnError(createAttemptError, 'score')
+      ) {
+        const { data: legacyAttempt, error: legacyCreateError } = await supabase
+          .from('test_attempts')
+          .insert({
+            user_id: user.id,
+            test_id: test.id,
+            started_at: nowIso,
+            completed_at: nowIso,
+            status: 'completed',
+          })
+          .select()
+          .single();
+        if (legacyCreateError) throw legacyCreateError;
+        attempt = legacyAttempt as { id: string | number };
+      } else {
+        throw createAttemptError;
+      }
 
-      // Update attempt with score
+      // Update attempt with score (new schema first, then legacy columns).
       const { error: updateAttemptError } = await supabase
         .from('test_attempts')
-        .update({ score: scorePercent })
+        .update({ score: scorePercent, time_taken: elapsedSec, answers })
         .eq('id', attempt.id);
-      if (updateAttemptError) throw updateAttemptError;
+
+      if (updateAttemptError) {
+        if (
+          isMissingColumnError(updateAttemptError, 'score') ||
+          isMissingColumnError(updateAttemptError, 'answers') ||
+          isMissingColumnError(updateAttemptError, 'time_taken')
+        ) {
+          const { error: legacyUpdateError } = await supabase
+            .from('test_attempts')
+            .update({
+              percentage_score: scorePercent,
+              total_score: score,
+              completed_at: nowIso,
+              status: 'completed',
+            })
+            .eq('id', attempt.id);
+          if (legacyUpdateError) throw legacyUpdateError;
+        } else {
+          throw updateAttemptError;
+        }
+      }
 
       setIsSubmitted(true);
       router.push(`/tests/result/${attempt.id}`);

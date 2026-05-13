@@ -155,7 +155,7 @@ export default function ProfilePage() {
                 type="email"
                 value={user?.email || ''}
                 disabled
-                className="bg-gray-100 text-gray-600"
+                className="border-gray-300 bg-gray-100 text-gray-700 placeholder:text-gray-500"
               />
               <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
             </div>
@@ -171,6 +171,7 @@ export default function ProfilePage() {
                 placeholder="Enter your full name"
                 value={formData.full_name}
                 onChange={handleChange}
+                className="border-gray-300 bg-white text-gray-900 placeholder:text-gray-500"
               />
             </div>
 
@@ -185,6 +186,7 @@ export default function ProfilePage() {
                 placeholder="Enter your phone number"
                 value={formData.phone}
                 onChange={handleChange}
+                className="border-gray-300 bg-white text-gray-900 placeholder:text-gray-500"
               />
             </div>
 

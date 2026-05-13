@@ -22,6 +22,17 @@ type DashboardStudent = {
   highestTestName: string | null;
 };
 
+type DashboardAttemptRow = {
+  id: string | number;
+  user_id?: string;
+  test_id?: string | number;
+  score?: number | null;
+  status?: string | null;
+  created_at?: string | null;
+  completed_at?: string | null;
+  time_taken?: number | null;
+};
+
 const navItems = [
   { href: '/admin/dashboard', label: 'Overview' },
   { href: '/admin/questions', label: 'Questions' },
@@ -52,6 +63,8 @@ export function AdminDashboard() {
   const [search, setSearch] = useState('');
   const [recentStudents, setRecentStudents] = useState<DashboardStudent[]>([]);
   const [topStudents, setTopStudents] = useState<DashboardStudent[]>([]);
+  const [allStudents, setAllStudents] = useState<DashboardStudent[]>([]);
+  const [allAttempts, setAllAttempts] = useState<DashboardAttemptRow[]>([]);
 
   useEffect(() => {
     const checkAdminAccess = async () => {
@@ -90,6 +103,8 @@ export function AdminDashboard() {
           supabase.from('tests').select('id, name, category_id'),
           supabase.from('test_categories').select('id, name, slug'),
         ]);
+        const attemptRows = (attempts ?? []) as DashboardAttemptRow[];
+        setAllAttempts(attemptRows);
 
         const testsById = new Map<string, { name: string; category_id: string }>();
         for (const t of tests ?? []) {
@@ -138,7 +153,7 @@ export function AdminDashboard() {
         }
 
         const scoresByUser = new Map<string, number[]>();
-        for (const a of attempts ?? []) {
+        for (const a of attemptRows) {
           const userId = String((a as { user_id?: string }).user_id ?? '');
           const score = Number((a as { score?: number | null }).score ?? 0);
           const createdAt = String((a as { created_at?: string }).created_at ?? '');
@@ -194,6 +209,7 @@ export function AdminDashboard() {
         });
         setRecentStudents(recent);
         setTopStudents(top);
+        setAllStudents(students);
       } catch (error) {
         console.error('Error checking admin access:', error);
         router.push('/dashboard');
@@ -246,6 +262,193 @@ export function AdminDashboard() {
     return true;
   });
 
+  const filteredStudents = allStudents.filter((student) => {
+    const q = search.trim().toLowerCase();
+    if (q && !(student.full_name || student.email).toLowerCase().includes(q)) return false;
+    if (selectedTest !== 'all') {
+      const wanted = testsMap.get(selectedTest)?.name;
+      if (!wanted || student.highestTestName !== wanted) return false;
+    }
+    if (selectedCategory !== 'all') {
+      const cat = categories.find((c) => c.slug === selectedCategory);
+      if (!cat) return true;
+      const matchedTest = Array.from(testsMap.entries()).find(([, t]) => t.name === student.highestTestName);
+      if (!matchedTest) return false;
+      if (matchedTest[1].category_id !== cat.id) return false;
+    }
+    return true;
+  });
+
+  const selectedCategoryId =
+    selectedCategory === 'all' ? null : categories.find((c) => c.slug === selectedCategory)?.id ?? null;
+  const filteredStudentIds = new Set(filteredStudents.map((s) => s.id));
+  const filteredAttempts = allAttempts.filter((attempt) => {
+    const userId = String(attempt.user_id ?? '');
+    if (!filteredStudentIds.has(userId)) return false;
+    const testId = String(attempt.test_id ?? '');
+    if (selectedTest !== 'all' && selectedTest !== testId) return false;
+    if (selectedCategoryId) {
+      const test = testsMap.get(testId);
+      if (!test || test.category_id !== selectedCategoryId) return false;
+    }
+    return true;
+  });
+
+  const studentsWithAttempts = filteredStudents.filter((s) => s.attempts > 0);
+  const attendanceRate =
+    stats.totalRegisteredUsers > 0
+      ? Number(((stats.totalStudentsAttended / stats.totalRegisteredUsers) * 100).toFixed(1))
+      : 0;
+  const inactiveStudents = allStudents.filter((s) => s.attempts === 0).length;
+  const overallAverageScore =
+    filteredAttempts.length > 0
+      ? Number(
+          (
+            filteredAttempts.reduce((sum, a) => sum + Number(a.score ?? 0), 0) / filteredAttempts.length
+          ).toFixed(1)
+        )
+      : 0;
+  const passedCount = filteredAttempts.filter((a) => Number(a.score ?? 0) >= 40).length;
+  const passRate =
+    filteredAttempts.length > 0 ? Number(((passedCount / filteredAttempts.length) * 100).toFixed(1)) : 0;
+
+  const scoreBands = [
+    {
+      label: '90 - 100 (Excellent)',
+      count: studentsWithAttempts.filter((s) => s.avgScore >= 90).length,
+      tone: 'text-emerald-700',
+    },
+    {
+      label: '75 - 89 (Strong)',
+      count: studentsWithAttempts.filter((s) => s.avgScore >= 75 && s.avgScore < 90).length,
+      tone: 'text-green-700',
+    },
+    {
+      label: '40 - 74 (Average)',
+      count: studentsWithAttempts.filter((s) => s.avgScore >= 40 && s.avgScore < 75).length,
+      tone: 'text-amber-700',
+    },
+    {
+      label: '0 - 39 (Needs support)',
+      count: studentsWithAttempts.filter((s) => s.avgScore < 40).length,
+      tone: 'text-red-700',
+    },
+  ];
+
+  const testWisePerformance = Array.from(
+    filteredAttempts.reduce((acc, attempt) => {
+      const testId = String(attempt.test_id ?? '');
+      if (!acc.has(testId)) {
+        acc.set(testId, { attempts: 0, totalScore: 0, highest: 0, passed: 0 });
+      }
+      const row = acc.get(testId)!;
+      const score = Number(attempt.score ?? 0);
+      row.attempts += 1;
+      row.totalScore += score;
+      row.highest = Math.max(row.highest, score);
+      if (score >= 40) row.passed += 1;
+      return acc;
+    }, new Map<string, { attempts: number; totalScore: number; highest: number; passed: number }>())
+  )
+    .map(([testId, row]) => ({
+      testId,
+      testName: testsMap.get(testId)?.name ?? `Test ${testId}`,
+      attempts: row.attempts,
+      avgScore: Number((row.totalScore / row.attempts).toFixed(1)),
+      highestScore: row.highest,
+      passRate: Number(((row.passed / row.attempts) * 100).toFixed(1)),
+    }))
+    .sort((a, b) => b.attempts - a.attempts)
+    .slice(0, 8);
+
+  const recentAttemptsFeed = [...filteredAttempts]
+    .sort((a, b) => {
+      const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
+      const at = a.created_at ? new Date(a.created_at).getTime() : 0;
+      return bt - at;
+    })
+    .slice(0, 12)
+    .map((attempt) => {
+      const student = allStudents.find((s) => s.id === String(attempt.user_id ?? ''));
+      const testName = testsMap.get(String(attempt.test_id ?? ''))?.name ?? `Test ${String(attempt.test_id ?? '-')}`;
+      return {
+        id: String(attempt.id ?? ''),
+        studentName: student?.full_name || student?.email || 'Unknown student',
+        studentEmail: student?.email || '-',
+        testName,
+        score: Number(attempt.score ?? 0),
+        status: String(attempt.status ?? '-'),
+        createdAt: attempt.created_at,
+      };
+    });
+
+  const exportFullReportCsv = () => {
+    const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const lines: string[] = [];
+    const generatedAt = new Date().toLocaleString();
+
+    lines.push('Admin Dashboard Report');
+    lines.push(`Generated At,${escape(generatedAt)}`);
+    lines.push(`Registered Users,${stats.totalRegisteredUsers}`);
+    lines.push(`Students With Attempts,${stats.totalStudentsAttended}`);
+    lines.push(`Total Tests Submitted,${stats.totalTestsSubmitted}`);
+    lines.push(`Average Tests Per Student,${stats.avgTestsPerStudent}`);
+    lines.push(`Tests Submitted Last 7 Days,${stats.testsLast7Days}`);
+    lines.push(`Need Attention (avg < 40),${stats.lowPerformers}`);
+    lines.push('');
+
+    lines.push('Student Performance');
+    lines.push('Student Name,Email,Attempts,Average Score,Highest Score,Highest Test,Latest Attempt');
+    for (const student of filteredStudents) {
+      lines.push(
+        [
+          escape(student.full_name || '-'),
+          escape(student.email),
+          student.attempts,
+          student.avgScore,
+          student.highestScore,
+          escape(student.highestTestName || '-'),
+          escape(student.latestAttemptAt ? new Date(student.latestAttemptAt).toLocaleString() : '-'),
+        ].join(',')
+      );
+    }
+    lines.push('');
+
+    lines.push('Attempt Level Details');
+    lines.push('Attempt ID,Student Name,Student Email,Test Name,Category,Score,Status,Created At,Completed At,Time Taken (min)');
+    const userById = new Map(filteredStudents.map((s) => [s.id, s]));
+    const categoryById = new Map(categories.map((c) => [c.id, c]));
+    for (const attempt of allAttempts) {
+      const userId = String(attempt.user_id ?? '');
+      const student = userById.get(userId);
+      if (!student) continue;
+      const test = testsMap.get(String(attempt.test_id ?? ''));
+      const categoryName = test?.category_id ? categoryById.get(test.category_id)?.name ?? '-' : '-';
+      lines.push(
+        [
+          escape(String(attempt.id ?? '')),
+          escape(student.full_name || '-'),
+          escape(student.email),
+          escape(test?.name || `Test ${String(attempt.test_id ?? '-')}`),
+          escape(categoryName),
+          Number(attempt.score ?? 0),
+          escape(String(attempt.status ?? '-')),
+          escape(attempt.created_at ? new Date(attempt.created_at).toLocaleString() : '-'),
+          escape(attempt.completed_at ? new Date(attempt.completed_at).toLocaleString() : '-'),
+          Math.round(Number(attempt.time_taken ?? 0) / 60),
+        ].join(',')
+      );
+    }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `admin-dashboard-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const isOverviewActive = pathname === '/admin' || pathname === '/admin/dashboard';
 
   return (
@@ -257,9 +460,14 @@ export function AdminDashboard() {
               <h1 className="text-3xl font-bold text-gray-900">Admin</h1>
               <p className="text-sm text-gray-500 mt-1">Overview, content, and learner analytics</p>
             </div>
-            <Link href="/dashboard">
-              <Button variant="outline">Back to app</Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Button onClick={exportFullReportCsv} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                Export full report (Excel CSV)
+              </Button>
+              <Link href="/dashboard">
+                <Button variant="outline">Back to app</Button>
+              </Link>
+            </div>
           </div>
           <nav className="mt-6 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
             {navItems.map((item) => {
@@ -399,6 +607,171 @@ export function AdminDashboard() {
             )}
           </Card>
         </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Card className="p-5">
+            <p className="text-gray-600 text-sm font-medium mb-2">Attendance rate</p>
+            <p className="text-3xl font-bold text-blue-700">{attendanceRate}%</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {stats.totalStudentsAttended}/{stats.totalRegisteredUsers} students attempted
+            </p>
+          </Card>
+          <Card className="p-5">
+            <p className="text-gray-600 text-sm font-medium mb-2">Overall average score</p>
+            <p className="text-3xl font-bold text-violet-700">{overallAverageScore}%</p>
+            <p className="text-xs text-gray-500 mt-1">Across {filteredAttempts.length} filtered attempts</p>
+          </Card>
+          <Card className="p-5">
+            <p className="text-gray-600 text-sm font-medium mb-2">Pass rate (>= 40%)</p>
+            <p className="text-3xl font-bold text-emerald-700">{passRate}%</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {passedCount}/{filteredAttempts.length} attempts passed
+            </p>
+          </Card>
+          <Card className="p-5">
+            <p className="text-gray-600 text-sm font-medium mb-2">Inactive students</p>
+            <p className="text-3xl font-bold text-amber-700">{inactiveStudents}</p>
+            <p className="text-xs text-gray-500 mt-1">No tests attempted yet</p>
+          </Card>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-6 mb-8">
+          <Card className="p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Score distribution (by student average)</h2>
+            <div className="space-y-3">
+              {scoreBands.map((band) => {
+                const percent =
+                  studentsWithAttempts.length > 0
+                    ? Math.round((band.count / studentsWithAttempts.length) * 100)
+                    : 0;
+                return (
+                  <div key={band.label}>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className={`text-sm font-medium ${band.tone}`}>{band.label}</p>
+                      <p className="text-sm text-gray-700">
+                        {band.count} student{band.count === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-gray-200">
+                      <div className="h-2 rounded-full bg-gray-800" style={{ width: `${percent}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Recent test submissions</h2>
+            {recentAttemptsFeed.length === 0 ? (
+              <p className="text-sm text-gray-600">No attempts yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {recentAttemptsFeed.slice(0, 8).map((attempt) => (
+                  <div key={attempt.id} className="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{attempt.studentName}</p>
+                      <p className="text-xs text-gray-500">
+                        {attempt.testName} • {attempt.createdAt ? new Date(attempt.createdAt).toLocaleString() : '-'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-900">{attempt.score}%</p>
+                      <p className="text-xs text-gray-500 capitalize">{attempt.status}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <Card className="p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900">Test-wise performance overview</h2>
+            <p className="text-sm text-gray-500">Top tests by number of attempts</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Test</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Attempts</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Avg score</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Highest score</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Pass rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {testWisePerformance.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-gray-500">
+                      No test attempts available for current filters.
+                    </td>
+                  </tr>
+                ) : (
+                  testWisePerformance.map((row) => (
+                    <tr key={row.testId} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4 text-gray-900 font-medium">{row.testName}</td>
+                      <td className="py-3 px-4 text-gray-900">{row.attempts}</td>
+                      <td className="py-3 px-4 text-gray-900">{row.avgScore}%</td>
+                      <td className="py-3 px-4 text-gray-900">{row.highestScore}%</td>
+                      <td className="py-3 px-4 text-gray-900">{row.passRate}%</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        <Card className="p-6 mb-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900">Student attendance and performance report</h2>
+            <p className="text-sm text-gray-500">
+              Showing {filteredStudents.length} of {allStudents.length} students
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Student</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Attempts (written)</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Average</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Highest</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Top Test</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Last Attempt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-8 text-gray-500">
+                      No students matched your filters.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredStudents.map((student) => (
+                    <tr key={student.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4">
+                        <p className="font-medium text-gray-900">{student.full_name || student.email}</p>
+                        <p className="text-xs text-gray-500">{student.email}</p>
+                      </td>
+                      <td className="py-3 px-4 text-gray-900">{student.attempts}</td>
+                      <td className="py-3 px-4 text-gray-900">{student.avgScore}%</td>
+                      <td className="py-3 px-4 text-gray-900">{student.highestScore}%</td>
+                      <td className="py-3 px-4 text-gray-700">{student.highestTestName || '-'}</td>
+                      <td className="py-3 px-4 text-gray-700">
+                        {student.latestAttemptAt ? new Date(student.latestAttemptAt).toLocaleString() : 'No attempts'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
 
         <div className="grid md:grid-cols-3 gap-6">
           <Card className="p-6 hover:shadow-lg transition cursor-pointer">

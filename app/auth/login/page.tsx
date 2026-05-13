@@ -147,6 +147,16 @@ function LoginPageContent() {
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </Button>
+
+            <Link href="/auth/login?redirect=/admin" className="block">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-white/40 bg-white/10 text-white hover:bg-white/20"
+              >
+                Admin login
+              </Button>
+            </Link>
           </form>
 
           <div className="mt-4 text-center">
