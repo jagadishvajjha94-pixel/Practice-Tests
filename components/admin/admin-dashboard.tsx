@@ -622,7 +622,7 @@ export function AdminDashboard() {
             <p className="text-xs text-gray-500 mt-1">Across {filteredAttempts.length} filtered attempts</p>
           </Card>
           <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">Pass rate (>= 40%)</p>
+            <p className="text-gray-600 text-sm font-medium mb-2">Pass rate (≥ 40%)</p>
             <p className="text-3xl font-bold text-emerald-700">{passRate}%</p>
             <p className="text-xs text-gray-500 mt-1">
               {passedCount}/{filteredAttempts.length} attempts passed
