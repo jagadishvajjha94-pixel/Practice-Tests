@@ -110,11 +110,11 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
         <div className="flex gap-2 pt-4 border-t border-gray-200">
           <Button
             onClick={() => markForReview(question.id, !isMarked)}
-            variant="outline"
-            className={`flex-1 font-semibold ${
+            variant="ghost"
+            className={`flex-1 border-2 font-bold ${
               isMarked
-                ? 'border-yellow-500 bg-yellow-300 text-yellow-950 hover:bg-yellow-300'
-                : 'border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200'
+                ? 'border-amber-950 bg-amber-900 text-amber-50 hover:bg-amber-950 hover:text-white'
+                : 'border-amber-800 bg-amber-100 text-amber-950 hover:bg-amber-200'
             }`}
           >
             {isMarked ? '⚑ Marked for Review' : '○ Mark for Review'}

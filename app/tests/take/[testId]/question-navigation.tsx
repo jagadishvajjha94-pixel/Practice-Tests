@@ -27,7 +27,7 @@ export default function QuestionNavigation({
 
   return (
     <div>
-      <p className="text-xs font-semibold text-gray-700 uppercase mb-3">Questions</p>
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-900 mb-3">Questions</p>
       <div className="grid grid-cols-5 gap-1.5 max-h-[min(60vh,560px)] overflow-y-auto pr-1">
         {questions.map((question, index) => {
           const locked = index >= unlockedCount;
@@ -36,12 +36,20 @@ export default function QuestionNavigation({
           const isMarked = record?.isMarkedForReview;
           const isCurrent = index === currentIndex;
 
-          let statusClass = 'bg-white border border-gray-300 text-gray-800 hover:bg-gray-100';
+          // Full pill colours: brown = marked for review (takes priority), green = answered, neutral = not visited.
+          let statusClass =
+            'border-2 border-slate-400 bg-slate-100 text-slate-950 shadow-sm hover:bg-slate-200 hover:border-slate-500';
           if (!locked) {
-            if (answered && isMarked) statusClass = 'bg-yellow-300 border border-yellow-500 text-yellow-950 hover:bg-yellow-300';
-            else if (answered) statusClass = 'bg-green-300 border border-green-500 text-green-950 hover:bg-green-300';
-            else if (isMarked) statusClass = 'bg-yellow-300 border border-yellow-500 text-yellow-950 hover:bg-yellow-300';
-            if (isCurrent) statusClass += ' ring-2 ring-blue-600 ring-offset-1';
+            if (isMarked) {
+              statusClass =
+                'border-2 border-amber-950 bg-amber-900 text-amber-50 shadow-md hover:bg-amber-950 hover:border-amber-950';
+            } else if (answered) {
+              statusClass =
+                'border-2 border-emerald-800 bg-emerald-600 text-white shadow-md hover:bg-emerald-700 hover:border-emerald-900';
+            }
+            if (isCurrent) {
+              statusClass += ' z-[1] ring-[3px] ring-blue-600 ring-offset-2 ring-offset-white';
+            }
           }
 
           return (
@@ -57,14 +65,14 @@ export default function QuestionNavigation({
                 }
                 setCurrentQuestionIndex(index);
               }}
-              variant="outline"
-              className={`h-9 min-w-[2.25rem] p-1 text-xs font-semibold rounded-md shadow-sm ${
+              variant="ghost"
+              className={`h-9 min-w-[2.25rem] p-1 text-xs font-bold tabular-nums rounded-md ${
                 locked
-                  ? 'cursor-pointer border-gray-400 bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-500'
+                  ? 'cursor-pointer border-2 border-slate-400 bg-slate-200 text-slate-700 hover:bg-slate-300 hover:text-slate-900'
                   : statusClass
               }`}
             >
-              {locked ? <Lock className="mx-auto h-3 w-3" aria-hidden /> : index + 1}
+              {locked ? <Lock className="mx-auto h-3.5 w-3.5 text-slate-700" aria-hidden /> : index + 1}
             </Button>
           );
         })}
