@@ -16,14 +16,7 @@ export default function TestTimer({ duration, warnBelowSec = 300 }: TestTimerPro
     if (timeRemaining <= 0) return;
 
     const interval = setInterval(() => {
-      setTimeRemaining(prev => {
-        const newTime = Math.max(0, prev - 1);
-        if (newTime === 0) {
-          // Auto-submit test when time runs out
-          // This would trigger through a callback in a production app
-        }
-        return newTime;
-      });
+      setTimeRemaining((prev) => Math.max(0, prev - 1));
     }, 1000);
 
     return () => clearInterval(interval);

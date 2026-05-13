@@ -41,11 +41,11 @@ export function TestProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const markForReview = useCallback((questionId: string, marked: boolean) => {
-    setAnswers(prev => ({
+    setAnswers((prev) => ({
       ...prev,
       [questionId]: {
-        ...prev[questionId],
         questionId,
+        userAnswer: prev[questionId]?.userAnswer ?? null,
         isMarkedForReview: marked,
       },
     }));

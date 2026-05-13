@@ -55,6 +55,28 @@ function answersHaveUserSelections(answers: Record<string, unknown>): boolean {
   });
 }
 
+function isAnswerAttemptedEntry(entry: unknown): boolean {
+  if (entry == null || typeof entry !== 'object') return false;
+  const ua = (entry as { userAnswer?: unknown }).userAnswer;
+  return ua !== null && ua !== undefined && ua !== '';
+}
+
+function isMarkedForReviewFlag(entry: unknown): boolean {
+  if (entry == null || typeof entry !== 'object') return false;
+  const o = entry as Record<string, unknown>;
+  return Boolean(o.isMarkedForReview ?? o.marked_for_review);
+}
+
+/** Omit from breakdown: never answered and only flagged for review. */
+function includeQuestionInDetailedReview(
+  questionId: string,
+  answers: Record<string, unknown>
+): boolean {
+  const entry = answers[questionId];
+  if (!isAnswerAttemptedEntry(entry) && isMarkedForReviewFlag(entry)) return false;
+  return true;
+}
+
 type AttemptRow = TestAttempt & {
   percentage_score?: number | string | null;
   total_score?: number | string | null;
@@ -314,42 +336,67 @@ export default function TestResultPage({
           <Card className="p-6 mb-8 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Detailed Answers</h2>
 
-            <div className="space-y-6">
-              {questions.map((question, index) => {
-                const userAnswer = answers[question.id]?.userAnswer;
-                const isCorrect = answersMatchMcq(userAnswer, question.correct_answer);
-
+            {(() => {
+              const answersRecord = answers as Record<string, unknown>;
+              const questionsForDetail = questions.filter((q) =>
+                includeQuestionInDetailedReview(q.id, answersRecord)
+              );
+              if (questionsForDetail.length === 0) {
                 return (
-                  <div key={question.id} className="pb-6 border-b border-gray-200 last:border-b-0">
-                    <div className="flex items-start gap-3 mb-3">
-                      <span
-                        className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-semibold text-white ${isCorrect ? 'bg-green-600' : 'bg-red-600'}`}
-                      >
-                        {index + 1}
-                      </span>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{question.question_text}</h3>
-                        <div className="mt-2 text-sm">
-                          <div className={`py-1 ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
-                            <strong>Your answer:</strong> {userAnswer || 'Not answered'}
+                  <p className="text-gray-600 text-sm">
+                    Nothing listed here: questions you did not answer and only marked for review are hidden.
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-6">
+                  {questionsForDetail.map((question, index) => {
+                    const entry = answersRecord[question.id];
+                    const userAnswer = answers[question.id]?.userAnswer;
+                    const attempted = isAnswerAttemptedEntry(entry);
+                    const isCorrect = answersMatchMcq(userAnswer, question.correct_answer);
+                    const statusClass = attempted
+                      ? isCorrect
+                        ? 'bg-green-600'
+                        : 'bg-red-600'
+                      : 'bg-slate-500';
+
+                    return (
+                      <div key={question.id} className="pb-6 border-b border-gray-200 last:border-b-0">
+                        <div className="flex items-start gap-3 mb-3">
+                          <span
+                            className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-semibold text-white ${statusClass}`}
+                          >
+                            {index + 1}
+                          </span>
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900">{question.question_text}</h3>
+                            <div className="mt-2 text-sm">
+                              <div
+                                className={`py-1 ${attempted ? (isCorrect ? 'text-green-700' : 'text-red-700') : 'text-gray-600'}`}
+                              >
+                                <strong>Your answer:</strong>{' '}
+                                {attempted ? userAnswer : 'Not answered'}
+                              </div>
+                              {attempted && !isCorrect && (
+                                <div className="py-1 text-green-700">
+                                  <strong>Correct answer:</strong> {question.correct_answer}
+                                </div>
+                              )}
+                              {attempted && question.explanation ? (
+                                <div className="py-2 text-gray-700">
+                                  <strong>Explanation:</strong> {question.explanation}
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
-                          {!isCorrect && (
-                            <div className="py-1 text-green-700">
-                              <strong>Correct answer:</strong> {question.correct_answer}
-                            </div>
-                          )}
-                          {question.explanation && (
-                            <div className="py-2 text-gray-700">
-                              <strong>Explanation:</strong> {question.explanation}
-                            </div>
-                          )}
                         </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </Card>
         )}
 

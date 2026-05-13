@@ -79,6 +79,7 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
     answers,
     timeRemaining,
     setTimeRemaining,
+    isSubmitted,
     setIsSubmitted,
   } = useTest();
 
@@ -92,11 +93,24 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
   const [questionTimeLeft, setQuestionTimeLeft] = useState(-1);
 
   const submitRef = useRef<() => Promise<void>>(async () => {});
+  const prevTimeRemainingRef = useRef<number | null>(null);
 
   // Overall test countdown (minutes → seconds in context)
   useEffect(() => {
     setTimeRemaining(test.duration * 60);
   }, [test.duration, setTimeRemaining]);
+
+  // Auto-submit when the overall test timer reaches zero (once per attempt).
+  useEffect(() => {
+    if (isSubmitted || submitting) return;
+    const t = timeRemaining;
+    const prev = prevTimeRemainingRef.current;
+    prevTimeRemainingRef.current = t;
+    if (prev === null) return;
+    if (prev > 0 && t === 0) {
+      void submitRef.current();
+    }
+  }, [timeRemaining, isSubmitted, submitting]);
 
   // Per-question speed clock (psychometric rapid items)
   useEffect(() => {
@@ -176,7 +190,7 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
   };
 
   async function handleSubmitTest() {
-    if (!currentQuestion || submitting) return;
+    if (!currentQuestion || submitting || isSubmitted) return;
 
     setSubmitting(true);
     try {
