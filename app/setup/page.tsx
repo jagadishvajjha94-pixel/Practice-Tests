@@ -40,7 +40,7 @@ export default function SetupPage() {
       }, 2000);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Setup failed';
-      console.error('[v0] Setup error:', errorMsg);
+      console.error('Setup error:', errorMsg);
       setError(errorMsg);
       setStatus(null);
     } finally {

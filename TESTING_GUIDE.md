@@ -128,11 +128,11 @@ Each user will have:
 Open browser DevTools (F12) to see:
 - Network requests to API endpoints
 - Any JavaScript errors
-- Console logs marked with `[v0]`
+- Console logs during signup and setup (e.g. init/seed response status)
 
 Look for messages like:
-- `[v0] Init response: 200` - Database initialized
-- `[v0] Seed response: 200` - Sample data loaded
+- `Init response: 200` - Database initialized
+- `Seed response: 200` - Sample data loaded
 - API call logs for tests and attempts
 
 ## Common Test Scenarios

@@ -14,7 +14,7 @@ export async function POST() {
       onnotice: () => {},
     });
 
-    console.log('[v0] Starting database initialization...');
+    console.log('Starting database initialization...');
 
     // Drop old tables if they exist (for fresh start)
     await sql`DROP TABLE IF EXISTS question_answers CASCADE;`;
@@ -231,7 +231,7 @@ export async function POST() {
       CREATE POLICY "prep_admin_users_select_own" ON admin_users FOR SELECT USING (auth.uid() = user_id);
     `);
 
-    console.log('[v0] Database tables created successfully');
+    console.log('Database tables created successfully');
 
     // Close connection
     await sql.end();
@@ -241,7 +241,7 @@ export async function POST() {
       message: 'Database initialized successfully'
     });
   } catch (error) {
-    console.error('[v0] Database initialization error:', error);
+    console.error('Database initialization error:', error);
     return NextResponse.json(
       { 
         error: error instanceof Error ? error.message : 'Database initialization failed',

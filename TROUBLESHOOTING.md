@@ -158,11 +158,11 @@ If status is "uninitialized", visit `/setup` page.
 
 ### Enable Debug Logging
 
-The app has debug logging in place. Look for `[v0]` prefixed console messages:
+The app has debug logging in place. Look for prefixed console messages such as:
 ```
-[v0] Sign up error: ...
-[v0] Setup error: ...
-[v0] Database initialization error: ...
+Sign up error: ...
+Setup error: ...
+Database initialization error: ...
 ```
 
 ## Database Connection Issues
@@ -247,7 +247,7 @@ The app has debug logging in place. Look for `[v0]` prefixed console messages:
 
 If you still can't resolve the issue:
 
-1. **Check Console Errors:** Look for `[v0]` messages and error messages
+1. **Check Console Errors:** Look for log messages and error details in the browser or server console
 2. **Check Supabase Dashboard:** Look for database errors or slow queries
 3. **Verify Environment Variables:** Ensure all are set correctly
 4. **Try Setup Again:** Visit `/setup` and reinitialize

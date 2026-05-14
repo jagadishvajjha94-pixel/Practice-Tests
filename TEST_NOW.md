@@ -128,9 +128,9 @@ You'll see a JSON response with success status. If successful, your database is 
 Open DevTools (Press F12) → Console tab
 
 You'll see helpful debug logs:
-- `[v0] Init response: 200` - Database ready
-- `[v0] Seed response: 200` - Test data loaded
-- Other `[v0]` logs for debugging
+- `Init response: 200` - Database ready
+- `Seed response: 200` - Test data loaded
+- Other setup and API logs for debugging
 
 ---
 

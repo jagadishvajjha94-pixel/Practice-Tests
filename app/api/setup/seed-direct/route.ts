@@ -260,7 +260,7 @@ export async function POST() {
 
     const sql = postgres(postgresUrl, { max: 1, onnotice: () => {} });
 
-    console.log('[v0] Starting database seeding...');
+    console.log('Starting database seeding...');
 
     await sql`
       INSERT INTO test_categories (name, slug, description, icon)
@@ -420,7 +420,7 @@ export async function POST() {
       ON CONFLICT (slug) DO NOTHING
     `;
 
-    console.log('[v0] Blog posts ensured');
+    console.log('Blog posts ensured');
 
     await sql.end();
 
@@ -429,7 +429,7 @@ export async function POST() {
       message: 'Database seeded successfully (categories, tests, questions, test_questions links)',
     });
   } catch (error) {
-    console.error('[v0] Seeding error:', error);
+    console.error('Seeding error:', error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Seeding failed',

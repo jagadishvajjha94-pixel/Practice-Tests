@@ -74,7 +74,7 @@ Fixed sign-up issues and made the entire PrepIndia application production-ready 
 
 ### Improved Error Handling
 - Detailed error messages for users
-- Proper error logging with `[v0]` prefix
+- Structured console logging for debugging
 - Fallback mechanisms when data is missing
 - User-friendly error displays on all pages
 

@@ -101,7 +101,7 @@ export default function DashboardPage() {
 
           if (createError) {
             console.error(
-              '[v0] User creation error:',
+              'User creation error:',
               formatSupabaseError(createError),
               createError
             );
@@ -117,7 +117,7 @@ export default function DashboardPage() {
           }
         } else if (userError) {
           console.warn(
-            '[v0] User profile fetch failed; using auth metadata fallback:',
+            'User profile fetch failed; using auth metadata fallback:',
             formatSupabaseError(userError)
           );
           setUser({
@@ -144,7 +144,7 @@ export default function DashboardPage() {
 
         if (attemptsError) {
           console.warn(
-            '[v0] Attempts fetch warning:',
+            'Attempts fetch warning:',
             formatSupabaseError(attemptsError)
           );
           setAttempts(getLocalAttempts());

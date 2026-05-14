@@ -179,7 +179,7 @@ export async function POST() {
       },
     });
   } catch (error) {
-    console.error('[v0] Seeding error:', error);
+    console.error('Seeding error:', error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Seeding failed',

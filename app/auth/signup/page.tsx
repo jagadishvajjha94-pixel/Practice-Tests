@@ -82,13 +82,13 @@ function SignUpPageContent() {
       try {
         // Initialize database with direct SQL
         const initResponse = await fetch('/api/setup/init-direct', { method: 'POST' });
-        console.log('[v0] Init response:', initResponse.status);
+        console.log('Init response:', initResponse.status);
 
         // Seed with sample data
         const seedResponse = await fetch('/api/setup/seed-direct', { method: 'POST' });
-        console.log('[v0] Seed response:', seedResponse.status);
+        console.log('Seed response:', seedResponse.status);
       } catch (err) {
-        console.log('[v0] Setup info:', err);
+        console.log('Setup info:', err);
       }
     };
     initDb();
@@ -185,7 +185,7 @@ function SignUpPageContent() {
       const errorMsg = toFriendlySignupError(err);
       // Rate-limit and network failures are expected operational states; keep console quieter for users.
       if (!/too many signup attempts|signup traffic is high|network error|already registered/i.test(errorMsg)) {
-        console.error('[v0] Sign up error:', errorMsg);
+        console.error('Sign up error:', errorMsg);
       }
       setError(errorMsg);
     } finally {

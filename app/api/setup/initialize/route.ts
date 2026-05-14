@@ -175,7 +175,7 @@ export async function POST() {
       initialized: isInitialized
     });
   } catch (error) {
-    console.error('[v0] Setup error:', error);
+    console.error('Setup error:', error);
     return NextResponse.json(
       { 
         error: error instanceof Error ? error.message : 'Setup failed',
