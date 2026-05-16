@@ -9,6 +9,17 @@ export interface User {
   updated_at: string;
 }
 
+/** Student profile row (public.users) including resume fields for AI interview. */
+export interface UserProfile extends User {
+  college?: string | null;
+  branch?: string | null;
+  cgpa?: number | null;
+  resume_text?: string | null;
+  resume_file_name?: string | null;
+  resume_storage_path?: string | null;
+  resume_updated_at?: string | null;
+}
+
 export interface TestCategory {
   id: string;
   name: string;

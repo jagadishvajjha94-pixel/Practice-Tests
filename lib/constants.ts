@@ -9,6 +9,9 @@ export const PSYCHOMETRIC_FULL_MINUTES = 30;
 /** Guest preview timer for psychometric (questions use PRACTICE_PREVIEW_QUESTION_LIMIT). */
 export const PSYCHOMETRIC_GUEST_MINUTES = 5;
 
+/** All India competitive MCQ exam — `/tests/competitive-exam`. */
+export const COMPETITIVE_ALL_INDIA_QUESTIONS = 60;
+export const COMPETITIVE_ALL_INDIA_MINUTES = 90;
 
 // Payment Plans
 export const PAYMENT_AMOUNTS = {

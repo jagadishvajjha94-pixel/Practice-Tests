@@ -1,13 +1,13 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
+import { isExamFocusRoute } from '@/lib/exam-routes';
 
 export default function GlobalBackButton() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const isExamPage = pathname?.startsWith('/tests/take/');
-  if (!pathname || pathname === '/' || isExamPage) return null;
+  if (!pathname || pathname === '/' || isExamFocusRoute(pathname)) return null;
 
   return (
     <button

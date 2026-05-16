@@ -226,11 +226,11 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <div className="border-b border-white/15 bg-black/20 backdrop-blur-xl">
+      <div className="border-b border-border bg-card/75 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold lux-heading">Dashboard</h1>
+              <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
               <p className="text-muted-foreground mt-1">Welcome back, {user.full_name || user.email}</p>
             </div>
             {isAdminUser ? (
@@ -248,17 +248,17 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-4 gap-4 mb-8">
           <Card className="p-6">
             <div className="text-muted-foreground text-sm font-medium mb-2">Tests Attempted</div>
-            <div className="text-3xl font-bold text-cyan-300">{attempts.length}</div>
+            <div className="text-3xl font-bold text-primary">{attempts.length}</div>
           </Card>
           <Card className="p-6">
             <div className="text-muted-foreground text-sm font-medium mb-2">Completed Tests</div>
-            <div className="text-3xl font-bold text-violet-300">
+            <div className="text-3xl font-bold text-primary">
               {attempts.filter((a) => a.status === 'completed').length}
             </div>
           </Card>
           <Card className="p-6">
             <div className="text-muted-foreground text-sm font-medium mb-2">Average Score</div>
-            <div className="text-3xl font-bold text-emerald-300">
+            <div className="text-3xl font-bold text-emerald-400">
               {attempts.length > 0
                 ? Math.round(
                     attempts.reduce((sum, a) => sum + (a.score || 0), 0) / attempts.length
@@ -269,7 +269,7 @@ export default function DashboardPage() {
           </Card>
           <Card className="p-6">
             <div className="text-muted-foreground text-sm font-medium mb-2">Best Score</div>
-            <div className="text-3xl font-bold text-fuchsia-300">
+            <div className="text-3xl font-bold text-accent">
               {attempts.length > 0 ? Math.max(...attempts.map(a => a.score || 0)) : 0}%
             </div>
           </Card>
@@ -330,7 +330,7 @@ export default function DashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-white/15">
+                  <tr className="border-b border-border">
                     <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Test Name</th>
                     <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Score</th>
                     <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Status</th>
@@ -340,7 +340,7 @@ export default function DashboardPage() {
                 </thead>
                 <tbody>
                   {attempts.map((attempt) => (
-                    <tr key={attempt.id} className="border-b border-white/10 hover:bg-white/5">
+                    <tr key={attempt.id} className="border-b border-border/80 hover:bg-muted/40">
                       <td className="py-3 px-4 text-foreground">{attempt.test?.name}</td>
                       <td className="py-3 px-4">
                         <span className={`font-semibold ${attempt.score! >= 40 ? 'text-emerald-300' : 'text-red-300'}`}>

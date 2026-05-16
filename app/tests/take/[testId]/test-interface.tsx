@@ -355,7 +355,7 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
   return (
     <div className="exam-mode min-h-screen bg-white text-gray-900 flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-gray-200 bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-xl font-semibold text-gray-900">{test.name}</h1>
@@ -386,15 +386,17 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
             />
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="flex-1 max-w-7xl mx-auto w-full grid md:grid-cols-4 gap-4 p-4">
+      <div aria-hidden className="h-[4.75rem] shrink-0 md:h-20" />
+
+      <div className="flex-1 max-w-7xl mx-auto w-full grid md:grid-cols-4 gap-4 p-4 pb-8">
         {/* Question Display */}
         <div className="md:col-span-3">
           <Card className="p-6 mb-4 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">
+                <span className="text-sm font-medium text-gray-700">
                   Question {currentQuestionIndex + 1} of{' '}
                   {isPreviewMode ? (
                     <>
@@ -404,13 +406,13 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
                     questions.length
                   )}
                 </span>
-                <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded">
+                <span className="px-3 py-1 bg-violet-100 text-violet-900 text-xs font-semibold rounded">
                   {speedActive ? 'Speed / visual' : 'Question'}
                 </span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
                 <div
-                  className="bg-blue-600 h-2 rounded-full transition-all"
+                  className="bg-violet-600 h-2.5 rounded-full transition-all"
                   style={{
                     width: `${((currentQuestionIndex + 1) / (isPreviewMode ? unlockedCount : questions.length)) * 100}%`,
                   }}
@@ -464,7 +466,7 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
 
         {/* Sidebar */}
         <div className="md:col-span-1">
-          <Card className="p-4 sticky top-20 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
+          <Card className="p-4 md:sticky md:top-24 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <h3 className="font-semibold text-gray-900 mb-4">Test Status</h3>
 
             <div className="space-y-2 mb-4 text-sm">

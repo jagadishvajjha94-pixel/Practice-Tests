@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { buildInterviewPlanFromResume, ensureUserProfile } from '@/lib/user-profile';
 
 interface Message {
   id: string;
@@ -32,7 +35,7 @@ type BrowserSpeechRecognition = {
 
 type BrowserSpeechRecognitionCtor = new () => BrowserSpeechRecognition;
 
-const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
+const DEFAULT_INTERVIEW_QUESTIONS: InterviewQuestion[] = [
   {
     question: 'Tell me about yourself and your background.',
     expectedKeywords: ['experience', 'education', 'skills'],
@@ -61,7 +64,12 @@ const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
 ];
 
 export default function MockInterviewPage() {
+  const router = useRouter();
   const [started, setStarted] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  const [resumeUsed, setResumeUsed] = useState(false);
+  const [questionBank, setQuestionBank] = useState<InterviewQuestion[]>(DEFAULT_INTERVIEW_QUESTIONS);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState('');
@@ -76,6 +84,11 @@ export default function MockInterviewPage() {
 
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const answerBufferRef = useRef('');
+  const questionBankRef = useRef<InterviewQuestion[]>(DEFAULT_INTERVIEW_QUESTIONS);
+
+  useEffect(() => {
+    questionBankRef.current = questionBank;
+  }, [questionBank]);
 
   const getRecognitionCtor = (): BrowserSpeechRecognitionCtor | null => {
     if (typeof window === 'undefined') return null;
@@ -169,13 +182,16 @@ export default function MockInterviewPage() {
     };
   }, []);
 
-  const startInterview = () => {
+  const beginInterviewSession = (bank: InterviewQuestion[], usedResume: boolean) => {
     setSpeechError(null);
+    setQuestionBank(bank);
+    questionBankRef.current = bank;
+    setResumeUsed(usedResume);
     setStarted(true);
     setCurrentQuestionIndex(0);
     setInterviewDone(false);
     setScore(0);
-    const firstQuestion = INTERVIEW_QUESTIONS[0];
+    const firstQuestion = bank[0];
     const initialMessages: Message[] = [
       {
         id: '1',
@@ -185,6 +201,41 @@ export default function MockInterviewPage() {
     ];
     setMessages(initialMessages);
     if (voiceMode && speechAvailable) speakText(firstQuestion.question);
+  };
+
+  const startInterview = async () => {
+    setStarting(true);
+    setStartError(null);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        beginInterviewSession(DEFAULT_INTERVIEW_QUESTIONS, false);
+        return;
+      }
+
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+
+      if (!authUser) {
+        router.push('/auth/login?redirect=/ai/mock-interview');
+        return;
+      }
+
+      const { profile, tableMissing } = await ensureUserProfile(supabase, authUser);
+      if (tableMissing) {
+        setStartError('Profile database is not set up. Open Profile and run “Auto-create users table”, or save your resume first.');
+        return;
+      }
+
+      const resumeText = profile?.resume_text?.trim() ?? '';
+      const bank = buildInterviewPlanFromResume(resumeText, DEFAULT_INTERVIEW_QUESTIONS);
+      beginInterviewSession(bank, Boolean(resumeText));
+    } catch {
+      beginInterviewSession(DEFAULT_INTERVIEW_QUESTIONS, false);
+    } finally {
+      setStarting(false);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -206,7 +257,8 @@ export default function MockInterviewPage() {
 
     // Simulate AI feedback
     setTimeout(() => {
-      const currentQuestion = INTERVIEW_QUESTIONS[currentQuestionIndex];
+      const bank = questionBankRef.current;
+      const currentQuestion = bank[currentQuestionIndex];
       let feedbackScore = 60;
 
       // Simple scoring based on keyword matching
@@ -235,9 +287,9 @@ export default function MockInterviewPage() {
       }
 
       // Next question
-      if (currentQuestionIndex < INTERVIEW_QUESTIONS.length - 1) {
+      if (currentQuestionIndex < bank.length - 1) {
         setTimeout(() => {
-          const nextQuestion = INTERVIEW_QUESTIONS[currentQuestionIndex + 1];
+          const nextQuestion = bank[currentQuestionIndex + 1];
           const nextMessage: Message = {
             id: (Date.now() + 2).toString(),
             type: 'ai',
@@ -276,8 +328,16 @@ export default function MockInterviewPage() {
           <Card className="p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Practice Your Interview Skills</h2>
             <p className="text-gray-600 mb-6">
-              Get feedback from our AI interviewer on your responses. This mock interview will help you prepare for real interviews with personalized feedback on your answers.
+              Get feedback on your answers. When you start, we load your resume from{' '}
+              <Link href="/profile" className="font-medium text-blue-600 underline">
+                Profile
+              </Link>{' '}
+              and tailor the first questions to your background.
             </p>
+
+            {startError ? (
+              <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{startError}</p>
+            ) : null}
 
             <div className="grid md:grid-cols-2 gap-6 mb-8">
               <div className="p-6 bg-blue-50 rounded-lg">
@@ -321,10 +381,11 @@ export default function MockInterviewPage() {
             </div>
 
             <Button
-              onClick={startInterview}
+              onClick={() => void startInterview()}
+              disabled={starting}
               className="w-full py-3 font-semibold mb-4"
             >
-              Start Mock Interview
+              {starting ? 'Loading your resume…' : 'Start Mock Interview'}
             </Button>
 
             {!speechAvailable ? (
@@ -400,14 +461,19 @@ export default function MockInterviewPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Mock Interview</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Mock Interview</h1>
+            {resumeUsed ? (
+              <p className="text-xs text-green-700 mt-1">Personalized from your profile resume</p>
+            ) : null}
+          </div>
           <div className="text-center">
-            <p className="text-sm text-gray-600">Question {currentQuestionIndex + 1} of {INTERVIEW_QUESTIONS.length}</p>
+            <p className="text-sm text-gray-600">Question {currentQuestionIndex + 1} of {questionBank.length}</p>
             <div className="w-40 bg-gray-200 rounded-full h-2 mt-1">
               <div
                 className="bg-blue-600 h-2 rounded-full transition-all"
                 style={{
-                  width: `${((currentQuestionIndex + 1) / INTERVIEW_QUESTIONS.length) * 100}%`,
+                  width: `${((currentQuestionIndex + 1) / questionBank.length) * 100}%`,
                 }}
               />
             </div>
@@ -423,7 +489,7 @@ export default function MockInterviewPage() {
         ) : null}
         <Card className="p-6 h-96 flex flex-col mb-6">
           <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-            Current question: {INTERVIEW_QUESTIONS[currentQuestionIndex]?.question}
+            Current question: {questionBank[currentQuestionIndex]?.question}
           </div>
           <div className="flex-1 overflow-y-auto space-y-4 mb-4">
             {messages.map(message => (
@@ -466,7 +532,7 @@ export default function MockInterviewPage() {
             type="button"
             variant="outline"
             onClick={() => {
-              const q = INTERVIEW_QUESTIONS[currentQuestionIndex];
+              const q = questionBank[currentQuestionIndex];
               if (q) speakText(q.question);
             }}
             disabled={isSpeaking}

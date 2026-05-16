@@ -14,7 +14,7 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 border-b border-white/20 bg-background/80 backdrop-blur-xl">
+      <nav className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <div className="lux-heading text-2xl font-black">PrepIndia</div>
           <div className="flex items-center gap-4">
@@ -45,10 +45,10 @@ export default function Home() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden py-24">
-        <div className="lux-grid absolute inset-0 opacity-25" />
+        <div className="lux-grid absolute inset-0 opacity-40" />
         <div className="absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/25 blur-3xl" />
         <div className="relative mx-auto max-w-6xl px-4 text-center">
-          <p className="mb-4 inline-flex rounded-full border border-white/40 bg-white/30 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-foreground/80 backdrop-blur">
+          <p className="mb-4 inline-flex rounded-full border border-border/90 bg-card/90 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-foreground backdrop-blur">
             Ultra Performance Test Platform
           </p>
           <h1 className="mx-auto mb-6 max-w-4xl text-5xl font-black leading-tight md:text-6xl">

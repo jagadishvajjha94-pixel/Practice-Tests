@@ -254,7 +254,7 @@ export default function CategoryTestsPage({
         </div>
       ) : null}
       {/* Header */}
-      <div className="py-12 border-b border-white/15 bg-black/20 backdrop-blur-xl">
+      <div className="py-12 border-b border-border bg-card/70 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex items-center gap-4 mb-4">
             <span className="text-4xl">{category.icon}</span>

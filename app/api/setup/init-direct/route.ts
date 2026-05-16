@@ -38,6 +38,10 @@ export async function POST() {
         phone TEXT,
         subscription_status TEXT DEFAULT 'free',
         subscription_end_date TIMESTAMP,
+        resume_text TEXT,
+        resume_file_name TEXT,
+        resume_storage_path TEXT,
+        resume_updated_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );

@@ -51,16 +51,16 @@ export default function ResendConfirmationPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center px-4">
-      <Card className="w-full max-w-md p-8">
+    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-10">
+      <Card className="w-full max-w-md border-border/90 p-8 shadow-xl">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Resend Confirmation</h1>
-          <p className="text-gray-600">Did not receive your confirmation email?</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Resend Confirmation</h1>
+          <p className="text-muted-foreground">Did not receive your confirmation email?</p>
         </div>
 
         <form onSubmit={handleResend} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
               Email Address
             </label>
             <Input
@@ -76,10 +76,10 @@ export default function ResendConfirmationPage() {
 
           {message && (
             <div
-              className={`p-4 rounded-lg text-sm ${
+              className={`p-4 rounded-lg text-sm border ${
                 message.type === 'success'
-                  ? 'bg-green-50 text-green-700 border border-green-200'
-                  : 'bg-red-50 text-red-700 border border-red-200'
+                  ? 'bg-emerald-500/15 text-emerald-100 border-emerald-400/40'
+                  : 'bg-red-500/15 text-red-100 border-red-400/40'
               }`}
             >
               {message.text}
@@ -96,7 +96,7 @@ export default function ResendConfirmationPage() {
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600 mb-2">Already confirmed your email?</p>
+          <p className="text-sm text-muted-foreground mb-2">Already confirmed your email?</p>
           <Link href="/auth/login">
             <Button variant="outline" className="w-full">
               Back to Login

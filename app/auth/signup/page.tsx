@@ -46,10 +46,10 @@ function SignUpPageContent() {
 
   if (isSignupDisabled()) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 p-4">
-        <Card className="w-full max-w-md border-white/20 bg-white/10 shadow-2xl backdrop-blur-2xl p-8 text-center">
-          <h1 className="text-2xl font-bold text-white mb-3">Registration closed</h1>
-          <p className="text-white/80 mb-6 text-sm leading-relaxed">
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-md border-border/90 p-8 text-center shadow-xl">
+          <h1 className="text-2xl font-bold text-foreground mb-3">Registration closed</h1>
+          <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
             New accounts cannot be created on the website right now. Please sign in with the email and password from your institution.
           </p>
           <Button
@@ -194,26 +194,26 @@ function SignUpPageContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 p-4">
-      <Card className="w-full max-w-md border-white/20 bg-white/10 shadow-2xl backdrop-blur-2xl">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md border-border/90 shadow-xl">
         <div className="p-6 sm:p-8">
-          <h1 className="text-2xl font-bold text-white mb-2">Join PrepIndia</h1>
-          <p className="text-white/80 mb-6">Create your account to start preparing</p>
+          <h1 className="text-2xl font-bold text-foreground mb-2">Join PrepIndia</h1>
+          <p className="text-muted-foreground mb-6">Create your account to start preparing</p>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-500/15 border border-red-300/40 rounded-lg text-sm text-red-100">
+            <div className="mb-4 p-3 bg-red-500/20 border border-red-400/50 rounded-lg text-sm text-red-100">
               {error}
             </div>
           )}
           {!isSupabaseConfigured && !error && (
-            <div className="mb-4 p-3 bg-amber-400/15 border border-amber-300/40 rounded-lg text-sm text-amber-100">
+            <div className="mb-4 p-3 bg-amber-500/20 border border-amber-400/50 rounded-lg text-sm text-amber-100">
               {SUPABASE_PUBLIC_ENV_MESSAGE}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-white mb-1">
+              <label htmlFor="fullName" className="block text-sm font-medium text-foreground mb-1">
                 Full Name
               </label>
               <Input
@@ -223,13 +223,13 @@ function SignUpPageContent() {
                 placeholder="John Doe"
                 value={formData.fullName}
                 onChange={handleChange}
-                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
+                className="border-border bg-background/70 text-foreground placeholder:text-muted-foreground"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-white mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
                 Email
               </label>
               <Input
@@ -239,13 +239,13 @@ function SignUpPageContent() {
                 placeholder="you@example.com"
                 value={formData.email}
                 onChange={handleChange}
-                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
+                className="border-border bg-background/70 text-foreground placeholder:text-muted-foreground"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-white mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
                 Password
               </label>
               <Input
@@ -255,13 +255,13 @@ function SignUpPageContent() {
                 placeholder="Min 6 characters"
                 value={formData.password}
                 onChange={handleChange}
-                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
+                className="border-border bg-background/70 text-foreground placeholder:text-muted-foreground"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-white mb-1">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground mb-1">
                 Confirm Password
               </label>
               <Input
@@ -271,7 +271,7 @@ function SignUpPageContent() {
                 placeholder="Confirm password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
+                className="border-border bg-background/70 text-foreground placeholder:text-muted-foreground"
                 required
               />
             </div>
@@ -285,9 +285,9 @@ function SignUpPageContent() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-white/80">
+          <p className="mt-6 text-center text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link href={loginHref} className="text-blue-200 hover:text-white font-medium">
+            <Link href={loginHref} className="text-primary hover:text-primary/90 font-medium underline-offset-4 hover:underline">
               Sign in
             </Link>
           </p>
@@ -301,7 +301,7 @@ export default function SignUpPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 p-4 text-white/70">
+        <div className="flex min-h-screen items-center justify-center p-4 text-muted-foreground">
           Loading…
         </div>
       }

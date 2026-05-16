@@ -26,11 +26,11 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
   return (
     <div>
       {stemIsVisual ? (
-        <pre className="text-lg font-semibold text-gray-900 mb-6 whitespace-pre-wrap font-mono leading-relaxed tracking-tight">
+        <pre className="text-xl font-bold text-gray-950 mb-6 whitespace-pre-wrap font-mono leading-relaxed tracking-tight">
           {question.question_text}
         </pre>
       ) : (
-        <h2 className="text-lg font-semibold text-gray-900 mb-6">{question.question_text}</h2>
+        <h2 className="text-xl font-bold text-gray-950 mb-6 leading-snug">{question.question_text}</h2>
       )}
 
       {/* Question Options */}
@@ -43,9 +43,9 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
               ['C', question.option_c],
               ['D', question.option_d],
             ].filter(([, text]) => text != null && String(text).trim() !== '') as [string, string][]).map(([letter, text]) => (
-              <label key={letter} className={`flex items-center border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition ${speedMode ? 'p-3' : 'p-4'}`} style={{
-                borderColor: currentAnswer === letter ? '#3B82F6' : undefined,
-                backgroundColor: currentAnswer === letter ? '#F0F9FF' : undefined,
+              <label key={letter} className={`flex items-center border-2 border-gray-300 rounded-lg cursor-pointer hover:border-violet-400 hover:bg-violet-50/80 transition ${speedMode ? 'p-3' : 'p-4'}`} style={{
+                borderColor: currentAnswer === letter ? '#7c3aed' : undefined,
+                backgroundColor: currentAnswer === letter ? '#ede9fe' : undefined,
               }}>
                 <input
                   type="radio"
@@ -55,8 +55,8 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
                   onChange={(e) => handleAnswerChange(e.target.value)}
                   className="w-4 h-4"
                 />
-                <span className="ml-3 text-gray-900">
-                  <span className="font-semibold">{letter}. </span>{text}
+                <span className="ml-3 text-gray-950 text-base">
+                  <span className="font-bold text-violet-800">{letter}. </span>{text}
                 </span>
               </label>
             ))}
@@ -66,9 +66,9 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
         {question.type === 'MCQ' && question.options && !(question.question_type === 'mcq' || question.option_a != null || question.option_b != null) && (
           <>
             {question.options.map((option, index) => (
-              <label key={index} className={`flex items-center border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition ${speedMode ? 'p-3' : 'p-4'}`} style={{
-                borderColor: currentAnswer === option ? '#3B82F6' : undefined,
-                backgroundColor: currentAnswer === option ? '#F0F9FF' : undefined,
+              <label key={index} className={`flex items-center border-2 border-gray-300 rounded-lg cursor-pointer hover:border-violet-400 hover:bg-violet-50/80 transition ${speedMode ? 'p-3' : 'p-4'}`} style={{
+                borderColor: currentAnswer === option ? '#7c3aed' : undefined,
+                backgroundColor: currentAnswer === option ? '#ede9fe' : undefined,
               }}>
                 <input
                   type="radio"
@@ -78,7 +78,7 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
                   onChange={(e) => handleAnswerChange(e.target.value)}
                   className="w-4 h-4"
                 />
-                <span className="ml-3 text-gray-900">{option}</span>
+                <span className="ml-3 text-gray-950 text-base font-medium">{option}</span>
               </label>
             ))}
           </>

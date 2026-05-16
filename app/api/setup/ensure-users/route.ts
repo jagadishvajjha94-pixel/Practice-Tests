@@ -1,0 +1,83 @@
+import { NextResponse } from 'next/server';
+import postgres from 'postgres';
+
+/** Non-destructive: creates public.users + resume columns + RLS (does not drop other tables). */
+export async function POST() {
+  try {
+    const postgresUrl = process.env.POSTGRES_URL;
+    if (!postgresUrl || postgresUrl.includes('YOUR_')) {
+      return NextResponse.json(
+        {
+          error: 'POSTGRES_URL not configured',
+          hint: 'Run supabase/migrations/001_users_resume.sql in Supabase SQL Editor, or set POSTGRES_URL in .env.local',
+        },
+        { status: 400 },
+      );
+    }
+
+    const sql = postgres(postgresUrl, { max: 1, onnotice: () => {} });
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS public.users (
+        id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+        email TEXT UNIQUE NOT NULL,
+        full_name TEXT,
+        college TEXT,
+        branch TEXT,
+        cgpa DECIMAL(3,2),
+        phone TEXT,
+        subscription_status TEXT DEFAULT 'free',
+        subscription_end_date TIMESTAMPTZ,
+        resume_text TEXT,
+        resume_file_name TEXT,
+        resume_storage_path TEXT,
+        resume_updated_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `;
+
+    await sql`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS resume_text TEXT`;
+    await sql`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS resume_file_name TEXT`;
+    await sql`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS resume_storage_path TEXT`;
+    await sql`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS resume_updated_at TIMESTAMPTZ`;
+
+    await sql`ALTER TABLE public.users ENABLE ROW LEVEL SECURITY`;
+
+    await sql`
+      DROP POLICY IF EXISTS prep_users_select_own ON public.users;
+      CREATE POLICY prep_users_select_own ON public.users
+        FOR SELECT USING (auth.uid() = id);
+    `;
+    await sql`
+      DROP POLICY IF EXISTS prep_users_insert_own ON public.users;
+      CREATE POLICY prep_users_insert_own ON public.users
+        FOR INSERT WITH CHECK (auth.uid() = id);
+    `;
+    await sql`
+      DROP POLICY IF EXISTS prep_users_update_own ON public.users;
+      CREATE POLICY prep_users_update_own ON public.users
+        FOR UPDATE USING (auth.uid() = id);
+    `;
+
+    await sql`
+      INSERT INTO storage.buckets (id, name, public)
+      VALUES ('student-resumes', 'student-resumes', false)
+      ON CONFLICT (id) DO NOTHING;
+    `;
+
+    await sql.end();
+
+    return NextResponse.json({
+      success: true,
+      message: 'public.users table and student policies are ready.',
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : 'Failed to ensure users table',
+      },
+      { status: 500 },
+    );
+  }
+}

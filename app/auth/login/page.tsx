@@ -83,33 +83,33 @@ function LoginPageContent() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-md border-white/25 bg-white/12 shadow-2xl backdrop-blur-2xl">
+      <Card className="w-full max-w-md border-border/90 shadow-xl">
         <div className="p-6 sm:p-8">
-          <h1 className="text-2xl font-bold text-white mb-2">Student sign in</h1>
-          <p className="text-white/80 mb-6">
+          <h1 className="text-2xl font-bold text-foreground mb-2">Student sign in</h1>
+          <p className="text-muted-foreground mb-6">
             Use the email and password you were given. If login fails, wait a moment and try again — many students may sign in at the same time.
           </p>
 
           {notice === 'signup_closed' ? (
-            <div className="mb-4 p-3 rounded-lg border border-amber-300/50 bg-amber-500/15 text-sm text-amber-50">
+            <div className="mb-4 p-3 rounded-lg border border-amber-400/50 bg-amber-500/20 text-sm text-amber-100">
               New registrations are closed for now. Please sign in with your existing account.
             </div>
           ) : null}
 
           {error && (
-            <div className="mb-4 p-3 bg-red-500/15 border border-red-300/40 rounded-lg text-sm text-red-100">
+            <div className="mb-4 p-3 bg-red-500/20 border border-red-400/50 rounded-lg text-sm text-red-100">
               {error}
             </div>
           )}
           {!isSupabaseConfigured && !error && (
-            <div className="mb-4 p-3 bg-amber-400/15 border border-amber-300/40 rounded-lg text-sm text-amber-100">
+            <div className="mb-4 p-3 bg-amber-500/20 border border-amber-400/50 rounded-lg text-sm text-amber-100">
               {SUPABASE_PUBLIC_ENV_MESSAGE}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-white mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
                 Email
               </label>
               <Input
@@ -119,13 +119,13 @@ function LoginPageContent() {
                 placeholder="you@example.com"
                 value={formData.email}
                 onChange={handleChange}
-                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
+                className="border-border bg-background/70 text-foreground placeholder:text-muted-foreground"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-white mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
                 Password
               </label>
               <Input
@@ -135,7 +135,7 @@ function LoginPageContent() {
                 placeholder="Enter your password"
                 value={formData.password}
                 onChange={handleChange}
-                className="bg-white/10 text-white placeholder:text-white/60 border-white/40"
+                className="border-border bg-background/70 text-foreground placeholder:text-muted-foreground"
                 required
               />
             </div>
@@ -152,7 +152,7 @@ function LoginPageContent() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full border-white/40 bg-white/10 text-white hover:bg-white/20"
+                className="w-full border-border bg-muted/40 text-foreground hover:bg-muted/55"
               >
                 Admin login
               </Button>
@@ -160,20 +160,20 @@ function LoginPageContent() {
           </form>
 
           <div className="mt-4 text-center">
-            <Link href="/auth/forgot-password" className="text-sm text-blue-200 hover:text-white">
+            <Link href="/auth/forgot-password" className="text-sm text-primary hover:text-primary/90 underline-offset-4 hover:underline">
               Forgot password?
             </Link>
           </div>
 
           {!signupDisabled ? (
-            <p className="mt-6 text-center text-sm text-white/80">
+            <p className="mt-6 text-center text-sm text-muted-foreground">
               Don&apos;t have an account?{' '}
-              <Link href={signupHref} className="text-blue-200 hover:text-white font-medium">
+              <Link href={signupHref} className="text-primary hover:text-primary/90 font-medium underline-offset-4 hover:underline">
                 Sign up
               </Link>
             </p>
           ) : (
-            <p className="mt-6 text-center text-sm text-white/60">
+            <p className="mt-6 text-center text-sm text-muted-foreground">
               Need an account? Contact your coordinator — online signup is temporarily disabled.
             </p>
           )}
@@ -187,7 +187,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center p-4 text-white/70">
+        <div className="flex min-h-screen items-center justify-center p-4 text-muted-foreground">
           Loading…
         </div>
       }

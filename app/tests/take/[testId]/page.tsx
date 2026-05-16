@@ -242,10 +242,10 @@ export default function TakeTestPage({
   if (!testStarted) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="max-w-md w-full p-8 border-white/25 bg-white/10 backdrop-blur-2xl">
-          <h1 className="text-2xl font-bold lux-heading mb-4">{test.name}</h1>
+        <Card className="max-w-md w-full border-border/90 p-8 shadow-xl">
+          <h1 className="text-2xl font-bold text-foreground mb-4">{test.name}</h1>
           
-          <div className="space-y-4 mb-6 p-4 bg-white/10 border border-white/20 rounded-lg">
+          <div className="space-y-4 mb-6 rounded-lg border border-border bg-muted/40 p-4">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Questions:</span>
               <span className="font-semibold text-foreground">
@@ -261,13 +261,13 @@ export default function TakeTestPage({
           </div>
 
           {practiceAccess === 'pending' ? (
-            <p className="mb-6 text-center text-sm text-violet-100/90">Checking sign-in status…</p>
+            <p className="mb-6 text-center text-sm text-muted-foreground">Checking sign-in status…</p>
           ) : null}
 
           {questions.length > PRACTICE_PREVIEW_QUESTION_LIMIT && practiceAccess === 'guest' ? (
-            <div className="mb-6 rounded-lg border border-amber-400/40 bg-amber-500/15 p-4 text-sm text-amber-50">
-              <p className="font-semibold text-amber-100">Free preview — first {PRACTICE_PREVIEW_QUESTION_LIMIT} questions</p>
-              <p className="mt-2 text-violet-100/90 leading-relaxed">
+            <div className="mb-6 rounded-lg border border-amber-400/50 bg-amber-500/20 p-4 text-sm text-amber-100">
+              <p className="font-semibold text-amber-50">Free preview — first {PRACTICE_PREVIEW_QUESTION_LIMIT} questions</p>
+              <p className="mt-2 text-foreground/95 leading-relaxed">
                 Without an account you can only attempt <strong>{PRACTICE_PREVIEW_QUESTION_LIMIT}</strong> questions (
                 this test has {questions.length} total).
                 {signupClosed
@@ -285,7 +285,7 @@ export default function TakeTestPage({
                   Sign in to unlock full test
                 </Button>
                 {!signupClosed ? (
-                  <Button type="button" variant="outline" className="border-white/35" asChild>
+                  <Button type="button" variant="outline" className="border-border bg-background/60" asChild>
                     <Link href={`/auth/signup?redirect=${encodeURIComponent(pathname ?? `/tests/take/${testId}`)}`}>
                       Create account
                     </Link>
@@ -295,18 +295,18 @@ export default function TakeTestPage({
             </div>
           ) : null}
 
-          <div className="bg-black/20 border border-white/20 rounded-lg p-4 mb-6">
-            <p className="text-sm text-violet-100">
+          <div className="mb-6 rounded-lg border border-border bg-muted/45 p-4">
+            <p className="text-sm text-foreground leading-relaxed">
               <strong>Instructions:</strong>{' '}
               {test.question_time_limit_sec ? (
                 <>
-                  <span className="block mb-2">
+                  <span className="mb-2 block">
                     Each question runs on a short timer (about {test.question_time_limit_sec} seconds).
                     Use quick, instinctive answers — minimal reading. Time running out skips to the next item
                     (last item auto-finishes); you can still use Previous / Next.
                   </span>
                   {test.description ? (
-                    <span className="block opacity-95 text-violet-100/85">{test.description}</span>
+                    <span className="mt-2 block text-muted-foreground">{test.description}</span>
                   ) : null}
                 </>
               ) : (
@@ -315,7 +315,7 @@ export default function TakeTestPage({
               )}
             </p>
             {test.id.startsWith('fallback-psychometric') ? (
-              <p className="text-xs text-violet-100/85 mt-3 leading-relaxed">
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                 This paper draws <strong>200 different</strong> visual/pattern items per session from a large
                 bank (about 128k variants). Your set does not repeat inside the 30 minutes; other candidates
                 normally get a different mix. For a fresh draw on the same device, open a new browser tab in
