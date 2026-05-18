@@ -11,6 +11,43 @@ export type LocalTestAttemptPayload = {
 };
 
 const KEY_PREFIX = 'localTestAttempt:';
+const INDEX_PREFIX = 'prepindia:attempts:';
+
+function attemptIndexKey(userId: string): string {
+  return `${INDEX_PREFIX}${userId}`;
+}
+
+/** Fast list for dashboard (sessionStorage survives same-tab navigation). */
+export function appendAttemptIndex(
+  userId: string,
+  entry: TestAttempt & { test: Test },
+): void {
+  if (typeof window === 'undefined' || !userId) return;
+  try {
+    const key = attemptIndexKey(userId);
+    const raw = window.sessionStorage.getItem(key);
+    const list = raw ? (JSON.parse(raw) as Array<TestAttempt & { test: Test }>) : [];
+    const next = [
+      { ...entry, user_id: userId },
+      ...list.filter((a) => String(a.id) !== String(entry.id)),
+    ].slice(0, 30);
+    window.sessionStorage.setItem(key, JSON.stringify(next));
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+export function getAttemptIndexForUser<T extends TestAttempt & { test: Test }>(userId: string): T[] {
+  if (typeof window === 'undefined' || !userId) return [];
+  try {
+    const raw = window.sessionStorage.getItem(attemptIndexKey(userId));
+    if (!raw) return [];
+    const list = JSON.parse(raw) as T[];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
 
 export function localAttemptStorageKey(userId: string, attemptId: string): string {
   return `${KEY_PREFIX}${userId}:${attemptId}`;
@@ -31,6 +68,7 @@ export function saveLocalTestAttempt(
     },
   };
   window.localStorage.setItem(localAttemptStorageKey(userId, attemptId), JSON.stringify(scoped));
+  appendAttemptIndex(userId, { ...scoped.attempt, test: scoped.test });
 }
 
 export function loadLocalTestAttempt(
@@ -80,10 +118,13 @@ export function getLocalAttemptsForUser<T extends TestAttempt & { test: Test }>(
     if (!key || !key.startsWith(KEY_PREFIX)) continue;
 
     const scopedPrefix = `${KEY_PREFIX}${userId}:`;
+    const guestPrefix = `${KEY_PREFIX}${LOCAL_ATTEMPT_GUEST_USER_ID}:`;
     const isScoped = key.startsWith(scopedPrefix);
+    const isGuestForUser =
+      userId !== LOCAL_ATTEMPT_GUEST_USER_ID && key.startsWith(guestPrefix);
     const isLegacy = !key.slice(KEY_PREFIX.length).includes(':');
 
-    if (!isScoped && !isLegacy) continue;
+    if (!isScoped && !isLegacy && !isGuestForUser) continue;
 
     try {
       const raw = window.localStorage.getItem(key);
@@ -92,11 +133,8 @@ export function getLocalAttemptsForUser<T extends TestAttempt & { test: Test }>(
       if (!parsed.attempt || !parsed.test) continue;
 
       const owner = parsed.attempt.user_id;
-      if (owner && owner !== userId) continue;
+      if (owner && owner !== userId && owner !== LOCAL_ATTEMPT_GUEST_USER_ID) continue;
       if (!owner && !isScoped) continue;
-      if (owner === LOCAL_ATTEMPT_GUEST_USER_ID && userId !== LOCAL_ATTEMPT_GUEST_USER_ID) {
-        continue;
-      }
 
       const id = String(parsed.attempt.id ?? key.split(':').pop() ?? key);
       if (seen.has(id)) continue;

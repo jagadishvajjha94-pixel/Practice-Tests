@@ -279,25 +279,11 @@ export default function TestInterface({ test, questions, fullAccess, examSection
 
       const nowIso = new Date().toISOString();
       const elapsedSec = test.duration * 60 - timeRemaining;
+      const localAttemptId = `local-${Date.now()}`;
 
-      await ensureStudentUserRow(supabase, user);
-
-      const { id: attemptId } = await persistTestAttempt(supabase, {
-        userId: user.id,
-        testId: test.id,
-        scorePercent,
-        rawNetScore,
-        answers,
-        elapsedSec,
-        startedAtIso: nowIso,
-        completedAtIso: nowIso,
-      });
-
-      await persistOptionalPerQuestionRows(supabase, attemptId, questions, answers);
-
-      saveLocalTestAttempt(user.id, attemptId, {
+      const localPayload = {
         attempt: {
-          id: attemptId,
+          id: localAttemptId,
           user_id: user.id,
           test_id: test.id,
           started_at: nowIso,
@@ -305,13 +291,74 @@ export default function TestInterface({ test, questions, fullAccess, examSection
           score: scorePercent,
           answers,
           time_taken: elapsedSec,
-          status: 'completed',
+          status: 'completed' as const,
           created_at: nowIso,
         },
         test,
         questions,
         answers,
-      });
+      };
+
+      saveLocalTestAttempt(user.id, localAttemptId, localPayload);
+
+      let attemptId = localAttemptId;
+
+      try {
+        const apiRes = await fetch('/api/student/test-attempts', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            testId: test.id,
+            testName: test.name,
+            scorePercent,
+            rawNetScore,
+            answers,
+            elapsedSec,
+            startedAtIso: nowIso,
+            completedAtIso: nowIso,
+          }),
+        });
+        if (apiRes.ok) {
+          const json = (await apiRes.json()) as { id?: string };
+          if (json.id) attemptId = String(json.id);
+        }
+      } catch {
+        // API unavailable — fall back to direct Supabase insert below
+      }
+
+      if (attemptId === localAttemptId) {
+        await ensureStudentUserRow(supabase, user);
+        try {
+          const saved = await persistTestAttempt(supabase, {
+            userId: user.id,
+            testId: test.id,
+            testName: test.name,
+            scorePercent,
+            rawNetScore,
+            answers,
+            elapsedSec,
+            startedAtIso: nowIso,
+            completedAtIso: nowIso,
+          });
+          attemptId = saved.id;
+        } catch (clientPersistError) {
+          if (!isAttemptPersistenceError(clientPersistError)) {
+            throw clientPersistError;
+          }
+        }
+      }
+
+      if (attemptId !== localAttemptId) {
+        saveLocalTestAttempt(user.id, attemptId, {
+          ...localPayload,
+          attempt: { ...localPayload.attempt, id: attemptId },
+        });
+      }
+
+      if (!attemptId.startsWith('local-')) {
+        await persistOptionalPerQuestionRows(supabase, attemptId, questions, answers);
+      }
 
       clearExamDraft(test.id);
       setIsSubmitted(true);

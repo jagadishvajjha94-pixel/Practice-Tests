@@ -28,6 +28,7 @@ ALTER TABLE public.test_attempts ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'i
 ALTER TABLE public.test_attempts ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 ALTER TABLE public.test_attempts ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.test_attempts ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.test_attempts ADD COLUMN IF NOT EXISTS test_title TEXT;
 
 UPDATE public.test_attempts
 SET score = percentage_score

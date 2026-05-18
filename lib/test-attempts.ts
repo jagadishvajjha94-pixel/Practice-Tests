@@ -1,7 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Test, TestAttempt } from '@/lib/types';
 import { adaptTestRow } from '@/lib/practice-mappers';
-import { getLocalAttemptsForUser } from '@/lib/local-test-attempts';
+import {
+  getAttemptIndexForUser,
+  getLocalAttemptsForUser,
+} from '@/lib/local-test-attempts';
 
 export type AttemptRow = Record<string, unknown> & {
   id?: string | number;
@@ -108,6 +111,7 @@ function isMissingColumnError(error: unknown, column: string): boolean {
 export type PersistAttemptInput = {
   userId: string;
   testId: string;
+  testName?: string;
   scorePercent: number;
   rawNetScore: number;
   answers: Record<string, unknown>;
@@ -116,17 +120,35 @@ export type PersistAttemptInput = {
   completedAtIso: string;
 };
 
+export type DashboardAttemptView = TestAttempt & { test: Test };
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
+function shouldOmitTestId(testId: string): boolean {
+  if (!testId || testId.startsWith('fallback-')) return true;
+  return !isUuid(testId);
+}
+
 export async function persistTestAttempt(
   supabase: SupabaseClient,
   input: PersistAttemptInput,
 ): Promise<{ id: string }> {
-  const base = {
+  const baseCommon = {
     user_id: input.userId,
-    test_id: input.testId,
     started_at: input.startedAtIso,
     completed_at: input.completedAtIso,
     status: 'completed' as const,
   };
+
+  const base = shouldOmitTestId(input.testId)
+    ? baseCommon
+    : { ...baseCommon, test_id: input.testId };
+
+  const title = input.testName?.trim() || 'Practice test';
 
   const payloads: Record<string, unknown>[] = [
     {
@@ -134,6 +156,13 @@ export async function persistTestAttempt(
       score: input.scorePercent,
       time_taken: input.elapsedSec,
       answers: input.answers,
+      test_title: title,
+    },
+    {
+      ...base,
+      percentage_score: input.scorePercent,
+      total_score: input.rawNetScore,
+      test_title: title,
     },
     {
       ...base,
@@ -158,7 +187,8 @@ export async function persistTestAttempt(
       !isMissingColumnError(error, 'answers') &&
       !isMissingColumnError(error, 'time_taken') &&
       !isMissingColumnError(error, 'percentage_score') &&
-      !isMissingColumnError(error, 'total_score')
+      !isMissingColumnError(error, 'total_score') &&
+      !isMissingColumnError(error, 'test_title')
     ) {
       throw error;
     }
@@ -195,63 +225,96 @@ export async function persistTestAttempt(
   return { id: attemptId };
 }
 
-export async function fetchStudentDashboardAttempts(
+function rowToDashboardAttempt(row: AttemptRow, testOverride?: Test): DashboardAttemptView {
+  const attempt = normalizeAttemptRow(row);
+  const titleFromRow = (row as { test_title?: string }).test_title;
+  const embedded = (row as { test?: Record<string, unknown> }).test;
+  const test =
+    testOverride ??
+    (embedded ? adaptTestRow(embedded) : null) ??
+    (titleFromRow
+      ? { ...fallbackTestForAttempt(attempt), name: String(titleFromRow) }
+      : fallbackTestForAttempt(attempt));
+  return { ...attempt, test };
+}
+
+async function queryAttempts(
   supabase: SupabaseClient,
   userId: string,
-): Promise<Array<TestAttempt & { test: Test }>> {
-  const local = getLocalAttemptsForUser<TestAttempt & { test: Test }>(userId);
+): Promise<AttemptRow[]> {
+  const attempts = async (orderCol: string) =>
+    supabase.from('test_attempts').select('*').eq('user_id', userId).order(orderCol, {
+      ascending: false,
+    }).limit(30);
 
-  const { data: joined, error: joinError } = await supabase
-    .from('test_attempts')
-    .select('*, test:tests(*)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(20);
+  const byCreated = await attempts('created_at');
+  if (!byCreated.error && byCreated.data?.length) {
+    return byCreated.data as AttemptRow[];
+  }
 
-  let rows: AttemptRow[] = [];
+  const byStarted = await attempts('started_at');
+  if (!byStarted.error && byStarted.data?.length) {
+    return byStarted.data as AttemptRow[];
+  }
 
-  if (!joinError && joined?.length) {
-    rows = joined as AttemptRow[];
-  } else {
-    const { data: plain, error: plainError } = await supabase
-      .from('test_attempts')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(20);
+  const byId = await attempts('id');
+  if (!byId.error && byId.data?.length) {
+    return byId.data as AttemptRow[];
+  }
 
-    if (plainError) {
-      return local.slice(0, 10);
-    }
-    rows = (plain ?? []) as AttemptRow[];
+  const plain = await supabase.from('test_attempts').select('*').eq('user_id', userId).limit(30);
+  if (!plain.error && plain.data?.length) {
+    return plain.data as AttemptRow[];
+  }
 
-    const testIds = [...new Set(rows.map((r) => String(r.test_id ?? '')).filter(Boolean))];
-    if (testIds.length) {
-      const { data: tests } = await supabase.from('tests').select('*').in('id', testIds);
-      const byId = new Map(
-        (tests ?? []).map((t) => [String((t as { id: unknown }).id), adaptTestRow(t as Record<string, unknown>)]),
-      );
-      const serverAttempts = rows.map((row) => {
-        const attempt = normalizeAttemptRow(row);
-        const test =
-          byId.get(attempt.test_id) ??
-          ((row as { test?: Test }).test
-            ? adaptTestRow((row as { test: Record<string, unknown> }).test)
-            : fallbackTestForAttempt(attempt));
-        return { ...attempt, test };
-      });
-      return mergeAttempts(local, serverAttempts).slice(0, 10);
+  return [];
+}
+
+export async function fetchAttemptsForUser(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<DashboardAttemptView[]> {
+  const rows = await queryAttempts(supabase, userId);
+  if (!rows.length) return [];
+
+  const testIds = [...new Set(rows.map((r) => String(r.test_id ?? '')).filter(Boolean))];
+  const byId = new Map<string, Test>();
+  if (testIds.length) {
+    const { data: tests } = await supabase.from('tests').select('*').in('id', testIds);
+    for (const t of tests ?? []) {
+      byId.set(String((t as { id: unknown }).id), adaptTestRow(t as Record<string, unknown>));
     }
   }
 
-  const serverAttempts = rows.map((row) => {
+  return rows.map((row) => {
     const attempt = normalizeAttemptRow(row);
-    const embedded = (row as { test?: Record<string, unknown> }).test;
-    const test = embedded ? adaptTestRow(embedded) : fallbackTestForAttempt(attempt);
-    return { ...attempt, test };
+    return rowToDashboardAttempt(row, byId.get(attempt.test_id));
   });
+}
 
-  return mergeAttempts(local, serverAttempts).slice(0, 10);
+export async function fetchStudentDashboardAttempts(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<DashboardAttemptView[]> {
+  const local = getLocalAttemptsForUser<DashboardAttemptView>(userId);
+  const indexed = getAttemptIndexForUser<DashboardAttemptView>(userId);
+
+  let serverAttempts: DashboardAttemptView[] = [];
+  try {
+    const res = await fetch('/api/student/test-attempts', { credentials: 'include', cache: 'no-store' });
+    if (res.ok) {
+      const json = (await res.json()) as { attempts?: DashboardAttemptView[] };
+      serverAttempts = json.attempts ?? [];
+    }
+  } catch {
+    // fall through
+  }
+
+  if (!serverAttempts.length) {
+    serverAttempts = await fetchAttemptsForUser(supabase, userId);
+  }
+
+  return mergeAttempts(indexed, mergeAttempts(local, serverAttempts)).slice(0, 15);
 }
 
 function mergeAttempts<T extends TestAttempt & { test: Test }>(local: T[], server: T[]): T[] {
