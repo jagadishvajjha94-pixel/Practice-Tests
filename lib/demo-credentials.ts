@@ -30,4 +30,5 @@ export const DEMO_FACULTY_ACCOUNT = {
   employeeId: 'FAC1001',
   password: 'Faculty@2026',
   fullName: 'Dr. Demo Faculty',
+  department: 'Computer Science & Engineering',
 } as const;

@@ -27,6 +27,8 @@ import {
   PSYCHOMETRIC_GUEST_MINUTES,
 } from '@/lib/constants';
 import { isSignupDisabled } from '@/lib/auth-features';
+import { defaultRedirectForRole } from '@/lib/roles';
+import { useAppRole } from '@/lib/use-app-role';
 
 /** `pending` = waiting on Supabase session; avoid starting the test until resolved (prevents full-paper race). */
 type PracticeAccessState = 'pending' | 'guest' | 'full';
@@ -38,6 +40,13 @@ export default function TakeTestPage({
   const { testId } = use(params);
   const router = useRouter();
   const pathname = usePathname();
+  const appRole = useAppRole();
+
+  useEffect(() => {
+    if (appRole === 'faculty' || appRole === 'admin') {
+      router.replace(defaultRedirectForRole(appRole));
+    }
+  }, [appRole, router]);
   const signupClosed = isSignupDisabled();
   const [test, setTest] = useState<Test | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);

@@ -22,7 +22,7 @@ function FacultyLoginForm() {
   const postLogin =
     redirect && redirect.startsWith('/') && !redirect.startsWith('//')
       ? redirect
-      : '/admin/tests';
+      : '/faculty/dashboard';
 
   const signupOpen = !isSignupDisabled();
   const signupHref = redirect

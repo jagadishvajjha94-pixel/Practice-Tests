@@ -59,13 +59,15 @@ export function useCollegeSignUp() {
         }
 
         const userId = signupJson.user_id ?? null;
-        if (userId) {
+        if (userId && role === 'student') {
           await supabase.from('users').upsert(
             {
               id: userId,
               email,
               full_name: fullName,
               branch: metadata.department ?? undefined,
+              academic_year: metadata.year ?? undefined,
+              user_role: 'student',
               college: COLLEGE.shortName,
               subscription_status: 'free',
               updated_at: new Date().toISOString(),
@@ -88,6 +90,18 @@ export function useCollegeSignUp() {
 
         if (Object.keys(metadata).length > 0) {
           await supabase.auth.updateUser({ data: metadata });
+        }
+
+        if (role === 'faculty' && metadata.department) {
+          await fetch('/api/faculty/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              department: metadata.department,
+              employee_id: metadata.employee_id,
+              full_name: fullName,
+            }),
+          });
         }
 
         router.push(redirectTo);

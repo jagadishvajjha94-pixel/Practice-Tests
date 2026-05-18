@@ -14,6 +14,19 @@ import {
   validatePassword,
 } from '@/lib/college-auth';
 import { collegeEmailDomainHint } from '@/lib/college-signup';
+import { DEPARTMENTS } from '@/lib/college-brand';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  portalSelectContentClass,
+  portalSelectItemClass,
+  portalSelectTriggerClass,
+} from '@/components/auth/form-field';
 import { useCollegeSignUp } from '@/components/auth/use-college-sign-up';
 import { isSupabasePublicEnvConfigured, SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 
@@ -23,11 +36,12 @@ function FacultySignupForm() {
   const postSignup =
     redirect && redirect.startsWith('/') && !redirect.startsWith('//')
       ? redirect
-      : '/admin/tests';
+      : '/faculty/dashboard';
 
   const { signUp, loading, error, setError } = useCollegeSignUp();
   const [fullName, setFullName] = useState('');
   const [employeeId, setEmployeeId] = useState('');
+  const [department, setDepartment] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -43,6 +57,7 @@ function FacultySignupForm() {
     const passErr = validatePassword(password);
     if (idErr) errs.employeeId = idErr;
     if (passErr) errs.password = passErr;
+    if (!department) errs.department = 'Select your department';
     if (password !== confirmPassword) errs.confirmPassword = 'Passwords do not match';
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
@@ -61,6 +76,7 @@ function FacultySignupForm() {
       metadata: {
         employee_id: employeeId.trim(),
         full_name: fullName.trim(),
+        department,
       },
     });
   };
@@ -86,6 +102,21 @@ function FacultySignupForm() {
               className={portalInputClass}
               required
             />
+          </FormField>
+
+          <FormField id="department" label="Department" error={fieldErrors.department}>
+            <Select value={department} onValueChange={setDepartment}>
+              <SelectTrigger className={portalSelectTriggerClass}>
+                <SelectValue placeholder="Select department" />
+              </SelectTrigger>
+              <SelectContent className={portalSelectContentClass}>
+                {DEPARTMENTS.map((d) => (
+                  <SelectItem key={d} value={d} className={portalSelectItemClass}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </FormField>
 
           <FormField id="employeeId" label="Employee ID" error={fieldErrors.employeeId}>

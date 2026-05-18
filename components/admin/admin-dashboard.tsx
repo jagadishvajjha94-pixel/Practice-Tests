@@ -35,6 +35,7 @@ type DashboardAttemptRow = {
 
 const navItems = [
   { href: '/admin/dashboard', label: 'Overview' },
+  { href: '/admin/approvals', label: 'Faculty approvals' },
   { href: '/admin/questions', label: 'Questions' },
   { href: '/admin/ai-generator', label: 'AI generator' },
   { href: '/admin/tests', label: 'Tests' },

@@ -1,4 +1,4 @@
-import { ProgrammingExamWorkspace } from '@/components/coding/programming-exam-workspace';
+import { ProgrammingGated } from './programming-gated';
 
 export const metadata = {
   title: 'Programming Test — RCE',
@@ -6,5 +6,5 @@ export const metadata = {
 };
 
 export default function ProgrammingTestPage() {
-  return <ProgrammingExamWorkspace />;
+  return <ProgrammingGated />;
 }

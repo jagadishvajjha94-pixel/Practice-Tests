@@ -39,15 +39,25 @@ export default function DashboardPage() {
           return;
         }
 
-        const localAttemptsForUser = getLocalAttemptsForUser<DashboardAttempt>(authUser.id);
-
-        // Check admin role so we can hide candidate-only actions.
         const { data: adminRow } = await supabase
           .from('admin_users')
           .select('id')
           .eq('user_id', authUser.id)
           .maybeSingle();
-        setIsAdminUser(!!adminRow);
+
+        if (adminRow) {
+          router.replace('/admin/dashboard');
+          return;
+        }
+
+        if (String(authUser.user_metadata?.role ?? '') === 'faculty') {
+          router.replace('/faculty/dashboard');
+          return;
+        }
+
+        const localAttemptsForUser = getLocalAttemptsForUser<DashboardAttempt>(authUser.id);
+
+        setIsAdminUser(false);
 
         // Fetch user profile
         let { data: userData, error: userError } = await supabase

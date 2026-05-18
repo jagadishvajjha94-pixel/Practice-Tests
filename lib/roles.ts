@@ -1,0 +1,122 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { DEPARTMENTS, ACADEMIC_YEARS, type Department, type AcademicYear } from '@/lib/college-brand';
+
+export type AppRole = 'student' | 'faculty' | 'admin' | 'guest';
+
+export type ResolvedUser = {
+  id: string;
+  email: string;
+  role: AppRole;
+  department?: string | null;
+  academicYear?: string | null;
+  employeeId?: string | null;
+};
+
+export const STUDENT_ONLY_PREFIXES = [
+  '/dashboard',
+  '/tests/take',
+  '/tests/programming',
+  '/tests/competitive-exam/take',
+  '/tests/result',
+  '/tests/psychometric',
+  '/tests/swarx',
+  '/ai/',
+  '/practice',
+  '/coding',
+  '/checkout',
+  '/pricing',
+] as const;
+
+export const FACULTY_PREFIX = '/faculty';
+export const ADMIN_PREFIX = '/admin';
+
+export function isStudentExperienceRoute(pathname: string): boolean {
+  if (pathname === '/tests') return true;
+  if (pathname.startsWith('/tests/department')) return true;
+  if (pathname.startsWith('/tests/')) {
+    if (pathname.startsWith('/tests/take')) return true;
+    if (pathname.startsWith('/tests/result')) return true;
+    if (pathname.startsWith('/tests/competitive-exam/take')) return true;
+    if (pathname.startsWith('/tests/programming')) return true;
+    return false;
+  }
+  return STUDENT_ONLY_PREFIXES.some(
+    (p) => pathname === p || (p.endsWith('/') ? pathname.slice(0, -1) === pathname : pathname.startsWith(p)),
+  );
+}
+
+export function isFacultyRoute(pathname: string): boolean {
+  return pathname.startsWith(FACULTY_PREFIX);
+}
+
+export function isAdminRoute(pathname: string): boolean {
+  return pathname.startsWith(ADMIN_PREFIX);
+}
+
+export async function resolveAppUser(supabase: SupabaseClient): Promise<ResolvedUser | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email) return null;
+
+  const { data: adminRow } = await supabase
+    .from('admin_users')
+    .select('id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (adminRow) {
+    return {
+      id: user.id,
+      email: user.email,
+      role: 'admin',
+    };
+  }
+
+  const meta = user.user_metadata ?? {};
+  const metaRole = String(meta.role ?? '');
+
+  if (metaRole === 'faculty') {
+    const { data: fp } = await supabase
+      .from('faculty_profiles')
+      .select('department, employee_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    return {
+      id: user.id,
+      email: user.email,
+      role: 'faculty',
+      department: fp?.department ?? (meta.department as string) ?? null,
+      employeeId: fp?.employee_id ?? (meta.employee_id as string) ?? null,
+    };
+  }
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('branch, academic_year, full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  return {
+    id: user.id,
+    email: user.email,
+    role: 'student',
+    department: profile?.branch ?? (meta.department as string) ?? null,
+    academicYear: profile?.academic_year ?? (meta.year as string) ?? null,
+  };
+}
+
+export function isValidDepartment(value: string): value is Department {
+  return (DEPARTMENTS as readonly string[]).includes(value);
+}
+
+export function isValidAcademicYear(value: string): value is AcademicYear {
+  return (ACADEMIC_YEARS as readonly string[]).includes(value);
+}
+
+export function defaultRedirectForRole(role: AppRole): string {
+  if (role === 'admin') return '/admin/dashboard';
+  if (role === 'faculty') return '/faculty/dashboard';
+  return '/dashboard';
+}

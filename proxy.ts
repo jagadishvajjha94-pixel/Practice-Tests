@@ -1,6 +1,13 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import {
+  defaultRedirectForRole,
+  isAdminRoute,
+  isFacultyRoute,
+  isStudentExperienceRoute,
+  resolveAppUser,
+} from '@/lib/roles'
+import {
   getPublicSupabaseAnonKey,
   getPublicSupabaseUrl,
   isSupabasePublicEnvConfigured,
@@ -23,13 +30,13 @@ export async function proxy(request: NextRequest) {
     },
   })
 
-  // Avoid crashing when Supabase env is missing, whitespace-only, or still set to template placeholders.
   if (!isSupabasePublicEnvConfigured()) {
     return response
   }
 
   const supabaseUrl = getPublicSupabaseUrl()!
   const supabaseAnonKey = getPublicSupabaseAnonKey()!
+  const pathname = request.nextUrl.pathname
 
   const supabase = createServerClient(
     supabaseUrl,
@@ -40,7 +47,6 @@ export async function proxy(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          // Must forward request headers so refreshed auth cookies apply to this request (Supabase SSR + Vercel).
           response = NextResponse.next({
             request: { headers: request.headers },
           })
@@ -65,19 +71,45 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Protect authenticated routes
   if (
     !user &&
-    (request.nextUrl.pathname.startsWith('/dashboard') ||
-      request.nextUrl.pathname.startsWith('/admin') ||
-      request.nextUrl.pathname.startsWith('/profile') ||
-      request.nextUrl.pathname.startsWith('/checkout') ||
-      request.nextUrl.pathname.startsWith('/ai') ||
-      request.nextUrl.pathname.startsWith('/tests/competitive-exam'))
+    (pathname.startsWith('/dashboard') ||
+      pathname.startsWith('/admin') ||
+      pathname.startsWith('/faculty') ||
+      pathname.startsWith('/profile') ||
+      pathname.startsWith('/checkout') ||
+      pathname.startsWith('/ai') ||
+      pathname.startsWith('/tests/competitive-exam'))
   ) {
-    const loginUrl = new URL('/auth/role', request.url)
-    loginUrl.searchParams.set('redirect', `${request.nextUrl.pathname}${request.nextUrl.search}`)
+    const loginUrl = new URL(
+      pathname.startsWith('/faculty') ? '/auth/login/faculty' : '/auth/role',
+      request.url,
+    )
+    loginUrl.searchParams.set('redirect', `${pathname}${request.nextUrl.search}`)
     return NextResponse.redirect(loginUrl)
+  }
+
+  if (user) {
+    const resolved = await resolveAppUser(supabase)
+    const role = resolved?.role ?? 'student'
+
+    if (role === 'faculty') {
+      if (isAdminRoute(pathname) || isStudentExperienceRoute(pathname)) {
+        return NextResponse.redirect(new URL(defaultRedirectForRole('faculty'), request.url))
+      }
+    }
+
+    if (role === 'admin') {
+      if (isFacultyRoute(pathname) || isStudentExperienceRoute(pathname)) {
+        return NextResponse.redirect(new URL(defaultRedirectForRole('admin'), request.url))
+      }
+    }
+
+    if (role === 'student') {
+      if (isFacultyRoute(pathname) || isAdminRoute(pathname)) {
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
+    }
   }
 
   return response

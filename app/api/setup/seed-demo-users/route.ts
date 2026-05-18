@@ -95,6 +95,8 @@ export async function POST() {
         email,
         full_name: student.fullName,
         branch: student.department,
+        academic_year: student.year,
+        user_role: 'student',
         college: COLLEGE.shortName,
         subscription_status: 'free',
         updated_at: new Date().toISOString(),
@@ -116,6 +118,7 @@ export async function POST() {
     role: 'faculty',
     full_name: DEMO_FACULTY_ACCOUNT.fullName,
     employee_id: DEMO_FACULTY_ACCOUNT.employeeId,
+    department: DEMO_FACULTY_ACCOUNT.department,
   };
   const facultyOutcome = await upsertAuthUser(
     supabase,
@@ -127,15 +130,15 @@ export async function POST() {
     return NextResponse.json({ error: facultyOutcome.error, partial: results }, { status: 500 });
   }
 
-  await supabase.from('users').upsert(
+  await supabase.from('faculty_profiles').upsert(
     {
-      id: facultyOutcome.id,
-      email: facultyEmail,
+      user_id: facultyOutcome.id,
+      employee_id: DEMO_FACULTY_ACCOUNT.employeeId,
+      department: DEMO_FACULTY_ACCOUNT.department,
       full_name: DEMO_FACULTY_ACCOUNT.fullName,
-      college: COLLEGE.shortName,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: 'id' },
+    { onConflict: 'user_id' },
   );
 
   results.push({

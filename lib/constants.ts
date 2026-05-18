@@ -91,6 +91,17 @@ export const PRACTICE_HUB_ITEMS = [
     accent: 'emerald' as const,
   },
   {
+    id: 'department-exams',
+    href: '/tests/department',
+    name: 'Department Exams',
+    icon: '🏫',
+    badge: 'Faculty · Admin approved',
+    description:
+      'MCQ exams from your department faculty, visible only after admin approval and matched to your year.',
+    accent: 'blue' as const,
+    cta: 'View department exams →',
+  },
+  {
     id: 'programming',
     href: '/tests/programming',
     name: 'Programming',
