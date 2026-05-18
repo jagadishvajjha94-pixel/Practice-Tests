@@ -7,8 +7,10 @@ import {
   type PersistAttemptInput,
 } from '@/lib/test-attempts';
 
-export async function GET() {
-  const auth = await requireAuth();
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request) {
+  const auth = await requireAuth(undefined, request);
   if ('response' in auth) return auth.response;
 
   const service = getServiceSupabase();
@@ -21,7 +23,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuth();
+  const auth = await requireAuth(undefined, request);
   if ('response' in auth) return auth.response;
 
   const service = getServiceSupabase();
@@ -48,7 +50,7 @@ export async function POST(request: Request) {
     testName: typeof body.testName === 'string' ? body.testName : undefined,
     scorePercent,
     rawNetScore: Number(body.rawNetScore) || 0,
-    answers: (body.answers as Record<string, unknown>) ?? {},
+    answers: {},
     elapsedSec: Number(body.elapsedSec) || 0,
     startedAtIso: typeof body.startedAtIso === 'string' ? body.startedAtIso : nowIso,
     completedAtIso: typeof body.completedAtIso === 'string' ? body.completedAtIso : nowIso,

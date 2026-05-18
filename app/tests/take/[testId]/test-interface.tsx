@@ -34,6 +34,7 @@ import {
   isAttemptPersistenceError,
   persistTestAttempt,
 } from '@/lib/test-attempts';
+import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
 
 /** When `test_attempts` has no JSON `answers`, some DBs keep rows in `question_answers` or `test_answers`. */
 async function persistOptionalPerQuestionRows(
@@ -304,16 +305,19 @@ export default function TestInterface({ test, questions, fullAccess, examSection
       let attemptId = localAttemptId;
 
       try {
+        const authHeaders = await getSupabaseAuthHeaders(supabase);
         const apiRes = await fetch('/api/student/test-attempts', {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders,
+          },
           body: JSON.stringify({
             testId: test.id,
             testName: test.name,
             scorePercent,
             rawNetScore,
-            answers,
             elapsedSec,
             startedAtIso: nowIso,
             completedAtIso: nowIso,

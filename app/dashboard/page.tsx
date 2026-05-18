@@ -9,7 +9,10 @@ import { User, TestAttempt, Test } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { buildUserFromAuth, formatSupabaseError } from '@/lib/utils';
-import { fetchStudentDashboardAttempts } from '@/lib/test-attempts';
+import {
+  fetchStudentDashboardAttempts,
+  getBrowserDashboardAttempts,
+} from '@/lib/test-attempts';
 
 type DashboardAttempt = TestAttempt & { test: Test };
 
@@ -107,6 +110,13 @@ export default function DashboardPage() {
           formatSupabaseError(error),
           error
         );
+        const supabase = getSupabaseBrowserClient();
+        if (supabase) {
+          const { data: { user: fallbackUser } } = await supabase.auth.getUser();
+          if (fallbackUser?.id) {
+            setAttempts(getBrowserDashboardAttempts(fallbackUser.id));
+          }
+        }
       } finally {
         setLoading(false);
       }

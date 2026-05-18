@@ -53,12 +53,19 @@ export function isAdminRoute(pathname: string): boolean {
   return pathname.startsWith(ADMIN_PREFIX);
 }
 
-export async function resolveAppUser(supabase: SupabaseClient): Promise<ResolvedUser | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user?.email) return null;
+type AuthUserLike = {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+};
 
+export async function resolveAppUserFromAuthUser(
+  supabase: SupabaseClient,
+  user: AuthUserLike,
+): Promise<ResolvedUser | null> {
+  if (!user?.id) return null;
+
+  const email = user.email ?? '';
   const meta = user.user_metadata ?? {};
 
   const { data: adminRow, error: adminError } = await supabase
@@ -70,7 +77,7 @@ export async function resolveAppUser(supabase: SupabaseClient): Promise<Resolved
   if (!adminError && adminRow) {
     return {
       id: user.id,
-      email: user.email,
+      email,
       role: 'admin',
     };
   }
@@ -78,7 +85,7 @@ export async function resolveAppUser(supabase: SupabaseClient): Promise<Resolved
   if (String(meta.role ?? '') === 'admin') {
     return {
       id: user.id,
-      email: user.email,
+      email,
       role: 'admin',
     };
   }
@@ -93,7 +100,7 @@ export async function resolveAppUser(supabase: SupabaseClient): Promise<Resolved
     if (errMsg.includes('admin_users') || errMsg.includes('schema cache')) {
       return {
         id: user.id,
-        email: user.email,
+        email,
         role: 'admin',
       };
     }
@@ -109,7 +116,7 @@ export async function resolveAppUser(supabase: SupabaseClient): Promise<Resolved
 
     return {
       id: user.id,
-      email: user.email,
+      email,
       role: 'faculty',
       department: fp?.department ?? (meta.department as string) ?? null,
       employeeId: fp?.employee_id ?? (meta.employee_id as string) ?? null,
@@ -124,11 +131,19 @@ export async function resolveAppUser(supabase: SupabaseClient): Promise<Resolved
 
   return {
     id: user.id,
-    email: user.email,
+    email,
     role: 'student',
     department: profile?.branch ?? (meta.department as string) ?? null,
     academicYear: profile?.academic_year ?? (meta.year as string) ?? null,
   };
+}
+
+export async function resolveAppUser(supabase: SupabaseClient): Promise<ResolvedUser | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.id) return null;
+  return resolveAppUserFromAuthUser(supabase, user);
 }
 
 export function isValidDepartment(value: string): value is Department {

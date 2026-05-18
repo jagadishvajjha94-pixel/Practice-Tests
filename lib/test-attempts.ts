@@ -2,9 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Test, TestAttempt } from '@/lib/types';
 import { adaptTestRow } from '@/lib/practice-mappers';
 import {
-  getAttemptIndexForUser,
-  getLocalAttemptsForUser,
+  getBrowserDashboardAttempts,
 } from '@/lib/local-test-attempts';
+import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
+
+export { getBrowserDashboardAttempts };
 
 export type AttemptRow = Record<string, unknown> & {
   id?: string | number;
@@ -169,6 +171,17 @@ export async function persistTestAttempt(
       percentage_score: input.scorePercent,
       total_score: input.rawNetScore,
     },
+    {
+      user_id: input.userId,
+      percentage_score: input.scorePercent,
+      status: 'completed',
+      completed_at: input.completedAtIso,
+    },
+    {
+      user_id: input.userId,
+      score: input.scorePercent,
+      status: 'completed',
+    },
     base,
   ];
 
@@ -188,8 +201,14 @@ export async function persistTestAttempt(
       !isMissingColumnError(error, 'time_taken') &&
       !isMissingColumnError(error, 'percentage_score') &&
       !isMissingColumnError(error, 'total_score') &&
-      !isMissingColumnError(error, 'test_title')
+      !isMissingColumnError(error, 'test_title') &&
+      !isMissingColumnError(error, 'started_at') &&
+      !isMissingColumnError(error, 'completed_at') &&
+      !isMissingColumnError(error, 'status') &&
+      !isMissingColumnError(error, 'test_id')
     ) {
+      const code = (error as { code?: string })?.code;
+      if (code === '23503' || code === '22P02') continue;
       throw error;
     }
   }
@@ -296,12 +315,16 @@ export async function fetchStudentDashboardAttempts(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<DashboardAttemptView[]> {
-  const local = getLocalAttemptsForUser<DashboardAttemptView>(userId);
-  const indexed = getAttemptIndexForUser<DashboardAttemptView>(userId);
+  const browser = getBrowserDashboardAttempts<DashboardAttemptView>(userId);
 
   let serverAttempts: DashboardAttemptView[] = [];
   try {
-    const res = await fetch('/api/student/test-attempts', { credentials: 'include', cache: 'no-store' });
+    const authHeaders = await getSupabaseAuthHeaders(supabase);
+    const res = await fetch('/api/student/test-attempts', {
+      credentials: 'include',
+      cache: 'no-store',
+      headers: authHeaders,
+    });
     if (res.ok) {
       const json = (await res.json()) as { attempts?: DashboardAttemptView[] };
       serverAttempts = json.attempts ?? [];
@@ -314,7 +337,7 @@ export async function fetchStudentDashboardAttempts(
     serverAttempts = await fetchAttemptsForUser(supabase, userId);
   }
 
-  return mergeAttempts(indexed, mergeAttempts(local, serverAttempts)).slice(0, 15);
+  return mergeAttempts(browser, serverAttempts).slice(0, 15);
 }
 
 function mergeAttempts<T extends TestAttempt & { test: Test }>(local: T[], server: T[]): T[] {

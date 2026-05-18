@@ -11,10 +11,34 @@ export type LocalTestAttemptPayload = {
 };
 
 const KEY_PREFIX = 'localTestAttempt:';
+const DETAIL_PREFIX = 'localTestAttemptDetail:';
 const INDEX_PREFIX = 'prepindia:attempts:';
 
 function attemptIndexKey(userId: string): string {
   return `${INDEX_PREFIX}${userId}`;
+}
+
+function slimPayload(payload: LocalTestAttemptPayload): LocalTestAttemptPayload {
+  return {
+    attempt: {
+      ...payload.attempt,
+      answers: null,
+    },
+    test: payload.test,
+  };
+}
+
+function writeStorage(key: string, payload: LocalTestAttemptPayload): void {
+  try {
+    const withoutQuestions = { ...payload, questions: undefined };
+    window.localStorage.setItem(key, JSON.stringify(withoutQuestions));
+  } catch {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(slimPayload(payload)));
+    } catch {
+      // quota / private mode
+    }
+  }
 }
 
 /** Fast list for dashboard (sessionStorage survives same-tab navigation). */
@@ -27,8 +51,21 @@ export function appendAttemptIndex(
     const key = attemptIndexKey(userId);
     const raw = window.sessionStorage.getItem(key);
     const list = raw ? (JSON.parse(raw) as Array<TestAttempt & { test: Test }>) : [];
+    const row: TestAttempt & { test: Test } = {
+      id: entry.id,
+      user_id: userId,
+      test_id: entry.test_id,
+      started_at: entry.started_at,
+      completed_at: entry.completed_at,
+      score: entry.score,
+      answers: null,
+      time_taken: entry.time_taken,
+      status: entry.status ?? 'completed',
+      created_at: entry.created_at,
+      test: entry.test,
+    };
     const next = [
-      { ...entry, user_id: userId },
+      row,
       ...list.filter((a) => String(a.id) !== String(entry.id)),
     ].slice(0, 30);
     window.sessionStorage.setItem(key, JSON.stringify(next));
@@ -53,6 +90,10 @@ export function localAttemptStorageKey(userId: string, attemptId: string): strin
   return `${KEY_PREFIX}${userId}:${attemptId}`;
 }
 
+function detailStorageKey(userId: string, attemptId: string): string {
+  return `${DETAIL_PREFIX}${userId}:${attemptId}`;
+}
+
 export function saveLocalTestAttempt(
   userId: string,
   attemptId: string,
@@ -67,7 +108,16 @@ export function saveLocalTestAttempt(
       user_id: userId,
     },
   };
-  window.localStorage.setItem(localAttemptStorageKey(userId, attemptId), JSON.stringify(scoped));
+  writeStorage(localAttemptStorageKey(userId, attemptId), scoped);
+
+  if (payload.questions?.length || payload.answers) {
+    try {
+      window.localStorage.setItem(detailStorageKey(userId, attemptId), JSON.stringify(scoped));
+    } catch {
+      // optional detail for result review
+    }
+  }
+
   appendAttemptIndex(userId, { ...scoped.attempt, test: scoped.test });
 }
 
@@ -76,6 +126,15 @@ export function loadLocalTestAttempt(
   attemptId: string,
 ): LocalTestAttemptPayload | null {
   if (typeof window === 'undefined') return null;
+
+  const detailRaw = window.localStorage.getItem(detailStorageKey(userId, attemptId));
+  if (detailRaw) {
+    try {
+      return JSON.parse(detailRaw) as LocalTestAttemptPayload;
+    } catch {
+      // fall through
+    }
+  }
 
   const scopedRaw = window.localStorage.getItem(localAttemptStorageKey(userId, attemptId));
   if (scopedRaw) {
@@ -116,6 +175,7 @@ export function getLocalAttemptsForUser<T extends TestAttempt & { test: Test }>(
   for (let i = 0; i < window.localStorage.length; i++) {
     const key = window.localStorage.key(i);
     if (!key || !key.startsWith(KEY_PREFIX)) continue;
+    if (key.startsWith(DETAIL_PREFIX)) continue;
 
     const scopedPrefix = `${KEY_PREFIX}${userId}:`;
     const guestPrefix = `${KEY_PREFIX}${LOCAL_ATTEMPT_GUEST_USER_ID}:`;
@@ -152,6 +212,27 @@ export function getLocalAttemptsForUser<T extends TestAttempt & { test: Test }>(
   }
 
   return out.sort(
+    (a, b) =>
+      new Date(b.created_at ?? b.completed_at ?? 0).getTime() -
+      new Date(a.created_at ?? a.completed_at ?? 0).getTime(),
+  );
+}
+
+/** Synchronous snapshot for dashboard — never throws. */
+export function getBrowserDashboardAttempts<T extends TestAttempt & { test: Test }>(
+  userId: string,
+): T[] {
+  const local = getLocalAttemptsForUser<T>(userId);
+  const indexed = getAttemptIndexForUser<T>(userId);
+  const seen = new Set<string>();
+  const merged: T[] = [];
+  for (const row of [...indexed, ...local]) {
+    const id = String(row.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    merged.push(row);
+  }
+  return merged.sort(
     (a, b) =>
       new Date(b.created_at ?? b.completed_at ?? 0).getTime() -
       new Date(a.created_at ?? a.completed_at ?? 0).getTime(),
