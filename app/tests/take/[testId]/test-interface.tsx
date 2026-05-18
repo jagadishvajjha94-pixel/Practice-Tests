@@ -29,6 +29,11 @@ import {
   LOCAL_ATTEMPT_GUEST_USER_ID,
   saveLocalTestAttempt,
 } from '@/lib/local-test-attempts';
+import {
+  ensureStudentUserRow,
+  isAttemptPersistenceError,
+  persistTestAttempt,
+} from '@/lib/test-attempts';
 
 /** When `test_attempts` has no JSON `answers`, some DBs keep rows in `question_answers` or `test_answers`. */
 async function persistOptionalPerQuestionRows(
@@ -236,12 +241,6 @@ export default function TestInterface({ test, questions, fullAccess, examSection
     router.push(`/tests/result/${localAttemptId}`);
   };
 
-  const isMissingColumnError = (error: unknown, column: string) => {
-    if (!error || typeof error !== 'object') return false;
-    const e = error as { code?: string; message?: string };
-    return e.code === 'PGRST204' && (e.message ?? '').toLowerCase().includes(`'${column.toLowerCase()}'`);
-  };
-
   async function handleSubmitTest() {
     if (!currentQuestion || submitting || isSubmitted) return;
 
@@ -281,81 +280,48 @@ export default function TestInterface({ test, questions, fullAccess, examSection
       const nowIso = new Date().toISOString();
       const elapsedSec = test.duration * 60 - timeRemaining;
 
-      // Create test attempt (new schema first, fallback to legacy schema without answers/time_taken).
-      let attempt: { id: string | number } | null = null;
-      const { data: createdAttempt, error: createAttemptError } = await supabase
-        .from('test_attempts')
-        .insert({
+      await ensureStudentUserRow(supabase, user);
+
+      const { id: attemptId } = await persistTestAttempt(supabase, {
+        userId: user.id,
+        testId: test.id,
+        scorePercent,
+        rawNetScore,
+        answers,
+        elapsedSec,
+        startedAtIso: nowIso,
+        completedAtIso: nowIso,
+      });
+
+      await persistOptionalPerQuestionRows(supabase, attemptId, questions, answers);
+
+      saveLocalTestAttempt(user.id, attemptId, {
+        attempt: {
+          id: attemptId,
           user_id: user.id,
           test_id: test.id,
           started_at: nowIso,
           completed_at: nowIso,
-          status: 'completed',
-          time_taken: elapsedSec,
+          score: scorePercent,
           answers,
-        })
-        .select()
-        .single();
-
-      if (!createAttemptError) {
-        attempt = createdAttempt as { id: string | number };
-      } else if (
-        isMissingColumnError(createAttemptError, 'answers') ||
-        isMissingColumnError(createAttemptError, 'time_taken') ||
-        isMissingColumnError(createAttemptError, 'score')
-      ) {
-        const { data: legacyAttempt, error: legacyCreateError } = await supabase
-          .from('test_attempts')
-          .insert({
-            user_id: user.id,
-            test_id: test.id,
-            started_at: nowIso,
-            completed_at: nowIso,
-            status: 'completed',
-          })
-          .select()
-          .single();
-        if (legacyCreateError) throw legacyCreateError;
-        attempt = legacyAttempt as { id: string | number };
-      } else {
-        throw createAttemptError;
-      }
-
-      // Update attempt with score (new schema first, then legacy columns).
-      const { error: updateAttemptError } = await supabase
-        .from('test_attempts')
-        .update({ score: scorePercent, time_taken: elapsedSec, answers })
-        .eq('id', attempt.id);
-
-      if (updateAttemptError) {
-        if (
-          isMissingColumnError(updateAttemptError, 'score') ||
-          isMissingColumnError(updateAttemptError, 'answers') ||
-          isMissingColumnError(updateAttemptError, 'time_taken')
-        ) {
-          const { error: legacyUpdateError } = await supabase
-            .from('test_attempts')
-            .update({
-              percentage_score: scorePercent,
-              total_score: rawNetScore,
-              completed_at: nowIso,
-              status: 'completed',
-            })
-            .eq('id', attempt.id);
-          if (legacyUpdateError) throw legacyUpdateError;
-        } else {
-          throw updateAttemptError;
-        }
-      }
-
-      await persistOptionalPerQuestionRows(supabase, attempt.id, questions, answers);
+          time_taken: elapsedSec,
+          status: 'completed',
+          created_at: nowIso,
+        },
+        test,
+        questions,
+        answers,
+      });
 
       clearExamDraft(test.id);
       setIsSubmitted(true);
-      router.push(`/tests/result/${attempt.id}`);
+      router.push(`/tests/result/${attemptId}`);
     } catch (error) {
-      // When schema/tables are missing in demo mode, continue with local submit.
-      if (isSchemaMissingError(error) || test.id.startsWith('fallback-')) {
+      if (
+        isSchemaMissingError(error) ||
+        isAttemptPersistenceError(error) ||
+        test.id.startsWith('fallback-')
+      ) {
         let fallbackPercent = 0;
         if (sectionMode && examSections.length) {
           fallbackPercent = scoreBySections(examSections, questionsBySection, answers).overallPercent;

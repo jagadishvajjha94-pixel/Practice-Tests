@@ -18,6 +18,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { downloadStudentReportPdf } from '@/lib/reports/student-pdf';
+import { fetchStudentDashboardAttempts } from '@/lib/test-attempts';
 
 type AttemptPoint = { name: string; score: number; date: string };
 
@@ -45,28 +46,12 @@ export default function StudentAnalyticsPage() {
       setName(profile?.full_name || 'Student');
       setEmail(profile?.email || user.email || '');
 
-      const { data: attemptRows } = await supabase
-        .from('test_attempts')
-        .select('score, percentage_score, created_at, completed_at, tests(name)')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      const points: AttemptPoint[] = (attemptRows ?? []).map((row) => {
-        const r = row as {
-          score?: number | null;
-          percentage_score?: number | null;
-          created_at?: string;
-          completed_at?: string | null;
-          tests?: { name?: string } | null;
-        };
-        const score = Number(r.score ?? r.percentage_score ?? 0);
-        return {
-          name: r.tests?.name?.slice(0, 18) ?? 'Test',
-          score,
-          date: new Date(r.completed_at ?? r.created_at ?? Date.now()).toLocaleDateString(),
-        };
-      });
+      const attemptRows = await fetchStudentDashboardAttempts(supabase, user.id);
+      const points: AttemptPoint[] = attemptRows.map((row) => ({
+        name: row.test?.name?.slice(0, 18) ?? 'Test',
+        score: row.score ?? 0,
+        date: new Date(row.completed_at ?? row.created_at ?? Date.now()).toLocaleDateString(),
+      }));
       setAttempts(points.reverse());
 
       const low = points.filter((p) => p.score < 60).map((p) => p.name);

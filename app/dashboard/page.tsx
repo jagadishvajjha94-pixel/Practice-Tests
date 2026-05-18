@@ -9,7 +9,7 @@ import { User, TestAttempt, Test } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { buildUserFromAuth, formatSupabaseError } from '@/lib/utils';
-import { getLocalAttemptsForUser } from '@/lib/local-test-attempts';
+import { fetchStudentDashboardAttempts } from '@/lib/test-attempts';
 
 type DashboardAttempt = TestAttempt & { test: Test };
 
@@ -55,8 +55,6 @@ export default function DashboardPage() {
           return;
         }
 
-        const localAttemptsForUser = getLocalAttemptsForUser<DashboardAttempt>(authUser.id);
-
         setIsAdminUser(false);
 
         // Fetch user profile
@@ -101,57 +99,8 @@ export default function DashboardPage() {
           setUser(userData);
         }
 
-        // Fetch recent test attempts
-        const { data: attemptsData, error: attemptsError } = await supabase
-          .from('test_attempts')
-          .select(`
-            *,
-            test:tests(*)
-          `)
-          .eq('user_id', authUser.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
-
-        if (attemptsError) {
-          console.warn(
-            'Attempts fetch warning:',
-            formatSupabaseError(attemptsError)
-          );
-          setAttempts(localAttemptsForUser);
-        } else {
-          const serverAttempts = ((attemptsData || []) as DashboardAttempt[]).map((a) => ({
-            ...a,
-            test: a.test
-              ? {
-                  ...a.test,
-                  name: a.test.name || (a.test as unknown as { title?: string }).title || 'Practice test',
-                }
-              : ({
-                  id: String(a.test_id ?? ''),
-                  name: 'Practice test',
-                  category_id: '',
-                  duration: 0,
-                  total_questions: 0,
-                  passing_score: null,
-                  description: null,
-                  difficulty_level: null,
-                  is_paid: false,
-                  created_at: a.created_at,
-                  updated_at: a.created_at,
-                } as Test),
-          }));
-          const merged = [...localAttemptsForUser, ...serverAttempts]
-            .filter(
-              (a, idx, arr) =>
-                arr.findIndex((x) => String(x.id) === String(a.id)) === idx,
-            )
-            .sort(
-              (a, b) =>
-                new Date(b.created_at ?? b.completed_at ?? 0).getTime() -
-                new Date(a.created_at ?? a.completed_at ?? 0).getTime(),
-            );
-          setAttempts(merged.slice(0, 10));
-        }
+        const mergedAttempts = await fetchStudentDashboardAttempts(supabase, authUser.id);
+        setAttempts(mergedAttempts as DashboardAttempt[]);
       } catch (error) {
         console.error(
           'Error fetching dashboard data:',
@@ -163,7 +112,11 @@ export default function DashboardPage() {
       }
     };
 
-    fetchDashboardData();
+    void fetchDashboardData();
+
+    const onFocus = () => void fetchDashboardData();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, [router]);
 
   if (loading) {
