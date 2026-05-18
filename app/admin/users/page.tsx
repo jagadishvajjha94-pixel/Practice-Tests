@@ -72,25 +72,6 @@ export default function UsersManagementPage() {
           setLoading(false);
           return;
         }
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-
-        if (!authUser) {
-          router.push('/auth/login');
-          return;
-        }
-
-        // Check admin
-        const { data: adminUser } = await supabase
-          .from('admin_users')
-          .select('*')
-          .eq('user_id', authUser.id)
-          .single();
-
-        if (!adminUser) {
-          router.push('/dashboard');
-          return;
-        }
-
         setIsAdmin(true);
 
         // Fetch users
@@ -365,20 +346,12 @@ export default function UsersManagementPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-            <Link href="/admin">
-              <Button variant="outline">Back</Button>
-            </Link>
-          </div>
-        </div>
+    <div>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Users</h2>
+        <p className="text-sm text-gray-600 mt-1">Registered students, departments, and learning activity.</p>
       </div>
-
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div>
         {/* Stats */}
         <div className="grid md:grid-cols-4 gap-4 mb-8">
           <Card className="p-6">

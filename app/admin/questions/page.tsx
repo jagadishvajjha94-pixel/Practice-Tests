@@ -40,25 +40,6 @@ export default function QuestionsManagementPage() {
           setLoading(false);
           return;
         }
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) {
-          router.push('/auth/login');
-          return;
-        }
-
-        // Check admin
-        const { data: adminUser } = await supabase
-          .from('admin_users')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-
-        if (!adminUser) {
-          router.push('/dashboard');
-          return;
-        }
-
         setIsAdmin(true);
 
         // Fetch data
@@ -213,20 +194,12 @@ export default function QuestionsManagementPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-900">Question Management</h1>
-            <Link href="/admin">
-              <Button variant="outline">Back</Button>
-            </Link>
-          </div>
-        </div>
+    <div>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Question bank</h2>
+        <p className="text-sm text-gray-600 mt-1">Add, import, and manage MCQs used in practice and department exams.</p>
       </div>
-
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div>
         {/* Controls */}
         <div className="mb-8 space-y-4">
           <div className="flex gap-4">

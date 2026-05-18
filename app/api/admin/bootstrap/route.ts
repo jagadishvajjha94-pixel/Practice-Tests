@@ -8,6 +8,7 @@ import {
   isUserAdmin,
   upsertPublicUser,
 } from '@/lib/admin-access';
+import { ensureAdminAccess } from '@/lib/admin-verify';
 
 type BootstrapBody = {
   email?: string;
@@ -90,11 +91,13 @@ export async function POST(request: NextRequest) {
   const profileWarning = profile.ok ? null : profile.error ?? 'Profile row not created';
 
   const granted = await grantAdminRole(admin, created.id);
-  if (!granted.ok) {
+  const access = await ensureAdminAccess(admin, created.id, email);
+
+  if (!granted.ok && !access.isAdmin) {
     return NextResponse.json(
       {
         error: granted.error ?? 'Could not grant admin role',
-        hint: 'Run supabase/migrations/001_users_resume.sql and ensure admin_users exists, or set POSTGRES_URL and call POST /api/setup/ensure-admin',
+        hint: 'Run supabase/migrations/004_users_and_admin_setup.sql in Supabase SQL Editor, then NOTIFY pgrst, reload schema;',
         profileWarning,
       },
       { status: 500 },

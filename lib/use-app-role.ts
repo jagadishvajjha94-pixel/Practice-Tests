@@ -23,15 +23,13 @@ export function useAppRole() {
         return;
       }
 
-      const { data: adminRow } = await supabase
-        .from('admin_users')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (adminRow) {
-        setRole('admin');
-        return;
+      const meRes = await fetch('/api/admin/me');
+      if (meRes.ok) {
+        const me = (await meRes.json()) as { isAdmin?: boolean };
+        if (me.isAdmin) {
+          setRole('admin');
+          return;
+        }
       }
 
       if (String(user.user_metadata?.role ?? '') === 'faculty') {

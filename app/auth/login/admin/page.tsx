@@ -27,38 +27,21 @@ function AdminLoginForm() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const verifyAdmin = async () => {
-    const supabase = createSupabaseBrowserClient();
-    if (!supabase) throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
+    const verifyRes = await fetch('/api/admin/verify', { method: 'POST' });
+    const verifyJson = (await verifyRes.json().catch(() => ({}))) as {
+      isAdmin?: boolean;
+      error?: string;
+    };
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error('Login failed');
-
-    const { data: adminRow } = await supabase
-      .from('admin_users')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (adminRow) {
+    if (verifyRes.ok && verifyJson.isAdmin) {
       router.push('/admin/dashboard');
       return;
     }
 
-    const token = (await supabase.auth.getSession()).data.session?.access_token;
-    if (token) {
-      const promoteRes = await fetch('/api/admin/bootstrap', {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (promoteRes.ok) {
-        router.push('/admin/dashboard');
-        return;
-      }
-    }
-
-    throw new Error('This account does not have admin access. Contact the examination cell.');
+    throw new Error(
+      verifyJson.error ??
+        'This account does not have admin access. Use admin@prepindia.local or contact the examination cell.',
+    );
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -115,7 +98,7 @@ function AdminLoginForm() {
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Examination cell username"
+              placeholder="admin@prepindia.local"
               className="bg-white border-slate-300"
               autoComplete="username"
               required

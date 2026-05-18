@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkIsAdmin } from '@/lib/admin-verify';
 import { getSupabaseServerClient } from '@/lib/supabase-server';
-import { getAdminSupabase, isUserAdmin } from '@/lib/admin-access';
+import { getAdminSupabase } from '@/lib/admin-access';
 
 export async function GET(request: NextRequest) {
   const adminClient = getAdminSupabase();
@@ -26,32 +27,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ isAdmin: false, authenticated: false });
   }
 
-  const supabase = await getSupabaseServerClient();
-  const { data: row, error } = supabase
-    ? await supabase.from('admin_users').select('id, role').eq('user_id', user.id).maybeSingle()
-    : { data: null, error: null };
+  const service = getAdminSupabase();
+  const isAdmin = await checkIsAdmin(service, user.id, user.email ?? undefined);
 
-  if (!error && row) {
-    return NextResponse.json({
-      isAdmin: true,
-      authenticated: true,
-      role: row.role ?? 'admin',
-      email: user.email,
-    });
-  }
-
-  const admin = getAdminSupabase();
-  if (admin) {
-    const elevated = await isUserAdmin(admin, user.id);
-    if (elevated) {
-      return NextResponse.json({
-        isAdmin: true,
-        authenticated: true,
-        role: 'admin',
-        email: user.email,
-      });
-    }
-  }
-
-  return NextResponse.json({ isAdmin: false, authenticated: true, email: user.email });
+  return NextResponse.json({
+    isAdmin,
+    authenticated: true,
+    role: isAdmin ? 'admin' : null,
+    email: user.email,
+  });
 }

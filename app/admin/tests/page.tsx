@@ -37,23 +37,6 @@ export default function AdminTestsPage() {
           return;
         }
 
-        const { data: auth } = await supabase.auth.getUser();
-        if (!auth.user) {
-          router.push('/auth/login');
-          return;
-        }
-
-        const { data: adminUser } = await supabase
-          .from('admin_users')
-          .select('*')
-          .eq('user_id', auth.user.id)
-          .single();
-
-        if (!adminUser) {
-          router.push('/dashboard');
-          return;
-        }
-
         const [{ data: testsData, error: testsErr }, { data: usersData, error: usersErr }, { data: attemptsData, error: attemptsErr }] =
           await Promise.all([
             supabase.from('tests').select('*').order('created_at', { ascending: false }),
@@ -142,17 +125,12 @@ export default function AdminTestsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Tests Monitoring</h1>
-          <Link href="/admin">
-            <Button variant="outline">Back to Admin</Button>
-          </Link>
-        </div>
+    <div>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Test attempts</h2>
+        <p className="text-sm text-gray-600 mt-1">Monitor submissions, scores, and completion status across all tests.</p>
       </div>
-
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div>
         <div className="grid md:grid-cols-4 gap-4 mb-6">
           <Card className="p-5">
             <p className="text-sm text-gray-600">Attempts</p>

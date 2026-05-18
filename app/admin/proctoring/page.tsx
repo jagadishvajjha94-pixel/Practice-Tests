@@ -26,19 +26,6 @@ export default function AdminProctoringPage() {
   const load = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      router.push('/auth/login');
-      return;
-    }
-    const { data: admin } = await supabase.from('admin_users').select('id').eq('user_id', user.id).maybeSingle();
-    if (!admin) {
-      router.push('/dashboard');
-      return;
-    }
-
     const { data } = await supabase
       .from('exam_violations')
       .select('*, users(email, full_name)')
@@ -69,13 +56,11 @@ export default function AdminProctoringPage() {
   }, {});
 
   return (
-    <div className="min-h-screen max-w-6xl mx-auto px-4 py-8 space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Live proctoring dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Events from exam_violations + ai-proctor-service signals (via /api/v2/proctor/ingest).
-          </p>
+          <h2 className="text-2xl font-bold text-gray-900">Proctoring</h2>
+          <p className="text-sm text-gray-600 mt-1">Review integrity flags and live exam violation events.</p>
         </div>
         <div className="flex gap-2">
           <Button variant={live ? 'default' : 'outline'} size="sm" onClick={() => setLive((v) => !v)}>
@@ -84,10 +69,7 @@ export default function AdminProctoringPage() {
           <Button variant="outline" size="sm" onClick={() => void load()}>
             Refresh
           </Button>
-          <Button variant="outline" asChild>
-            <Link href="/admin/dashboard">← Admin</Link>
-          </Button>
-        </div>
+          </div>
       </div>
 
       <div className="grid sm:grid-cols-4 gap-3">

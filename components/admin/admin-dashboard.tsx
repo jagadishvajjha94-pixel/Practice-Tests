@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,19 +33,8 @@ type DashboardAttemptRow = {
   time_taken?: number | null;
 };
 
-const navItems = [
-  { href: '/admin/dashboard', label: 'Overview' },
-  { href: '/admin/approvals', label: 'Faculty approvals' },
-  { href: '/admin/questions', label: 'Questions' },
-  { href: '/admin/ai-generator', label: 'AI generator' },
-  { href: '/admin/tests', label: 'Tests' },
-  { href: '/admin/proctoring', label: 'Proctoring' },
-  { href: '/admin/users', label: 'Users' },
-] as const;
-
 export function AdminDashboard() {
   const router = useRouter();
-  const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
@@ -84,17 +73,6 @@ export function AdminDashboard() {
 
         if (!user) {
           router.push('/auth/login');
-          return;
-        }
-
-        const { data: adminUser, error } = await supabase
-          .from('admin_users')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error || !adminUser) {
-          router.push('/dashboard');
           return;
         }
 
@@ -214,8 +192,7 @@ export function AdminDashboard() {
         setTopStudents(top);
         setAllStudents(students);
       } catch (error) {
-        console.error('Error checking admin access:', error);
-        router.push('/dashboard');
+        console.error('Error loading admin dashboard:', error);
       } finally {
         setLoading(false);
       }
@@ -452,52 +429,18 @@ export function AdminDashboard() {
     URL.revokeObjectURL(url);
   };
 
-  const isOverviewActive = pathname === '/admin' || pathname === '/admin/dashboard';
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Admin</h1>
-              <p className="text-sm text-gray-500 mt-1">Overview, content, and learner analytics</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={exportFullReportCsv} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                Export full report (Excel CSV)
-              </Button>
-              <Link href="/dashboard">
-                <Button variant="outline">Back to app</Button>
-              </Link>
-            </div>
-          </div>
-          <nav className="mt-6 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
-            {navItems.map((item) => {
-              const active =
-                item.href === '/admin/dashboard'
-                  ? isOverviewActive
-                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <Link key={item.href} href={item.href}>
-                  <span
-                    className={cn(
-                      'inline-flex rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                      active
-                        ? 'bg-gray-900 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
+    <>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Overview</h2>
+          <p className="text-sm text-gray-600 mt-1">College-wide performance, attendance, and exports</p>
         </div>
+        <Button onClick={exportFullReportCsv} className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0">
+          Export full report (CSV)
+        </Button>
       </div>
-
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div>
         <div className="grid sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
           <Card className="p-5 sm:col-span-2">
             <p className="text-gray-600 text-sm font-medium mb-2">Registered users</p>
@@ -802,6 +745,6 @@ export function AdminDashboard() {
           </Card>
         </div>
       </div>
-    </div>
+    </>
   );
 }
