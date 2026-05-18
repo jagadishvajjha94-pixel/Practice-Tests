@@ -30,13 +30,14 @@ import {
   saveLocalTestAttempt,
 } from '@/lib/local-test-attempts';
 import {
+  cacheApiAttempts,
   ensureStudentUserRow,
   isAttemptPersistenceError,
   persistTestAttempt,
+  type DashboardAttemptView,
 } from '@/lib/test-attempts';
 import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
 import { buildFeedEntry, pushDashboardFeedEntry } from '@/lib/dashboard-feed';
-
 /** When `test_attempts` has no JSON `answers`, some DBs keep rows in `question_answers` or `test_answers`. */
 async function persistOptionalPerQuestionRows(
   supabase: SupabaseClient,
@@ -344,13 +345,19 @@ export default function TestInterface({ test, questions, fullAccess, examSection
         if (apiRes.ok) {
           const json = (await apiRes.json()) as {
             id?: string;
-            attempt?: { id?: string; score?: number; test?: { name?: string } };
+            attempt?: DashboardAttemptView;
+            attempts?: DashboardAttemptView[];
           };
           if (json.id) attemptId = String(json.id);
           if (json.attempt?.id) {
             writeFeed(String(json.attempt.id));
           } else if (json.id) {
             writeFeed(String(json.id));
+          }
+          if (json.attempts?.length) {
+            cacheApiAttempts(user.id, json.attempts);
+          } else if (json.attempt) {
+            cacheApiAttempts(user.id, [json.attempt]);
           }
         }
       } catch {

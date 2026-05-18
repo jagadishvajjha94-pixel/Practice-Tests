@@ -8,6 +8,11 @@ import {
   normalizeAttemptRow,
   type PersistAttemptInput,
 } from '@/lib/test-attempts';
+import {
+  appendStudentDashboardStat,
+  buildStatEntry,
+  fetchStudentDashboardStats,
+} from '@/lib/student-dashboard-stats';
 import type { TestAttempt } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +26,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
   }
 
-  const attempts = await fetchAttemptsForUser(service, auth.ctx.user.id);
+  const userId = auth.ctx.user.id;
+
+  let attempts = await fetchStudentDashboardStats(service, userId);
+  if (!attempts.length) {
+    attempts = await fetchAttemptsForUser(service, userId);
+  }
+
   return NextResponse.json({ attempts });
 }
 
@@ -47,8 +58,9 @@ export async function POST(request: Request) {
   }
 
   const nowIso = new Date().toISOString();
+  const userId = auth.ctx.user.id;
   const input: PersistAttemptInput = {
-    userId: auth.ctx.user.id,
+    userId,
     testId: String(body.testId ?? ''),
     testName: typeof body.testName === 'string' ? body.testName : undefined,
     scorePercent,
@@ -60,18 +72,32 @@ export async function POST(request: Request) {
   };
 
   await ensureStudentUserRow(service, {
-    id: auth.ctx.user.id,
+    id: userId,
     email: auth.ctx.user.email,
+  });
+
+  const statEntry = buildStatEntry({
+    id: `pending-${Date.now()}`,
+    userId,
+    testId: input.testId,
+    testName: input.testName ?? 'Practice test',
+    scorePercent,
+    elapsedSec: input.elapsedSec,
+    completedAtIso: input.completedAtIso,
   });
 
   try {
     const { id } = await persistTestAttempt(service, input);
-    const attempts = await fetchAttemptsForUser(service, auth.ctx.user.id);
+    statEntry.id = id;
+
+    await appendStudentDashboardStat(service, userId, statEntry);
+
+    const attempts = await fetchStudentDashboardStats(service, userId);
     const saved = attempts.find((row) => String(row.id) === String(id));
     const attempt: TestAttempt & { test: { name: string } } = saved ?? {
       ...normalizeAttemptRow({
         id,
-        user_id: auth.ctx.user.id,
+        user_id: userId,
         test_id: input.testId,
         score: input.scorePercent,
         percentage_score: input.scorePercent,
@@ -80,11 +106,12 @@ export async function POST(request: Request) {
         completed_at: input.completedAtIso,
         started_at: input.startedAtIso,
         time_taken: input.elapsedSec,
+        test_title: input.testName,
       }),
       test: {
         ...fallbackTestForAttempt({
           id,
-          user_id: auth.ctx.user.id,
+          user_id: userId,
           test_id: input.testId,
           started_at: input.startedAtIso,
           completed_at: input.completedAtIso,
@@ -97,10 +124,49 @@ export async function POST(request: Request) {
         name: input.testName ?? 'Practice test',
       },
     };
-    return NextResponse.json({ id, attempt });
+
+    return NextResponse.json({ id, attempt, attempts });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to save attempt';
-    console.error('[test-attempts POST]', message, error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    try {
+      await appendStudentDashboardStat(service, userId, statEntry);
+      const attempts = await fetchStudentDashboardStats(service, userId);
+      return NextResponse.json({
+        id: statEntry.id,
+        attempt: {
+          ...normalizeAttemptRow({
+            id: statEntry.id,
+            user_id: userId,
+            test_id: statEntry.test_id,
+            score: statEntry.score,
+            status: 'completed',
+            created_at: statEntry.created_at,
+            completed_at: statEntry.completed_at,
+            started_at: statEntry.created_at,
+            time_taken: statEntry.time_taken,
+          }),
+          test: {
+            ...fallbackTestForAttempt({
+              id: statEntry.id,
+              user_id: userId,
+              test_id: statEntry.test_id,
+              started_at: statEntry.created_at,
+              completed_at: statEntry.completed_at,
+              score: statEntry.score,
+              answers: null,
+              time_taken: statEntry.time_taken,
+              status: 'completed',
+              created_at: statEntry.created_at,
+            }),
+            name: statEntry.test_name,
+          },
+        },
+        attempts,
+        warning: 'Saved to dashboard stats; test_attempts row may be missing.',
+      });
+    } catch (statsError) {
+      const message = error instanceof Error ? error.message : 'Failed to save attempt';
+      console.error('[test-attempts POST]', message, error, statsError);
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
   }
 }

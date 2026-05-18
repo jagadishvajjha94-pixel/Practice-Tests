@@ -9,12 +9,32 @@ import { User, TestAttempt, Test } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { buildUserFromAuth, formatSupabaseError } from '@/lib/utils';
+import { getLastSubmitEntry, toDashboardAttemptFromFeed } from '@/lib/dashboard-feed';
 import {
   fetchStudentDashboardAttempts,
   getClientDashboardAttempts,
 } from '@/lib/test-attempts';
 
 type DashboardAttempt = TestAttempt & { test: Test };
+
+function mergeDashboardAttempts(
+  a: DashboardAttempt[],
+  b: DashboardAttempt[],
+): DashboardAttempt[] {
+  const seen = new Set<string>();
+  const out: DashboardAttempt[] = [];
+  for (const row of [...a, ...b]) {
+    const id = String(row.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(row);
+  }
+  return out.sort(
+    (x, y) =>
+      new Date(y.created_at ?? y.completed_at ?? 0).getTime() -
+      new Date(x.created_at ?? x.completed_at ?? 0).getTime(),
+  );
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -36,17 +56,28 @@ export default function DashboardPage() {
           return;
         }
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.id) {
-          setAttempts(getClientDashboardAttempts(session.user.id));
-        }
-
         const { data: { user: authUser } } = await supabase.auth.getUser();
 
         if (!authUser) {
           router.push('/auth/login');
           return;
         }
+
+        setUser(buildUserFromAuth(authUser));
+
+        const bootstrapAttempts = (): DashboardAttempt[] => {
+          const client = getClientDashboardAttempts(authUser.id);
+          const last = getLastSubmitEntry();
+          if (last && last.user_id === authUser.id) {
+            return [
+              toDashboardAttemptFromFeed(last),
+              ...client.filter((row) => String(row.id) !== String(last.id)),
+            ];
+          }
+          return client;
+        };
+
+        setAttempts(bootstrapAttempts());
 
         const { data: adminRow } = await supabase
           .from('admin_users')
@@ -111,8 +142,8 @@ export default function DashboardPage() {
         const mergedAttempts = await fetchStudentDashboardAttempts(supabase, authUser.id);
         setAttempts((prev) => {
           const next = mergedAttempts as DashboardAttempt[];
-          if (next.length === 0 && prev.length > 0) return prev;
-          return next.length > 0 ? next : prev;
+          if (next.length === 0) return prev.length > 0 ? prev : bootstrapAttempts();
+          return mergeDashboardAttempts(prev, next);
         });
       } catch (error) {
         console.error(

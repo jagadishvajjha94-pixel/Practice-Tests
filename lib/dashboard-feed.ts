@@ -13,6 +13,8 @@ export type DashboardFeedEntry = {
 };
 
 const FEED_PREFIX = 'prepindia:dashboard-feed:';
+export const GLOBAL_DASHBOARD_FEED_KEY = `${FEED_PREFIX}__latest__`;
+export const LAST_SUBMIT_SESSION_KEY = 'prepindia:last-submit';
 
 function feedKey(userId: string): string {
   return `${FEED_PREFIX}${userId}`;
@@ -47,19 +49,25 @@ export function toDashboardAttemptFromFeed(entry: DashboardFeedEntry): TestAttem
   };
 }
 
+function writeFeedLists(userId: string, entry: DashboardFeedEntry): void {
+  const key = feedKey(userId);
+  const raw = window.localStorage.getItem(key);
+  const list = raw ? (JSON.parse(raw) as DashboardFeedEntry[]) : [];
+  const next = [entry, ...list.filter((row) => String(row.id) !== String(entry.id))].slice(0, 50);
+  window.localStorage.setItem(key, JSON.stringify(next));
+  window.localStorage.setItem(GLOBAL_DASHBOARD_FEED_KEY, JSON.stringify(entry));
+  window.sessionStorage.setItem(LAST_SUBMIT_SESSION_KEY, JSON.stringify(entry));
+  window.sessionStorage.setItem(feedKey(userId), JSON.stringify(next));
+}
+
 export function pushDashboardFeedEntry(userId: string, entry: DashboardFeedEntry): void {
   if (typeof window === 'undefined' || !userId) return;
   try {
-    const key = feedKey(userId);
-    const raw = window.localStorage.getItem(key);
-    const list = raw ? (JSON.parse(raw) as DashboardFeedEntry[]) : [];
-    const next = [
-      entry,
-      ...list.filter((row) => String(row.id) !== String(entry.id)),
-    ].slice(0, 50);
-    window.localStorage.setItem(key, JSON.stringify(next));
+    writeFeedLists(userId, entry);
   } catch {
     try {
+      window.sessionStorage.setItem(GLOBAL_DASHBOARD_FEED_KEY, JSON.stringify(entry));
+      window.sessionStorage.setItem(LAST_SUBMIT_SESSION_KEY, JSON.stringify(entry));
       window.sessionStorage.setItem(feedKey(userId), JSON.stringify([entry]));
     } catch {
       // private mode
@@ -67,18 +75,81 @@ export function pushDashboardFeedEntry(userId: string, entry: DashboardFeedEntry
   }
 }
 
-export function getDashboardFeedEntries(userId: string): DashboardFeedEntry[] {
-  if (typeof window === 'undefined' || !userId) return [];
+export function getLastSubmitEntry(): DashboardFeedEntry | null {
+  if (typeof window === 'undefined') return null;
   try {
     const raw =
-      window.localStorage.getItem(feedKey(userId)) ??
-      window.sessionStorage.getItem(feedKey(userId));
-    if (!raw) return [];
-    const list = JSON.parse(raw) as DashboardFeedEntry[];
-    return Array.isArray(list) ? list : [];
+      window.sessionStorage.getItem(LAST_SUBMIT_SESSION_KEY) ??
+      window.localStorage.getItem(GLOBAL_DASHBOARD_FEED_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as DashboardFeedEntry;
   } catch {
-    return [];
+    return null;
   }
+}
+
+export function scanAllDashboardFeedEntries(forUserId?: string): DashboardFeedEntry[] {
+  if (typeof window === 'undefined') return [];
+  const seen = new Set<string>();
+  const out: DashboardFeedEntry[] = [];
+
+  const push = (entry: DashboardFeedEntry | null) => {
+    if (!entry?.id) return;
+    if (forUserId && entry.user_id !== forUserId) return;
+    const id = String(entry.id);
+    if (seen.has(id)) return;
+    seen.add(id);
+    out.push(entry);
+  };
+
+  push(getLastSubmitEntry());
+
+  try {
+    const globalRaw = window.localStorage.getItem(GLOBAL_DASHBOARD_FEED_KEY);
+    if (globalRaw) push(JSON.parse(globalRaw) as DashboardFeedEntry);
+  } catch {
+    // ignore
+  }
+
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (!key?.startsWith(FEED_PREFIX)) continue;
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const row of parsed) push(row as DashboardFeedEntry);
+      } else {
+        push(parsed as DashboardFeedEntry);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  try {
+    const sessionRaw = window.sessionStorage.getItem(
+      forUserId ? feedKey(forUserId) : GLOBAL_DASHBOARD_FEED_KEY,
+    );
+    if (sessionRaw) {
+      const parsed = JSON.parse(sessionRaw);
+      if (Array.isArray(parsed)) {
+        for (const row of parsed) push(row as DashboardFeedEntry);
+      } else {
+        push(parsed as DashboardFeedEntry);
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return out;
+}
+
+export function getDashboardFeedEntries(userId: string): DashboardFeedEntry[] {
+  if (typeof window === 'undefined' || !userId) return [];
+  return scanAllDashboardFeedEntries(userId);
 }
 
 export function getDashboardFeedAttempts(userId: string): Array<TestAttempt & { test: Test }> {

@@ -9,6 +9,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { adaptQuestionRow, adaptTestRow, answersMatchMcq, extractJoinedQuestion } from '@/lib/practice-mappers';
 import { formatSupabaseError } from '@/lib/utils';
+import { buildFeedEntry, pushDashboardFeedEntry } from '@/lib/dashboard-feed';
 import {
   LOCAL_ATTEMPT_GUEST_USER_ID,
   loadLocalTestAttempt,
@@ -120,6 +121,20 @@ export default function TestResultPage({
           const parsed = loadLocalTestAttempt(ownerId, attemptId);
           if (parsed?.attempt && parsed.test) {
             setResultData(parsed as ResultData);
+            if (user?.id) {
+              pushDashboardFeedEntry(
+                user.id,
+                buildFeedEntry({
+                  id: String(parsed.attempt.id),
+                  userId: user.id,
+                  testId: parsed.test.id,
+                  testName: parsed.test.name,
+                  scorePercent: parsed.attempt.score ?? 0,
+                  elapsedSec: parsed.attempt.time_taken ?? undefined,
+                  completedAtIso: parsed.attempt.completed_at ?? undefined,
+                }),
+              );
+            }
           } else if (user?.id) {
             setFetchError('Result not found for your account.');
           } else {
@@ -204,12 +219,28 @@ export default function TestResultPage({
           mergedAnswers = mergeRowsIntoAnswers(mergedAnswers, taRows as AnswerRow[]);
         }
 
+        const adaptedTest = adaptTestRow(test as Record<string, unknown>);
         setResultData({
           attempt: attemptTyped,
-          test: adaptTestRow(test as Record<string, unknown>),
+          test: adaptedTest,
           questions,
           answers: mergedAnswers,
         });
+
+        const scoreRaw = attemptTyped.score ?? attemptTyped.percentage_score;
+        const scoreNum = typeof scoreRaw === 'number' ? scoreRaw : Number(scoreRaw) || 0;
+        pushDashboardFeedEntry(
+          user.id,
+          buildFeedEntry({
+            id: String(attemptTyped.id),
+            userId: user.id,
+            testId: adaptedTest.id,
+            testName: adaptedTest.name,
+            scorePercent: scoreNum,
+            elapsedSec: attemptTyped.time_taken ?? undefined,
+            completedAtIso: attemptTyped.completed_at ?? undefined,
+          }),
+        );
       } catch (error) {
         console.error('Error fetching result:', formatSupabaseError(error), error);
         setFetchError(formatSupabaseError(error));

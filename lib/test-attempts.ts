@@ -3,6 +3,10 @@ import type { Test, TestAttempt } from '@/lib/types';
 import { adaptTestRow } from '@/lib/practice-mappers';
 import { getDashboardFeedAttempts } from '@/lib/dashboard-feed';
 import { getBrowserDashboardAttempts } from '@/lib/local-test-attempts';
+import {
+  fetchStudentDashboardStats,
+  type DashboardStatEntry,
+} from '@/lib/student-dashboard-stats';
 import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
 
 export { getBrowserDashboardAttempts, getDashboardFeedAttempts };
@@ -229,6 +233,15 @@ export async function persistTestAttempt(
     throw lastError ?? new Error('Could not save test attempt');
   }
 
+  try {
+    await supabase
+      .from('test_attempts')
+      .update({ user_id: input.userId, status: 'completed' })
+      .eq('id', attemptId);
+  } catch {
+    // non-fatal if legacy schema differs
+  }
+
   const updates: Record<string, unknown>[] = [
     { score: input.scorePercent, time_taken: input.elapsedSec, answers: input.answers },
     {
@@ -324,13 +337,51 @@ export function getClientDashboardAttempts(userId: string): DashboardAttemptView
   return mergeAttempts(feed, browser);
 }
 
+const API_ATTEMPTS_CACHE_PREFIX = 'prepindia:api-attempts:';
+
+function readCachedApiAttempts(userId: string): DashboardAttemptView[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.sessionStorage.getItem(`${API_ATTEMPTS_CACHE_PREFIX}${userId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as
+      | DashboardAttemptView[]
+      | { attempts?: DashboardAttemptView[]; attempt?: DashboardAttemptView };
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed.attempts?.length) return parsed.attempts;
+    if (parsed.attempt) return [parsed.attempt];
+  } catch {
+    return [];
+  }
+  return [];
+}
+
+export function cacheApiAttempts(userId: string, attempts: DashboardAttemptView[]): void {
+  if (typeof window === 'undefined' || !attempts.length) return;
+  try {
+    window.sessionStorage.setItem(
+      `${API_ATTEMPTS_CACHE_PREFIX}${userId}`,
+      JSON.stringify(attempts.slice(0, 30)),
+    );
+  } catch {
+    // ignore
+  }
+}
+
 export async function fetchStudentDashboardAttempts(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<DashboardAttemptView[]> {
-  const client = getClientDashboardAttempts(userId);
+  const client = mergeAttempts(getClientDashboardAttempts(userId), readCachedApiAttempts(userId));
 
   let serverAttempts: DashboardAttemptView[] = [];
+
+  try {
+    serverAttempts = await fetchStudentDashboardStats(supabase, userId);
+  } catch {
+    // table may not exist yet
+  }
+
   try {
     const authHeaders = await getSupabaseAuthHeaders(supabase);
     const res = await fetch('/api/student/test-attempts', {
@@ -340,7 +391,10 @@ export async function fetchStudentDashboardAttempts(
     });
     if (res.ok) {
       const json = (await res.json()) as { attempts?: DashboardAttemptView[] };
-      serverAttempts = json.attempts ?? [];
+      if (json.attempts?.length) {
+        cacheApiAttempts(userId, json.attempts);
+        serverAttempts = mergeAttempts(serverAttempts, json.attempts);
+      }
     }
   } catch {
     // fall through
@@ -352,6 +406,8 @@ export async function fetchStudentDashboardAttempts(
 
   return mergeAttempts(client, serverAttempts).slice(0, 15);
 }
+
+export type { DashboardStatEntry };
 
 function mergeAttempts<T extends TestAttempt & { test: Test }>(local: T[], server: T[]): T[] {
   return [...local, ...server]
