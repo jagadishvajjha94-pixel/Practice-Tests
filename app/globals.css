@@ -3,76 +3,76 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* RCE institutional theme — slate + navy blue (no purple) */
 :root {
-  --background: oklch(0.24 0.08 296);
-  --foreground: oklch(0.95 0.02 285);
-  --card: oklch(0.29 0.07 296);
-  --card-foreground: oklch(0.95 0.02 285);
-  --popover: oklch(0.27 0.07 296);
-  --popover-foreground: oklch(0.95 0.02 285);
-  --primary: oklch(0.68 0.2 293);
-  --primary-foreground: oklch(0.98 0.01 290);
-  --secondary: oklch(0.35 0.08 291);
-  --secondary-foreground: oklch(0.94 0.03 286);
-  --muted: oklch(0.3 0.06 292);
-  --muted-foreground: oklch(0.83 0.03 288);
-  --accent: oklch(0.74 0.15 318);
-  --accent-foreground: oklch(0.97 0.02 300);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.47 0.09 292);
-  --input: oklch(0.47 0.09 292);
-  --ring: oklch(0.76 0.2 296);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 1rem;
-  --sidebar: oklch(0.22 0.08 296);
-  --sidebar-foreground: oklch(0.93 0.02 285);
-  --sidebar-primary: oklch(0.67 0.2 293);
-  --sidebar-primary-foreground: oklch(0.98 0.01 290);
-  --sidebar-accent: oklch(0.31 0.08 292);
-  --sidebar-accent-foreground: oklch(0.94 0.02 286);
-  --sidebar-border: oklch(0.44 0.09 292);
-  --sidebar-ring: oklch(0.76 0.2 296);
+  --background: #eef2f7;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #1e3a5f;
+  --primary-foreground: #ffffff;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #1e293b;
+  --muted: #f1f5f9;
+  --muted-foreground: #334155;
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #cbd5e1;
+  --input: #cbd5e1;
+  --ring: #1e4a7a;
+  --chart-1: #1e3a5f;
+  --chart-2: #2563eb;
+  --chart-3: #0ea5e9;
+  --chart-4: #059669;
+  --chart-5: #d97706;
+  --radius: 0.75rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #1e3a5f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #1e293b;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #1e4a7a;
 }
 
 .dark {
-  /* Lifted dark theme: higher luminance for readability without switching to light mode */
-  --background: oklch(0.26 0.08 297);
-  --foreground: oklch(0.97 0.02 285);
-  --card: oklch(0.31 0.07 297);
-  --card-foreground: oklch(0.97 0.02 285);
-  --popover: oklch(0.3 0.07 297);
-  --popover-foreground: oklch(0.97 0.02 285);
-  --primary: oklch(0.72 0.21 294);
-  --primary-foreground: oklch(0.99 0.01 292);
-  --secondary: oklch(0.36 0.08 292);
-  --secondary-foreground: oklch(0.96 0.02 286);
-  --muted: oklch(0.34 0.06 293);
-  --muted-foreground: oklch(0.9 0.025 288);
-  --accent: oklch(0.77 0.17 319);
-  --accent-foreground: oklch(0.98 0.01 305);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.52 0.09 293);
-  --input: oklch(0.5 0.09 293);
-  --ring: oklch(0.78 0.22 295);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.24 0.08 297);
-  --sidebar-foreground: oklch(0.96 0.02 285);
-  --sidebar-primary: oklch(0.72 0.21 294);
-  --sidebar-primary-foreground: oklch(0.99 0.01 292);
-  --sidebar-accent: oklch(0.32 0.07 293);
-  --sidebar-accent-foreground: oklch(0.95 0.02 286);
-  --sidebar-border: oklch(0.48 0.09 293);
-  --sidebar-ring: oklch(0.78 0.22 295);
+  --background: #eef2f7;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #1e3a5f;
+  --primary-foreground: #ffffff;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #1e293b;
+  --muted: #f1f5f9;
+  --muted-foreground: #334155;
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #cbd5e1;
+  --input: #cbd5e1;
+  --ring: #1e4a7a;
+  --chart-1: #1e3a5f;
+  --chart-2: #2563eb;
+  --chart-3: #0ea5e9;
+  --chart-4: #059669;
+  --chart-5: #d97706;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #1e3a5f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #1e293b;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #1e4a7a;
 }
 
 @theme inline {
@@ -116,6 +116,67 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Landing + login flow */
+.portal-auth,
+.landing-page {
+  color-scheme: light;
+  --background: #f4f8fd;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --primary: #1e3a5f;
+  --primary-foreground: #ffffff;
+  --muted: #f1f5f9;
+  --muted-foreground: #334155;
+  --border: #cbd5e1;
+  --ring: #1e4a7a;
+  color: #0f172a;
+  background: linear-gradient(165deg, #ffffff 0%, #f4f8fd 42%, #e9f0f9 100%);
+  isolation: isolate;
+  position: relative;
+}
+
+.portal-auth::before,
+.landing-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(30, 58, 95, 0.08), transparent 55%),
+    radial-gradient(circle at 100% 100%, rgba(30, 58, 95, 0.05), transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.portal-auth > *,
+.landing-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+.portal-auth label,
+.portal-auth h1,
+.portal-auth h2,
+.portal-auth p {
+  -webkit-font-smoothing: antialiased;
+}
+
+.portal-auth [data-slot='input'],
+.portal-auth [data-slot='select-trigger'] {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a;
+}
+
+.portal-auth [data-slot='input']::placeholder {
+  color: #64748b !important;
+  opacity: 1;
+}
+
+.portal-auth [data-slot='select-value'] {
+  color: #0f172a !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -124,47 +185,41 @@
     @apply bg-background text-foreground antialiased;
     line-height: 1.55;
     background-image:
-      radial-gradient(1400px 700px at -10% -10%, color-mix(in oklab, var(--primary) 38%, transparent), transparent 58%),
-      radial-gradient(1200px 800px at 110% -20%, color-mix(in oklab, var(--accent) 32%, transparent), transparent 60%),
-      linear-gradient(180deg, color-mix(in oklab, var(--background) 94%, white 3%), color-mix(in oklab, var(--background) 92%, var(--primary) 6%));
+      radial-gradient(ellipse 100% 60% at 50% -20%, rgba(30, 58, 95, 0.06), transparent 50%),
+      linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
     min-height: 100dvh;
   }
 
-  h1, h2, h3 {
+  h1,
+  h2,
+  h3 {
     letter-spacing: -0.02em;
     text-wrap: balance;
+    color: #0f172a;
   }
 }
 
 @layer utilities {
   .lux-surface {
-    @apply border-border bg-card/92 backdrop-blur-xl;
-    box-shadow:
-      0 1px 0 0 color-mix(in oklab, white 14%, transparent) inset,
-      0 14px 48px -20px color-mix(in oklab, var(--primary) 28%, transparent),
-      0 0 0 1px color-mix(in oklab, var(--border) 75%, transparent);
+    @apply border border-slate-200 bg-white text-slate-900 shadow-sm;
   }
 
   .lux-heading {
-    background: linear-gradient(
-      120deg,
-      color-mix(in oklab, var(--foreground) 35%, var(--primary)),
-      color-mix(in oklab, var(--foreground) 28%, var(--accent))
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    text-shadow: 0 0 22px color-mix(in oklab, var(--primary) 22%, transparent);
+    color: #0c2340;
+    font-weight: 700;
   }
 
   .lux-grid {
     background-image:
-      linear-gradient(to right, color-mix(in oklab, var(--border) 45%, transparent) 1px, transparent 1px),
-      linear-gradient(to bottom, color-mix(in oklab, var(--border) 45%, transparent) 1px, transparent 1px);
+      linear-gradient(to right, rgba(30, 58, 95, 0.06) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(30, 58, 95, 0.06) 1px, transparent 1px);
     background-size: 42px 42px;
   }
 
-  /* Strict exam readability mode: neutral white UI, no glass tint. */
+  .app-page-header {
+    @apply border-b border-slate-200 bg-white py-10;
+  }
+
   .exam-mode {
     background: #ffffff !important;
     color: #111827 !important;

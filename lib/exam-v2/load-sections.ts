@@ -1,0 +1,51 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Question } from '@/lib/types';
+import type { TestSectionConfig } from '@/lib/exam-v2/section-timer';
+
+export async function loadTestSections(
+  supabase: SupabaseClient,
+  testId: string,
+): Promise<TestSectionConfig[]> {
+  const { data, error } = await supabase
+    .from('test_sections')
+    .select('*')
+    .eq('test_id', testId)
+    .order('sort_order', { ascending: true });
+
+  if (error || !data?.length) return [];
+
+  return data.map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    durationMinutes: row.duration_minutes as number,
+    cutoffScore: (row.cutoff_score as number | null) ?? null,
+    negativeMarking: Number(row.negative_marking ?? 0),
+    shuffleQuestions: Boolean(row.shuffle_questions),
+  }));
+}
+
+export function assignQuestionsToSections(
+  questions: Question[],
+  sections: TestSectionConfig[],
+): Map<string, Question[]> {
+  const map = new Map<string, Question[]>();
+  if (!sections.length) return map;
+
+  const per = Math.max(1, Math.ceil(questions.length / sections.length));
+  let offset = 0;
+  for (const section of sections) {
+    const slice = questions.slice(offset, offset + per);
+    map.set(section.id, section.shuffleQuestions ? shuffle(slice) : slice);
+    offset += per;
+  }
+  return map;
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}

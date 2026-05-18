@@ -171,9 +171,9 @@ export default function CommunicationPracticePage() {
                 <p className="text-sm text-gray-600">Fluency</p>
                 <p className="text-2xl font-bold text-blue-700">{analysis.fluency}/10</p>
               </div>
-              <div className="p-4 rounded-lg bg-violet-50">
+              <div className="p-4 rounded-lg bg-blue-50">
                 <p className="text-sm text-gray-600">Grammar</p>
-                <p className="text-2xl font-bold text-violet-700">{analysis.grammar}/10</p>
+                <p className="text-2xl font-bold text-[#1e3a5f]700">{analysis.grammar}/10</p>
               </div>
               <div className="p-4 rounded-lg bg-amber-50">
                 <p className="text-sm text-gray-600">Confidence</p>

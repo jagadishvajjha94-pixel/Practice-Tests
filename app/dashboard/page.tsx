@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { User, TestAttempt, Test } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
-import { formatSupabaseError } from '@/lib/utils';
+import { buildUserFromAuth, formatSupabaseError } from '@/lib/utils';
 
 type DashboardAttempt = TestAttempt & { test: Test };
 
@@ -105,13 +105,7 @@ export default function DashboardPage() {
               formatSupabaseError(createError),
               createError
             );
-            setUser({
-              id: authUser.id,
-              email: authUser.email || '',
-              full_name: authUser.user_metadata?.full_name || 'User',
-              subscription_status: 'free',
-              created_at: new Date(),
-            } as User);
+            setUser(buildUserFromAuth(authUser));
           } else {
             setUser(newUser);
           }
@@ -120,13 +114,7 @@ export default function DashboardPage() {
             'User profile fetch failed; using auth metadata fallback:',
             formatSupabaseError(userError)
           );
-          setUser({
-            id: authUser.id,
-            email: authUser.email || '',
-            full_name: authUser.user_metadata?.full_name || 'User',
-            subscription_status: 'free',
-            created_at: new Date(),
-          } as User);
+          setUser(buildUserFromAuth(authUser));
         } else {
           setUser(userData);
         }
@@ -226,7 +214,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <div className="border-b border-border bg-card/75 backdrop-blur-xl">
+      <div className="app-page-header">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div>
@@ -258,7 +246,7 @@ export default function DashboardPage() {
           </Card>
           <Card className="p-6">
             <div className="text-muted-foreground text-sm font-medium mb-2">Average Score</div>
-            <div className="text-3xl font-bold text-emerald-400">
+            <div className="text-3xl font-bold text-emerald-600">
               {attempts.length > 0
                 ? Math.round(
                     attempts.reduce((sum, a) => sum + (a.score || 0), 0) / attempts.length
@@ -298,9 +286,15 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/profile">
               <Button variant="outline">Edit Profile</Button>
+            </Link>
+            <Link href="/dashboard/analytics">
+              <Button variant="outline">Performance Analytics</Button>
+            </Link>
+            <Link href="/ai/interview">
+              <Button>AI Interview Studio</Button>
             </Link>
           </div>
         </Card>
@@ -343,12 +337,12 @@ export default function DashboardPage() {
                     <tr key={attempt.id} className="border-b border-border/80 hover:bg-muted/40">
                       <td className="py-3 px-4 text-foreground">{attempt.test?.name}</td>
                       <td className="py-3 px-4">
-                        <span className={`font-semibold ${attempt.score! >= 40 ? 'text-emerald-300' : 'text-red-300'}`}>
+                        <span className={`font-semibold ${attempt.score! >= 40 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {Math.round(attempt.score || 0)}%
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="px-3 py-1 bg-white/10 text-foreground text-sm font-medium rounded capitalize">
+                        <span className="px-3 py-1 bg-slate-100 text-foreground text-sm font-medium rounded capitalize">
                           {attempt.status}
                         </span>
                       </td>
@@ -356,7 +350,7 @@ export default function DashboardPage() {
                         {new Date(attempt.created_at).toLocaleDateString()}
                       </td>
                       <td className="py-3 px-4">
-                        <Link href={`/tests/result/${attempt.id}`} className="text-violet-200 hover:text-white font-medium">
+                        <Link href={`/tests/result/${attempt.id}`} className="text-[#1e3a5f] hover:text-[#16304f] font-medium">
                           View
                         </Link>
                       </td>

@@ -138,7 +138,7 @@ export async function POST() {
     // Insert sample blog posts
     const { error: blogError } = await supabase
       .from('blog_posts')
-      .insert([
+      .upsert([
         {
           slug: 'how-to-prepare-for-placements',
           title: 'Complete Guide: How to Prepare for Placements',
@@ -163,7 +163,7 @@ export async function POST() {
           author: 'PrepIndia Team',
           published_at: new Date(),
         },
-      ], { onConflict: 'slug' });
+      ], { onConflict: 'slug', ignoreDuplicates: false });
 
     if (blogError) {
       console.warn('Blog insert warning:', blogError);

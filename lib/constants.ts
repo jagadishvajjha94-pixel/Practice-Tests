@@ -51,6 +51,47 @@ export const TEST_CATEGORIES = [
   { id: 'swarx', name: 'SWARX Communication', icon: '🗣️' },
 ];
 
+/** All student-facing practice modules shown on home + tests hub. */
+export const PRACTICE_HUB_ITEMS = [
+  {
+    id: 'psychometric',
+    href: '/tests/psychometric',
+    name: 'Psychometric Tests',
+    icon: '🧠',
+    description:
+      'Quick visual and pattern drills — think fast in seconds per item, not long reading.',
+    accent: 'default' as const,
+  },
+  {
+    id: 'swarx',
+    href: '/tests/swarx',
+    name: 'SWARX Communication',
+    icon: '🗣️',
+    description: 'Grammar, vocal practice, and situation-based English drills.',
+    accent: 'default' as const,
+  },
+  {
+    id: 'ai-interview',
+    href: '/ai/interview',
+    name: 'AI Interview Studio',
+    icon: '🎙️',
+    badge: 'Voice · Resume',
+    description:
+      'Resume analysis plus a spoken mock interview — AI asks aloud and listens to your answers.',
+    accent: 'blue' as const,
+  },
+  {
+    id: 'competitive-exam',
+    href: '/tests/competitive-exam',
+    name: 'All India Competitive Paper',
+    icon: '📝',
+    badge: '60 Q · 90 min',
+    description:
+      '60 MCQs · 90 minutes · Maths, Science, Chemistry, Aptitude, Reasoning, Logic, English & Computer.',
+    accent: 'emerald' as const,
+  },
+];
+
 export const DIFFICULTY_LEVELS = ['easy', 'medium', 'hard'] as const;
 
 export const QUESTION_TYPES = ['MCQ', 'numeric', 'verbal'] as const;
@@ -79,6 +120,7 @@ export const ROUTES = {
   PRICING: '/pricing',
   CHECKOUT: '/checkout',
   PROFILE: '/profile',
+  AI_INTERVIEW: '/ai/interview',
 };
 
 export const API_ROUTES = {

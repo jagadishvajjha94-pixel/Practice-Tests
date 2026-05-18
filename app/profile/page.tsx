@@ -10,7 +10,12 @@ import type { UserProfile } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { formatSupabaseError } from '@/lib/utils';
-import { ensureUserProfile, RESUME_MAX_CHARS } from '@/lib/user-profile';
+import {
+  ensureUserProfile,
+  RESUME_MAX_CHARS,
+  upsertUserProfileFields,
+} from '@/lib/user-profile';
+import { UsersTableSetupBanner } from '@/components/users-table-setup-banner';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -28,6 +33,7 @@ export default function ProfilePage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [envMissing, setEnvMissing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [usersTableMissing, setUsersTableMissing] = useState(false);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -48,6 +54,7 @@ export default function ProfilePage() {
       }
 
       const { profile, error, tableMissing: missing } = await ensureUserProfile(supabase, authUser);
+      setUsersTableMissing(missing);
       if (missing) {
         setUser({
           id: authUser.id,
@@ -113,23 +120,30 @@ export default function ProfilePage() {
         setMessage({ type: 'error', text: SUPABASE_PUBLIC_ENV_MESSAGE });
         return;
       }
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      if (!authUser) {
+        setMessage({ type: 'error', text: 'Sign in to save your profile.' });
+        return;
+      }
       const resume_text = formData.resume_text.trim().slice(0, RESUME_MAX_CHARS) || null;
-      const { error } = await supabase
-        .from('users')
-        .update({
-          full_name: formData.full_name.trim(),
-          phone: formData.phone.trim() || null,
-          college: formData.college.trim() || null,
-          branch: formData.branch.trim() || null,
-          resume_text,
-          updated_at: new Date().toISOString(),
-          resume_updated_at: resume_text ? new Date().toISOString() : user.resume_updated_at,
-        })
-        .eq('id', user.id);
+      const { ok, error, tableMissing } = await upsertUserProfileFields(supabase, authUser, {
+        full_name: formData.full_name.trim(),
+        phone: formData.phone.trim() || null,
+        college: formData.college.trim() || null,
+        branch: formData.branch.trim() || null,
+        resume_text,
+        resume_updated_at: resume_text ? new Date().toISOString() : user.resume_updated_at ?? null,
+      });
 
-      if (error) throw error;
+      if (tableMissing) {
+        setUsersTableMissing(true);
+        throw new Error('Profile table missing. Click “Create profile table” above.');
+      }
+      if (!ok || error) throw new Error(error ?? 'Could not save profile');
 
-      setMessage({ type: 'success', text: 'Profile saved. Your resume is ready for AI Mock Interview.' });
+      setMessage({ type: 'success', text: 'Profile saved. Your resume is ready for AI Interview.' });
       setUser({
         ...user,
         ...formData,
@@ -240,14 +254,20 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <Card className="p-8 lux-surface border-white/15 shadow-xl">
+        <Card className="p-8 lux-surface shadow-xl">
           <h1 className="text-3xl font-bold mb-2 lux-heading">My Profile</h1>
           <p className="text-sm text-muted-foreground mb-6">
             Update your details and resume here. AI Mock Interview uses your saved resume when you start.
           </p>
 
+          {usersTableMissing ? (
+            <div className="mb-4">
+              <UsersTableSetupBanner onReady={() => void loadProfile()} />
+            </div>
+          ) : null}
+
           {fetchError ? (
-            <p className="mb-4 text-sm text-red-300">{fetchError}</p>
+            <p className="mb-4 text-sm text-red-600">{fetchError}</p>
           ) : null}
 
           {message && (
@@ -334,7 +354,7 @@ export default function ProfilePage() {
               <div>
                 <h2 className="font-semibold text-foreground">Resume (for AI interview)</h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Upload a .txt/.md file or paste text. Used when you start AI Mock Interview.
+                  Upload a .txt/.md file or paste text. Used when you start AI Interview.
                 </p>
               </div>
               {user?.resume_file_name ? (

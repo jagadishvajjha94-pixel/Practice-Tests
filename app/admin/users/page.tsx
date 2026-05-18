@@ -10,7 +10,7 @@ import { User, TestAttempt } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
-import { adaptQuestionRow, answersMatchMcq } from '@/lib/practice-mappers';
+import { adaptQuestionRow, answersMatchMcq, extractJoinedQuestion } from '@/lib/practice-mappers';
 import { formatSupabaseError } from '@/lib/utils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -130,7 +130,7 @@ export default function UsersManagementPage() {
       .order('order', { ascending: true });
 
     let normalized = (linked ?? [])
-      .map((row) => (row as { question?: Record<string, unknown> }).question)
+      .map(extractJoinedQuestion)
       .filter((q): q is Record<string, unknown> => q != null)
       .map(adaptQuestionRow);
 
@@ -387,7 +387,7 @@ export default function UsersManagementPage() {
           </Card>
           <Card className="p-6">
             <p className="text-gray-600 text-sm font-medium mb-2">Active Users</p>
-            <p className="text-4xl font-bold text-purple-600">{activeUsers}</p>
+            <p className="text-4xl font-bold text-[#1e3a5f]">{activeUsers}</p>
           </Card>
           <Card className="p-6">
             <p className="text-gray-600 text-sm font-medium mb-2">Registered This Month</p>
@@ -501,7 +501,7 @@ export default function UsersManagementPage() {
             <div className="grid md:grid-cols-4 gap-4 mb-6">
               <Card className="p-4"><p className="text-sm text-gray-600">Total Attempts</p><p className="text-2xl font-bold text-blue-600">{selectedReport.totalAttempts}</p></Card>
               <Card className="p-4"><p className="text-sm text-gray-600">Completed</p><p className="text-2xl font-bold text-green-600">{selectedReport.completedAttempts}</p></Card>
-              <Card className="p-4"><p className="text-sm text-gray-600">Average Score</p><p className="text-2xl font-bold text-purple-600">{selectedReport.avgScore}%</p></Card>
+              <Card className="p-4"><p className="text-sm text-gray-600">Average Score</p><p className="text-2xl font-bold text-[#1e3a5f]">{selectedReport.avgScore}%</p></Card>
               <Card className="p-4"><p className="text-sm text-gray-600">Best Score</p><p className="text-2xl font-bold text-orange-600">{selectedReport.bestScore}%</p></Card>
             </div>
 

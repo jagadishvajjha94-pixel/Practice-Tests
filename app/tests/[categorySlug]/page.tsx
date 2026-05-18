@@ -235,9 +235,9 @@ export default function CategoryTestsPage({
               : 'Category not found'}
         </p>
         {loadError && (
-          <p className="text-sm text-red-300 max-w-lg text-center">{loadError}</p>
+          <p className="text-sm text-red-600 max-w-lg text-center">{loadError}</p>
         )}
-        <Link href="/tests" className="text-violet-200 hover:text-white">
+        <Link href="/tests" className="text-[#1e3a5f] hover:text-[#16304f]">
           Back to categories
         </Link>
       </div>
@@ -254,7 +254,7 @@ export default function CategoryTestsPage({
         </div>
       ) : null}
       {/* Header */}
-      <div className="py-12 border-b border-border bg-card/70 backdrop-blur-xl">
+      <div className="py-12 border-b border-border bg-white">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex items-center gap-4 mb-4">
             <span className="text-4xl">{category.icon}</span>
@@ -271,14 +271,14 @@ export default function CategoryTestsPage({
         {tests.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground mb-4">No tests available in this category yet.</p>
-            <Link href="/tests" className="text-violet-200 hover:text-white">
+            <Link href="/tests" className="text-[#1e3a5f] hover:text-[#16304f]">
               Back to categories
             </Link>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 gap-6">
             {tests.map((test) => (
-              <Card key={test.id} className="p-6 hover:-translate-y-1 hover:border-white/30 transition-all duration-300">
+              <Card key={test.id} className="p-6 hover:-translate-y-1 hover:border-slate-300 transition-all duration-300">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h2 className="text-xl font-semibold text-foreground">{test.name}</h2>
@@ -286,7 +286,7 @@ export default function CategoryTestsPage({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-6 py-4 border-y border-white/15">
+                <div className="grid grid-cols-2 gap-4 mb-6 py-4 border-y border-slate-200">
                   <div>
                     <p className="text-sm text-muted-foreground">Questions</p>
                     <p className="text-lg font-semibold text-foreground">

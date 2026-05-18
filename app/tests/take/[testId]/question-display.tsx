@@ -43,7 +43,7 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
               ['C', question.option_c],
               ['D', question.option_d],
             ].filter(([, text]) => text != null && String(text).trim() !== '') as [string, string][]).map(([letter, text]) => (
-              <label key={letter} className={`flex items-center border-2 border-gray-300 rounded-lg cursor-pointer hover:border-violet-400 hover:bg-violet-50/80 transition ${speedMode ? 'p-3' : 'p-4'}`} style={{
+              <label key={letter} className={`flex items-center border-2 border-gray-300 rounded-lg cursor-pointer hover:border-[#1e4a7a] hover:bg-blue-50/80 transition ${speedMode ? 'p-3' : 'p-4'}`} style={{
                 borderColor: currentAnswer === letter ? '#7c3aed' : undefined,
                 backgroundColor: currentAnswer === letter ? '#ede9fe' : undefined,
               }}>
@@ -56,7 +56,7 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
                   className="w-4 h-4"
                 />
                 <span className="ml-3 text-gray-950 text-base">
-                  <span className="font-bold text-violet-800">{letter}. </span>{text}
+                  <span className="font-bold text-[#1e3a5f]800">{letter}. </span>{text}
                 </span>
               </label>
             ))}
@@ -66,7 +66,7 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
         {question.type === 'MCQ' && question.options && !(question.question_type === 'mcq' || question.option_a != null || question.option_b != null) && (
           <>
             {question.options.map((option, index) => (
-              <label key={index} className={`flex items-center border-2 border-gray-300 rounded-lg cursor-pointer hover:border-violet-400 hover:bg-violet-50/80 transition ${speedMode ? 'p-3' : 'p-4'}`} style={{
+              <label key={index} className={`flex items-center border-2 border-gray-300 rounded-lg cursor-pointer hover:border-[#1e4a7a] hover:bg-blue-50/80 transition ${speedMode ? 'p-3' : 'p-4'}`} style={{
                 borderColor: currentAnswer === option ? '#7c3aed' : undefined,
                 backgroundColor: currentAnswer === option ? '#ede9fe' : undefined,
               }}>
@@ -113,7 +113,7 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
             variant="ghost"
             className={`flex-1 border-2 font-bold ${
               isMarked
-                ? 'border-amber-950 bg-amber-900 text-amber-50 hover:bg-amber-950 hover:text-white'
+                ? 'border-amber-950 bg-amber-900 text-amber-50 hover:bg-amber-950 hover:text-[#16304f]'
                 : 'border-amber-800 bg-amber-100 text-amber-950 hover:bg-amber-200'
             }`}
           >

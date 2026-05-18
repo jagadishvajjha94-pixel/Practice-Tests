@@ -18,6 +18,13 @@ import { formatSupabaseError } from '@/lib/utils';
 import { isSchemaMissingError } from '@/lib/fallback-question-bank';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TestAnswer } from './test-context';
+import { useExamAutosave } from '@/hooks/use-exam-autosave';
+import { useExamProctoring } from '@/hooks/use-exam-proctoring';
+import { useSectionExam } from '@/hooks/use-section-exam';
+import { clearExamDraft } from '@/lib/exam-v2/autosave';
+import { assignQuestionsToSections } from '@/lib/exam-v2/load-sections';
+import { scoreBySections, scoreMcqWithNegativeMarking } from '@/lib/exam-v2/scoring';
+import { computeSectionProgress, type TestSectionConfig } from '@/lib/exam-v2/section-timer';
 
 /** When `test_attempts` has no JSON `answers`, some DBs keep rows in `question_answers` or `test_answers`. */
 async function persistOptionalPerQuestionRows(
@@ -63,9 +70,10 @@ interface TestInterfaceProps {
   questions: Question[];
   /** When false, only the first {@link PRACTICE_PREVIEW_QUESTION_LIMIT} questions are usable until the user signs in. */
   fullAccess: boolean;
+  examSections?: TestSectionConfig[];
 }
 
-export default function TestInterface({ test, questions, fullAccess }: TestInterfaceProps) {
+export default function TestInterface({ test, questions, fullAccess, examSections = [] }: TestInterfaceProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -95,10 +103,46 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
   const submitRef = useRef<() => Promise<void>>(async () => {});
   const prevTimeRemainingRef = useRef<number | null>(null);
 
-  // Overall test countdown (minutes → seconds in context)
+  const { tabSwitchCount, enterFullscreen } = useExamProctoring({
+    testId: test.id,
+    enabled: fullAccess,
+    requireFullscreen: false,
+  });
+
+  useExamAutosave({
+    testId: test.id,
+    enabled: fullAccess,
+    answers,
+    currentQuestionIndex,
+    timeRemaining,
+    isSubmitted,
+  });
+
+  const sectionMode = examSections.length > 0 && fullAccess;
+  const questionsBySection = useMemo(
+    () => assignQuestionsToSections(questions, examSections),
+    [questions, examSections],
+  );
+
+  const submitRefEarly = useRef<() => Promise<void>>(async () => {});
+
+  const { sectionIndex, currentSection, sectionTimeLeft } = useSectionExam({
+    sections: examSections,
+    enabled: sectionMode && !isSubmitted,
+    onSectionTimeout: () => setCurrentQuestionIndex(0),
+    onAllSectionsComplete: () => void submitRefEarly.current(),
+  });
+
+  const activeSectionQuestions = useMemo(() => {
+    if (!sectionMode || !currentSection) return questions;
+    return questionsBySection.get(currentSection.id) ?? questions;
+  }, [sectionMode, currentSection, questionsBySection, questions]);
+
+  // Overall test countdown (minutes → seconds in context) — skip when section timers active
   useEffect(() => {
+    if (sectionMode) return;
     setTimeRemaining(test.duration * 60);
-  }, [test.duration, setTimeRemaining]);
+  }, [test.duration, setTimeRemaining, sectionMode]);
 
   // Auto-submit when the overall test timer reaches zero (once per attempt).
   useEffect(() => {
@@ -137,9 +181,9 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
   const unlockedCount = useMemo(
     () =>
       fullAccess
-        ? questions.length
-        : Math.min(PRACTICE_PREVIEW_QUESTION_LIMIT, questions.length),
-    [fullAccess, questions.length]
+        ? activeSectionQuestions.length
+        : Math.min(PRACTICE_PREVIEW_QUESTION_LIMIT, activeSectionQuestions.length),
+    [fullAccess, activeSectionQuestions.length]
   );
 
   useEffect(() => {
@@ -148,16 +192,21 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
     setCurrentQuestionIndex(Math.min(currentQuestionIndex, maxAllowed));
   }, [fullAccess, unlockedCount, currentQuestionIndex, setCurrentQuestionIndex]);
 
-  const currentQuestion = questions[currentQuestionIndex];
+  const currentQuestion = activeSectionQuestions[currentQuestionIndex];
 
-  const scopeQuestions = fullAccess ? questions : questions.slice(0, unlockedCount);
+  const scopeQuestions = fullAccess ? activeSectionQuestions : activeSectionQuestions.slice(0, unlockedCount);
   const answeredCount = scopeQuestions.filter(
     (q) => answers[q.id]?.userAnswer !== null && answers[q.id]?.userAnswer !== undefined
   ).length;
   const markedCount = scopeQuestions.filter((q) => answers[q.id]?.isMarkedForReview).length;
   const unattendedCount = scopeQuestions.length - answeredCount;
 
-  const isPreviewMode = !fullAccess && questions.length > unlockedCount;
+  const isPreviewMode = !fullAccess && activeSectionQuestions.length > unlockedCount;
+
+  const sectionProgress = useMemo(() => {
+    if (!sectionMode) return null;
+    return computeSectionProgress(examSections, sectionIndex, sectionTimeLeft);
+  }, [sectionMode, examSections, sectionIndex, sectionTimeLeft]);
 
   const saveLocalAttemptAndNavigate = (scorePercent: number) => {
     const localAttemptId = `local-${Date.now()}`;
@@ -179,6 +228,7 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
       answers,
     };
     localStorage.setItem(`localTestAttempt:${localAttemptId}`, JSON.stringify(payload));
+    clearExamDraft(test.id);
     setIsSubmitted(true);
     router.push(`/tests/result/${localAttemptId}`);
   };
@@ -194,15 +244,20 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
 
     setSubmitting(true);
     try {
-      // Calculate score first so local fallback can reuse it.
-      let score = 0;
-      for (const question of questions) {
-        const userAnswer = answers[question.id]?.userAnswer;
-        if (answersMatchMcq(userAnswer, question.correct_answer)) {
-          score++;
+      let scorePercent = 0;
+      let rawNetScore = 0;
+      if (sectionMode && examSections.length) {
+        const result = scoreBySections(examSections, questionsBySection, answers);
+        scorePercent = result.overallPercent;
+        rawNetScore = result.totalNet;
+        if (result.sections.some((s) => !s.passedCutoff)) {
+          console.info('Section cutoff missed:', result.sections.filter((s) => !s.passedCutoff));
         }
+      } else {
+        const { netScore, maxScore } = scoreMcqWithNegativeMarking(questions, answers, 0);
+        rawNetScore = netScore;
+        scorePercent = maxScore > 0 ? (netScore / maxScore) * 100 : 0;
       }
-      const scorePercent = (score / questions.length) * 100;
 
       const supabase = getSupabaseBrowserClient();
       if (!supabase) {
@@ -279,7 +334,7 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
             .from('test_attempts')
             .update({
               percentage_score: scorePercent,
-              total_score: score,
+              total_score: rawNetScore,
               completed_at: nowIso,
               status: 'completed',
             })
@@ -292,19 +347,20 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
 
       await persistOptionalPerQuestionRows(supabase, attempt.id, questions, answers);
 
+      clearExamDraft(test.id);
       setIsSubmitted(true);
       router.push(`/tests/result/${attempt.id}`);
     } catch (error) {
       // When schema/tables are missing in demo mode, continue with local submit.
       if (isSchemaMissingError(error) || test.id.startsWith('fallback-')) {
-        let score = 0;
-        for (const question of questions) {
-          const userAnswer = answers[question.id]?.userAnswer;
-          if (answersMatchMcq(userAnswer, question.correct_answer)) {
-            score++;
-          }
+        let fallbackPercent = 0;
+        if (sectionMode && examSections.length) {
+          fallbackPercent = scoreBySections(examSections, questionsBySection, answers).overallPercent;
+        } else {
+          const { netScore, maxScore } = scoreMcqWithNegativeMarking(questions, answers, 0);
+          fallbackPercent = maxScore > 0 ? (netScore / maxScore) * 100 : 0;
         }
-        saveLocalAttemptAndNavigate((score / questions.length) * 100);
+        saveLocalAttemptAndNavigate(fallbackPercent);
         return;
       }
       const message = formatSupabaseError(error);
@@ -316,6 +372,7 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
   }
 
   submitRef.current = handleSubmitTest;
+  submitRefEarly.current = handleSubmitTest;
 
   useEffect(() => {
     if (!speedActive || questionTimeLeft !== 0) return;
@@ -324,10 +381,10 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
         router.push(loginHref);
         return;
       }
-      if (fullAccess && currentQuestionIndex >= questions.length - 1) {
+      if (fullAccess && currentQuestionIndex >= activeSectionQuestions.length - 1) {
         void submitRef.current();
       } else {
-        const cap = fullAccess ? questions.length - 1 : unlockedCount - 1;
+        const cap = fullAccess ? activeSectionQuestions.length - 1 : unlockedCount - 1;
         setCurrentQuestionIndex(Math.min(currentQuestionIndex + 1, cap));
       }
     }, 0);
@@ -336,7 +393,7 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
     questionTimeLeft,
     speedActive,
     currentQuestionIndex,
-    questions.length,
+    activeSectionQuestions.length,
     setCurrentQuestionIndex,
     fullAccess,
     unlockedCount,
@@ -380,15 +437,47 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
                 Question: {questionTimeLeft}s
               </div>
             ) : null}
-            <TestTimer
-              duration={test.duration}
-              warnBelowSec={speedActive ? 90 : 300}
-            />
+            {sectionMode && currentSection ? (
+              <div className="text-right">
+                <p className="text-xs text-gray-600">
+                  Section {sectionIndex + 1}/{examSections.length}: {currentSection.name}
+                  {currentSection.negativeMarking ? ` · −${currentSection.negativeMarking} wrong` : ''}
+                </p>
+                <p
+                  className={`text-lg font-bold tabular-nums ${
+                    sectionTimeLeft <= 60 ? 'text-red-600' : 'text-gray-900'
+                  }`}
+                >
+                  {Math.floor(sectionTimeLeft / 60)}:{String(sectionTimeLeft % 60).padStart(2, '0')}
+                </p>
+                {currentSection.cutoffScore != null ? (
+                  <p className="text-xs text-gray-500">Section cutoff: {currentSection.cutoffScore}%</p>
+                ) : null}
+              </div>
+            ) : (
+              <TestTimer duration={test.duration} warnBelowSec={speedActive ? 90 : 300} />
+            )}
           </div>
         </div>
       </header>
 
-      <div aria-hidden className="h-[4.75rem] shrink-0 md:h-20" />
+      {fullAccess && tabSwitchCount > 0 ? (
+        <div className="fixed top-[4.75rem] inset-x-0 z-40 bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-center text-xs text-amber-900">
+          Tab switch detected ({tabSwitchCount}) — recorded for proctoring.
+          <button type="button" className="ml-2 underline" onClick={() => void enterFullscreen()}>
+            Enter fullscreen
+          </button>
+        </div>
+      ) : null}
+
+      <div
+        aria-hidden
+        className={
+          fullAccess && tabSwitchCount > 0
+            ? 'h-[6.25rem] shrink-0 md:h-[6.5rem]'
+            : 'h-[4.75rem] shrink-0 md:h-20'
+        }
+      />
 
       <div className="flex-1 max-w-7xl mx-auto w-full grid md:grid-cols-4 gap-4 p-4 pb-8">
         {/* Question Display */}
@@ -403,18 +492,18 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
                       {unlockedCount} <span className="text-gray-500">(preview of {questions.length})</span>
                     </>
                   ) : (
-                    questions.length
+                    scopeQuestions.length
                   )}
                 </span>
-                <span className="px-3 py-1 bg-violet-100 text-violet-900 text-xs font-semibold rounded">
+                <span className="px-3 py-1 bg-blue-100 text-[#0c2340] text-xs font-semibold rounded">
                   {speedActive ? 'Speed / visual' : 'Question'}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
                 <div
-                  className="bg-violet-600 h-2.5 rounded-full transition-all"
+                  className="bg-[#1e3a5f] h-2.5 rounded-full transition-all"
                   style={{
-                    width: `${((currentQuestionIndex + 1) / (isPreviewMode ? unlockedCount : questions.length)) * 100}%`,
+                    width: `${((currentQuestionIndex + 1) / (isPreviewMode ? unlockedCount : scopeQuestions.length)) * 100}%`,
                   }}
                 />
               </div>
@@ -438,10 +527,10 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
                   router.push(loginHref);
                   return;
                 }
-                const cap = fullAccess ? questions.length - 1 : unlockedCount - 1;
+                const cap = fullAccess ? activeSectionQuestions.length - 1 : unlockedCount - 1;
                 setCurrentQuestionIndex(Math.min(cap, currentQuestionIndex + 1));
               }}
-              disabled={fullAccess ? currentQuestionIndex >= questions.length - 1 : false}
+              disabled={fullAccess ? currentQuestionIndex >= activeSectionQuestions.length - 1 : false}
               className="flex-1"
             >
               {isPreviewMode && currentQuestionIndex >= unlockedCount - 1
@@ -468,6 +557,18 @@ export default function TestInterface({ test, questions, fullAccess }: TestInter
         <div className="md:col-span-1">
           <Card className="p-4 md:sticky md:top-24 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <h3 className="font-semibold text-gray-900 mb-4">Test Status</h3>
+
+            {sectionMode && sectionProgress ? (
+              <div className="mb-4">
+                <p className="text-xs text-gray-600 mb-1">{sectionProgress.label} · overall progress</p>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-[#1e3a5f] h-2 rounded-full transition-all"
+                    style={{ width: `${sectionProgress.percent}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-2 mb-4 text-sm">
               <div className="flex justify-between">

@@ -1,15 +1,19 @@
 import { NextResponse } from 'next/server';
 import postgres from 'postgres';
+import { postgresUrlSetupHint, resolvePostgresUrl } from '@/lib/postgres-url';
 
 /** Non-destructive: creates public.users + resume columns + RLS (does not drop other tables). */
 export async function POST() {
   try {
-    const postgresUrl = process.env.POSTGRES_URL;
-    if (!postgresUrl || postgresUrl.includes('YOUR_')) {
+    const postgresUrl = resolvePostgresUrl();
+    if (!postgresUrl) {
       return NextResponse.json(
         {
-          error: 'POSTGRES_URL not configured',
-          hint: 'Run supabase/migrations/001_users_resume.sql in Supabase SQL Editor, or set POSTGRES_URL in .env.local',
+          error: 'Database connection not configured',
+          hint: postgresUrlSetupHint(),
+          sqlFile: 'supabase/migrations/004_users_and_admin_setup.sql',
+          sqlEditorUrl:
+            'https://supabase.com/dashboard/project/lwkmfpcewpisezmcsext/sql/new',
         },
         { status: 400 },
       );
@@ -65,6 +69,16 @@ export async function POST() {
       VALUES ('student-resumes', 'student-resumes', false)
       ON CONFLICT (id) DO NOTHING;
     `;
+
+    await sql`GRANT USAGE ON SCHEMA public TO anon, authenticated`;
+    await sql`GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated`;
+    await sql`GRANT SELECT ON public.users TO anon`;
+
+    try {
+      await sql`NOTIFY pgrst, 'reload schema'`;
+    } catch {
+      /* optional on some hosts */
+    }
 
     await sql.end();
 

@@ -164,7 +164,7 @@ export default function AdminTestsPage() {
           </Card>
           <Card className="p-5">
             <p className="text-sm text-gray-600">Students Attended</p>
-            <p className="text-3xl font-bold text-purple-600">{summary.uniqueStudents}</p>
+            <p className="text-3xl font-bold text-[#1e3a5f]">{summary.uniqueStudents}</p>
           </Card>
           <Card className="p-5">
             <p className="text-sm text-gray-600">Average Marks</p>

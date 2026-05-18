@@ -55,3 +55,7 @@ DROP POLICY IF EXISTS prep_resume_update_own ON storage.objects;
 CREATE POLICY prep_resume_update_own ON storage.objects
   FOR UPDATE TO authenticated
   USING (bucket_id = 'student-resumes' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated;
+GRANT SELECT ON public.users TO anon;

@@ -8,9 +8,11 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Test, Question } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { adaptQuestionRow, adaptTestRow } from '@/lib/practice-mappers';
+import { adaptQuestionRow, adaptTestRow, extractJoinedQuestion } from '@/lib/practice-mappers';
 import { TestProvider } from './test-context';
 import TestInterface from './test-interface';
+import { loadTestSections } from '@/lib/exam-v2/load-sections';
+import type { TestSectionConfig } from '@/lib/exam-v2/section-timer';
 import {
   getFallbackQuestionsByTestId,
   getFallbackTestById,
@@ -42,6 +44,7 @@ export default function TakeTestPage({
   const [loading, setLoading] = useState(true);
   const [testStarted, setTestStarted] = useState(false);
   const [practiceAccess, setPracticeAccess] = useState<PracticeAccessState>('pending');
+  const [examSections, setExamSections] = useState<TestSectionConfig[]>([]);
 
   useLayoutEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -137,7 +140,7 @@ export default function TakeTestPage({
         if (questionsError) throw questionsError;
 
         let questionsData = (testQuestions ?? [])
-          .map((tq) => (tq as { question?: Record<string, unknown> }).question)
+          .map(extractJoinedQuestion)
           .filter((q): q is Record<string, unknown> => q != null)
           .map(adaptQuestionRow);
 
@@ -177,6 +180,9 @@ export default function TakeTestPage({
         }
 
         setQuestions(questionsData);
+
+        const sections = await loadTestSections(supabase, testId);
+        setExamSections(sections);
       } catch (error) {
         if (isSchemaMissingError(error)) {
           const fallbackTest = getFallbackTestById(testId);
@@ -345,7 +351,12 @@ export default function TakeTestPage({
 
   return (
     <TestProvider>
-      <TestInterface test={runtimeTest} questions={questions} fullAccess={practiceAccess === 'full'} />
+      <TestInterface
+        test={runtimeTest}
+        questions={questions}
+        fullAccess={practiceAccess === 'full'}
+        examSections={examSections}
+      />
     </TestProvider>
   );
 }

@@ -84,3 +84,15 @@ export function adaptQuestionRow(row: Record<string, unknown>): Question {
       typeof row.option_d === 'string' || row.option_d == null ? (row.option_d as string | null) : String(row.option_d),
   };
 }
+
+/** Row from `test_questions` select with `question:questions(*)`. */
+export function extractJoinedQuestion(row: unknown): Record<string, unknown> | null {
+  if (!row || typeof row !== 'object') return null;
+  const nested = (row as { question?: unknown }).question;
+  if (Array.isArray(nested)) {
+    const first = nested[0];
+    return first && typeof first === 'object' ? (first as Record<string, unknown>) : null;
+  }
+  if (nested && typeof nested === 'object') return nested as Record<string, unknown>;
+  return null;
+}

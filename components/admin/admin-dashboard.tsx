@@ -36,7 +36,9 @@ type DashboardAttemptRow = {
 const navItems = [
   { href: '/admin/dashboard', label: 'Overview' },
   { href: '/admin/questions', label: 'Questions' },
+  { href: '/admin/ai-generator', label: 'AI generator' },
   { href: '/admin/tests', label: 'Tests' },
+  { href: '/admin/proctoring', label: 'Proctoring' },
   { href: '/admin/users', label: 'Users' },
 ] as const;
 
@@ -506,7 +508,7 @@ export function AdminDashboard() {
           </Card>
           <Card className="p-5">
             <p className="text-gray-600 text-sm font-medium mb-2">Tests submitted</p>
-            <p className="text-3xl font-bold text-purple-600">{stats.totalTestsSubmitted}</p>
+            <p className="text-3xl font-bold text-[#1e3a5f]">{stats.totalTestsSubmitted}</p>
           </Card>
           <Card className="p-5">
             <p className="text-gray-600 text-sm font-medium mb-2">Avg tests / student</p>
@@ -618,7 +620,7 @@ export function AdminDashboard() {
           </Card>
           <Card className="p-5">
             <p className="text-gray-600 text-sm font-medium mb-2">Overall average score</p>
-            <p className="text-3xl font-bold text-violet-700">{overallAverageScore}%</p>
+            <p className="text-3xl font-bold text-[#1e3a5f]700">{overallAverageScore}%</p>
             <p className="text-xs text-gray-500 mt-1">Across {filteredAttempts.length} filtered attempts</p>
           </Card>
           <Card className="p-5">

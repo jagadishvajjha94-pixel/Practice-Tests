@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import type { User } from '@/lib/types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -24,4 +25,23 @@ export function formatSupabaseError(err: unknown): string {
     }
   }
   return String(err)
+}
+
+/** Minimal profile when `public.users` row is missing or insert failed. */
+export function buildUserFromAuth(authUser: {
+  id: string
+  email?: string | null
+  user_metadata?: Record<string, unknown>
+}): User {
+  const now = new Date().toISOString()
+  return {
+    id: authUser.id,
+    email: authUser.email || '',
+    full_name: (authUser.user_metadata?.full_name as string | undefined) || 'User',
+    phone: null,
+    subscription_status: 'free',
+    subscription_end_date: null,
+    created_at: now,
+    updated_at: now,
+  }
 }

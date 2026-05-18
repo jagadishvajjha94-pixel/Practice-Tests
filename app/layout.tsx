@@ -4,19 +4,19 @@ import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import GlobalBackButton from '@/components/global-back-button'
 import AppSessionBar from '@/components/app-session-bar'
+import CollegeSiteHeader from '@/components/college-site-header'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' });
+const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' });
 
 export const metadata: Metadata = {
-  title: 'PrepIndia - Master Placements & Aptitude Tests',
-  description: 'Complete platform for placement preparation. Practice aptitude tests, mock interviews, and company-specific assessments. Get AI-powered resume review and interview preparation.',
-  keywords: 'placement preparation, aptitude tests, mock interviews, TCS, Infosys, HCL, campus recruitment',
+  title: 'Ramachandra College — Training & Placement Department',
+  description: 'Training & Placement Department — internal online assessment for Ramachandra College of Engineering.',
+  keywords: 'Ramachandra College, assessment, placement, aptitude, internal examination',
   openGraph: {
-    title: 'PrepIndia - Master Placements & Aptitude Tests',
-    description: 'Complete platform for placement preparation',
-    url: 'https://prepindia.com',
-    siteName: 'PrepIndia',
+    title: 'Ramachandra College — Training & Placement Department',
+    description: 'Training & Placement Department — internal online assessment for student skill evaluation',
+    siteName: 'Ramachandra College',
   },
 }
 
@@ -26,8 +26,9 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className="font-sans antialiased bg-background text-foreground">
+    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
+      <body className={`${geist.className} font-sans antialiased bg-background text-foreground min-h-dvh`}>
+        <CollegeSiteHeader />
         <GlobalBackButton />
         <AppSessionBar />
         {children}

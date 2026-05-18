@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { TestAttempt, Test, Question } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
-import { adaptQuestionRow, adaptTestRow, answersMatchMcq } from '@/lib/practice-mappers';
+import { adaptQuestionRow, adaptTestRow, answersMatchMcq, extractJoinedQuestion } from '@/lib/practice-mappers';
 import { formatSupabaseError } from '@/lib/utils';
 
 interface ResultData {
@@ -152,7 +152,7 @@ export default function TestResultPage({
         if (questionsError) throw questionsError;
 
         let questions = (testQuestions ?? [])
-          .map((tq) => (tq as unknown as { question?: Record<string, unknown> }).question)
+          .map(extractJoinedQuestion)
           .filter((q): q is Record<string, unknown> => q != null)
           .map(adaptQuestionRow);
 
@@ -311,7 +311,7 @@ export default function TestResultPage({
             <p className="text-gray-700 text-sm">Incorrect Answers</p>
           </Card>
           <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
-            <div className="text-2xl font-bold text-purple-600 mb-2">
+            <div className="text-2xl font-bold text-[#1e3a5f] mb-2">
               {questions.length - displayAnsweredCount}
             </div>
             <p className="text-gray-700 text-sm">Unanswered</p>

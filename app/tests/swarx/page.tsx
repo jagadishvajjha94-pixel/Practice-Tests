@@ -3,17 +3,17 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
 export const metadata = {
-  title: 'SWARX Communication - PrepIndia',
+  title: 'SWARX Communication — RCE',
   description: 'Communication and interview readiness modules inside one portal',
 };
 
 export default function SwarxTestsPage() {
   return (
-    <div className="min-h-screen bg-white">
-      <div className="bg-gradient-to-r from-indigo-600 to-blue-700 text-white py-12">
+    <div className="min-h-screen bg-background">
+      <div className="app-page-header">
         <div className="max-w-6xl mx-auto px-4">
-          <h1 className="text-4xl font-bold mb-3">SWARX Communication</h1>
-          <p className="text-blue-100 text-lg">
+          <h1 className="text-4xl font-bold mb-3 text-[#0c2340]">SWARX Communication</h1>
+          <p className="text-slate-700 text-lg font-medium">
             One login, one portal: communication training and placement readiness modules
           </p>
         </div>
@@ -21,53 +21,44 @@ export default function SwarxTestsPage() {
 
       <div className="max-w-6xl mx-auto px-4 py-12 grid md:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2">Vocal Communication Practice</h2>
-          <p className="text-gray-600 mb-6">
+          <h2 className="text-2xl font-semibold text-slate-900 mb-2">Vocal Communication Practice</h2>
+          <p className="text-slate-700 mb-6">
             Speak in English on exam-style prompts and get fluency, grammar, and confidence scoring.
           </p>
           <Link href="/ai/communication-practice">
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">Start Vocal Practice</Button>
+            <Button>Start Vocal Practice</Button>
           </Link>
         </Card>
 
         <Card className="p-6">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2">English Grammar Test</h2>
-          <p className="text-gray-600 mb-6">
+          <h2 className="text-2xl font-semibold text-slate-900 mb-2">English Grammar Test</h2>
+          <p className="text-slate-700 mb-6">
             Practice grammar questions with explanations aligned to competitive exam standards.
           </p>
           <Link href="/ai/grammar-tests">
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">Start Grammar Test</Button>
+            <Button>Start Grammar Test</Button>
           </Link>
         </Card>
 
         <Card className="p-6">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2">Situation-Based English</h2>
-          <p className="text-gray-600 mb-6">
+          <h2 className="text-2xl font-semibold text-slate-900 mb-2">Situation-Based English</h2>
+          <p className="text-slate-700 mb-6">
             Solve IELTS/TOEFL/GRE-style scenario questions in English with structured evaluation.
           </p>
           <Link href="/ai/situation-english">
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">Start Scenario Practice</Button>
+            <Button>Start Scenario Practice</Button>
           </Link>
         </Card>
+      </div>
 
-        <Card className="p-6">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2">AI Mock Interview</h2>
-          <p className="text-gray-600 mb-6">
-            Practice interview rounds with guided prompts and instant feedback.
+      <div className="max-w-6xl mx-auto px-4 pb-12">
+        <Card className="p-6 border border-[#1e3a5f]/25 bg-blue-50/60">
+          <p className="text-sm text-slate-800">
+            <strong className="text-slate-900">AI Interview</strong> (resume + voice interview) is a separate module — not part of SWARX.{' '}
+            <Link href="/ai/interview" className="text-[#1e3a5f] font-semibold hover:underline">
+              Open AI Interview Studio →
+            </Link>
           </p>
-          <Link href="/ai/mock-interview">
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">Start Mock Interview</Button>
-          </Link>
-        </Card>
-
-        <Card className="p-6">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2">AI Resume Review</h2>
-          <p className="text-gray-600 mb-6">
-            Upload your resume and get structured feedback with improvement recommendations.
-          </p>
-          <Link href="/ai/resume-review">
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">Start Resume Review</Button>
-          </Link>
         </Card>
       </div>
     </div>

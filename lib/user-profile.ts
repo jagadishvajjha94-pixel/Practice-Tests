@@ -6,9 +6,86 @@ export const RESUME_MAX_CHARS = 12_000;
 
 export function isUsersTableMissingError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
-  const code = (err as { code?: string }).code;
-  const message = String((err as { message?: string }).message ?? '').toLowerCase();
-  return code === 'PGRST205' || message.includes("could not find the table") && message.includes('users');
+  const e = err as { code?: string; message?: string; status?: number; statusCode?: number };
+  const message = String(e.message ?? '').toLowerCase();
+  const status = e.status ?? e.statusCode;
+  if (status === 404 && message.includes('users')) return true;
+  if (e.code === 'PGRST205' || e.code === '42P01') return true;
+  return (
+    message.includes('users') &&
+    (message.includes('could not find') ||
+      message.includes('schema cache') ||
+      message.includes('does not exist') ||
+      message.includes('not found'))
+  );
+}
+
+/** Create `public.users` via server route (needs POSTGRES_URL in .env.local). */
+export async function setupUsersTableViaApi(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const res = await fetch('/api/setup/ensure-users', { method: 'POST' });
+    const body = (await res.json()) as { success?: boolean; message?: string; error?: string; hint?: string };
+    if (!res.ok) {
+      return {
+        ok: false,
+        message: body.hint ? `${body.error ?? 'Setup failed'}. ${body.hint}` : (body.error ?? 'Setup failed'),
+      };
+    }
+    return { ok: true, message: body.message ?? 'Profile database is ready.' };
+  } catch {
+    return {
+      ok: false,
+      message:
+        'Could not run setup. Run supabase/migrations/001_users_resume.sql in Supabase → SQL Editor.',
+    };
+  }
+}
+
+export async function upsertUserProfileFields(
+  supabase: SupabaseClient,
+  authUser: AuthUser,
+  fields: {
+    full_name?: string;
+    phone?: string | null;
+    college?: string | null;
+    branch?: string | null;
+    resume_text?: string | null;
+    resume_file_name?: string | null;
+    resume_storage_path?: string | null;
+    resume_updated_at?: string | null;
+  },
+): Promise<{ ok: boolean; error: string | null; tableMissing: boolean }> {
+  const resume_text =
+    fields.resume_text !== undefined
+      ? fields.resume_text?.trim().slice(0, RESUME_MAX_CHARS) || null
+      : undefined;
+
+  const payload: Record<string, unknown> = {
+    id: authUser.id,
+    email: authUser.email ?? '',
+    full_name:
+      fields.full_name ?? (authUser.user_metadata?.full_name as string | undefined) ?? '',
+    subscription_status: 'free',
+    updated_at: new Date().toISOString(),
+  };
+
+  if (fields.phone !== undefined) payload.phone = fields.phone;
+  if (fields.college !== undefined) payload.college = fields.college;
+  if (fields.branch !== undefined) payload.branch = fields.branch;
+  if (resume_text !== undefined) {
+    payload.resume_text = resume_text;
+    payload.resume_updated_at = fields.resume_updated_at ?? (resume_text ? new Date().toISOString() : null);
+  }
+  if (fields.resume_file_name !== undefined) payload.resume_file_name = fields.resume_file_name;
+  if (fields.resume_storage_path !== undefined) payload.resume_storage_path = fields.resume_storage_path;
+
+  const { error } = await supabase.from('users').upsert(payload, { onConflict: 'id' });
+
+  if (!error) return { ok: true, error: null, tableMissing: false };
+  if (isUsersTableMissingError(error)) {
+    return { ok: false, error: formatSupabaseError(error), tableMissing: true };
+  }
+  return { ok: false, error: formatSupabaseError(error), tableMissing: false };
 }
 
 /** Ensure a row in public.users for the signed-in student (insert on first visit). */
@@ -24,6 +101,10 @@ export async function ensureUserProfile(
 
   if (!fetchError && existing) {
     return { profile: existing as UserProfile, error: null, tableMissing: false };
+  }
+
+  if (fetchError && isUsersTableMissingError(fetchError)) {
+    return { profile: null, error: formatSupabaseError(fetchError), tableMissing: true };
   }
 
   if (fetchError && isUsersTableMissingError(fetchError)) {

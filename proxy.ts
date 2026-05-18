@@ -12,7 +12,7 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname === '/auth/signup'
   ) {
     const url = request.nextUrl.clone()
-    url.pathname = '/auth/login'
+    url.pathname = '/auth/role'
     url.searchParams.set('notice', 'signup_closed')
     return NextResponse.redirect(url)
   }
@@ -73,10 +73,11 @@ export async function proxy(request: NextRequest) {
       request.nextUrl.pathname.startsWith('/profile') ||
       request.nextUrl.pathname.startsWith('/checkout') ||
       request.nextUrl.pathname.startsWith('/ai') ||
-      request.nextUrl.pathname.startsWith('/profile') ||
       request.nextUrl.pathname.startsWith('/tests/competitive-exam'))
   ) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+    const loginUrl = new URL('/auth/role', request.url)
+    loginUrl.searchParams.set('redirect', `${request.nextUrl.pathname}${request.nextUrl.search}`)
+    return NextResponse.redirect(loginUrl)
   }
 
   return response

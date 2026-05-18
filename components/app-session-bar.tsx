@@ -45,6 +45,7 @@ export default function AppSessionBar() {
   if (email === undefined) return null;
   if (!email) return null;
   if (isExamFocusRoute(pathname)) return null;
+  if (pathname === '/' || pathname?.startsWith('/auth')) return null;
 
   const handleLogout = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -58,21 +59,26 @@ export default function AppSessionBar() {
 
   const bar = (
     <div
-      className="pointer-events-auto fixed top-3 right-3 z-[9999] flex max-w-[min(100vw-1.5rem,20rem)] flex-wrap items-center justify-end gap-2 rounded-xl border border-white/20 bg-background/95 px-3 py-2 text-xs shadow-lg backdrop-blur-xl sm:top-4 sm:right-4 sm:text-sm"
+      className="pointer-events-auto fixed top-[4.25rem] right-3 z-[9999] flex max-w-[min(100vw-1.5rem,22rem)] flex-wrap items-center justify-end gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-md sm:right-4 sm:text-sm"
       role="region"
       aria-label="Account"
     >
-      <span className="truncate text-muted-foreground" title={email}>
+      <span className="truncate font-medium text-slate-700" title={email}>
         {email}
       </span>
       <div className="flex shrink-0 items-center gap-1.5">
-        <Button variant="ghost" size="sm" className="h-8 px-2 text-foreground" asChild>
+        <Button variant="ghost" size="sm" className="h-8 px-2 text-[#1e3a5f]" asChild>
           <Link href="/dashboard">Dashboard</Link>
         </Button>
-        <Button variant="ghost" size="sm" className="h-8 px-2 text-foreground" asChild>
+        <Button variant="ghost" size="sm" className="h-8 px-2 text-[#1e3a5f]" asChild>
           <Link href="/profile">Profile</Link>
         </Button>
-        <Button variant="outline" size="sm" className="h-8 border-white/30 bg-white/10" onClick={() => void handleLogout()}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 border-slate-300 text-slate-800 hover:bg-slate-50"
+          onClick={() => void handleLogout()}
+        >
           Log out
         </Button>
       </div>

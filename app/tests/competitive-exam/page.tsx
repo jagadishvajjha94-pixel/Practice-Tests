@@ -24,9 +24,9 @@ export default function CompetitiveExamLandingPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="py-12 border-b border-white/15 bg-black/20 backdrop-blur-xl">
+      <div className="py-12 app-page-header">
         <div className="max-w-4xl mx-auto px-4">
-          <p className="text-sm uppercase tracking-wider text-violet-300 mb-2">Tests · Competitive</p>
+          <p className="text-sm uppercase tracking-wider text-[#1e4a7a] mb-2">Tests · Competitive</p>
           <h1 className="text-4xl font-bold mb-4 lux-heading">All India Competitive Selection Paper</h1>
           <p className="text-muted-foreground text-lg">
             Stratified MCQs across Maths, Science, Chemistry, Aptitude, Reasoning, Logical Thinking, English Grammar,
@@ -36,17 +36,17 @@ export default function CompetitiveExamLandingPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-12 space-y-8">
-        <Card className="p-8 lux-surface border-white/15">
+        <Card className="p-8 lux-surface">
           <h2 className="text-xl font-semibold mb-4 text-foreground">Paper pattern</h2>
-          <ul className="space-y-3 text-foreground/90 leading-relaxed">
+          <ul className="space-y-3 text-slate-800 leading-relaxed">
             <li>
-              <strong className="text-white font-semibold">{COMPETITIVE_ALL_INDIA_QUESTIONS} questions</strong> · Multiple choice (four options){' '}
+              <strong className="text-slate-900 font-semibold">{COMPETITIVE_ALL_INDIA_QUESTIONS} questions</strong> · Multiple choice (four options){' '}
             </li>
             <li>
-              <strong className="text-white font-semibold">{COMPETITIVE_ALL_INDIA_MINUTES} minutes</strong> · Overall countdown timer auto-submits when time ends
+              <strong className="text-slate-900 font-semibold">{COMPETITIVE_ALL_INDIA_MINUTES} minutes</strong> · Overall countdown timer auto-submits when time ends
             </li>
             <li>
-              Questions <strong className="text-white font-semibold">do not repeat inside your sitting</strong>; each candidate draws a seeded stratified mix so overlapping stems across thousands of attempts stays low (especially for quantitative sections).
+              Questions <strong className="text-slate-900 font-semibold">do not repeat inside your sitting</strong>; each candidate draws a seeded stratified mix so overlapping stems across thousands of attempts stays low (especially for quantitative sections).
             </li>
             <li>
               Sections (counts): Maths (8), Science (7), Chemistry (7), Aptitude (8), Reasoning (8), Logical (8), English (7),

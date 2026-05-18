@@ -58,17 +58,17 @@ export default function CompetitiveExamTakePage() {
         <Card className="max-w-lg w-full border-gray-300 p-8 shadow-2xl bg-white text-gray-950">
           <h1 className="text-2xl font-bold mb-2 text-gray-950">{test.name}</h1>
           <p className="text-sm text-gray-700 mb-6">{test.description}</p>
-          <div className="space-y-3 rounded-lg border-2 border-violet-200 bg-violet-50 p-4 mb-6 text-sm">
+          <div className="space-y-3 rounded-lg border-2 border-[#1e3a5f] bg-blue-50 p-4 mb-6 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-700 font-medium">Questions</span>
-              <span className="font-bold text-violet-900 text-lg">{COMPETITIVE_ALL_INDIA_QUESTIONS}</span>
+              <span className="font-bold text-[#0c2340] text-lg">{COMPETITIVE_ALL_INDIA_QUESTIONS}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-700 font-medium">Duration</span>
-              <span className="font-bold text-violet-900 text-lg">{COMPETITIVE_ALL_INDIA_MINUTES} minutes</span>
+              <span className="font-bold text-[#0c2340] text-lg">{COMPETITIVE_ALL_INDIA_MINUTES} minutes</span>
             </div>
           </div>
-          <Button className="w-full mb-2 bg-violet-600 hover:bg-violet-500 text-white font-semibold" type="button" onClick={() => setReady(true)}>
+          <Button className="w-full mb-2 bg-[#1e3a5f] hover:bg-[#1e3a5f] text-white font-semibold" type="button" onClick={() => setReady(true)}>
             Start timer & begin
           </Button>
           <Button variant="outline" className="w-full" type="button" asChild>

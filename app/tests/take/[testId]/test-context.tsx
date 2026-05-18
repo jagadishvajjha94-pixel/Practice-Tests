@@ -15,7 +15,7 @@ interface TestContextType {
   setAnswer: (questionId: string, answer: string) => void;
   markForReview: (questionId: string, marked: boolean) => void;
   timeRemaining: number;
-  setTimeRemaining: (time: number) => void;
+  setTimeRemaining: React.Dispatch<React.SetStateAction<number>>;
   isSubmitted: boolean;
   setIsSubmitted: (submitted: boolean) => void;
 }

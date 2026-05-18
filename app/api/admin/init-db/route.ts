@@ -184,10 +184,12 @@ export async function POST(request: Request) {
     });
 
     if (createTablesError) {
-      // RPC might not be available, use raw SQL approach instead
-      const { error: sqlError } = await supabase.rpc('exec', { sql: 'SELECT 1' }).catch(() => ({
-        error: 'RPC not available'
-      }));
+      // RPC might not be available on some Supabase projects
+      try {
+        await supabase.rpc('exec', { sql: 'SELECT 1' });
+      } catch {
+        // ignore — tables may still exist from dashboard SQL
+      }
     }
 
     return NextResponse.json({ 
