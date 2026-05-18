@@ -1,4 +1,5 @@
 -- One-shot setup: public.users + public.admin_users (Supabase SQL Editor)
+-- Also run 006_test_categories_and_exam_core.sql for test_categories + questions tables.
 -- Project: https://supabase.com/dashboard/project/lwkmfpcewpisezmcsext/sql/new
 
 -- === users profile (001) ===

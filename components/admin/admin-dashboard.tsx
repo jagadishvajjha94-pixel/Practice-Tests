@@ -78,12 +78,13 @@ export function AdminDashboard() {
 
         setIsAdmin(true);
 
-        const [{ data: users }, { data: attempts }, { data: tests }, { data: categoryRows }] = await Promise.all([
+        const [{ data: users }, { data: attempts }, { data: tests }, categoryResult] = await Promise.all([
           supabase.from('users').select('*'),
           supabase.from('test_attempts').select('*'),
           supabase.from('tests').select('id, name, category_id'),
           supabase.from('test_categories').select('id, name, slug'),
         ]);
+        const categoryRows = categoryResult.error ? [] : categoryResult.data;
         const attemptRows = (attempts ?? []) as DashboardAttemptRow[];
         setAllAttempts(attemptRows);
 

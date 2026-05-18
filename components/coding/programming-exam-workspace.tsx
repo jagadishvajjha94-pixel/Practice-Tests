@@ -11,6 +11,7 @@ import {
   isCodingLanguageId,
   type CodingLanguageId,
 } from '@/lib/coding/languages';
+import { effectiveSourceCode } from '@/lib/coding/effective-source';
 import {
   PROGRAMMING_SAMPLE_PROBLEMS,
   outputsMatch,
@@ -80,9 +81,10 @@ export function ProgrammingExamWorkspace() {
 
   const problem = PROGRAMMING_SAMPLE_PROBLEMS[problemIndex];
   const storageKey = codeStorageKey(problem.id, language);
-  const code = codeStore[storageKey] ?? getCodingLanguage(language).stub;
+  const code = effectiveSourceCode(codeStore[storageKey], language);
 
   const setCode = (value: string) => {
+    if (!value.trim() && !codeStore[storageKey]?.trim()) return;
     setCodeStore((prev) => ({ ...prev, [storageKey]: value }));
   };
 
@@ -196,7 +198,7 @@ export function ProgrammingExamWorkspace() {
     setConsoleTab('output');
     const lines: string[] = [];
     for (const p of PROGRAMMING_SAMPLE_PROBLEMS) {
-      const src = codeStore[codeStorageKey(p.id, language)] ?? getCodingLanguage(language).stub;
+      const src = effectiveSourceCode(codeStore[codeStorageKey(p.id, language)], language);
       const result = await gradeProblem(p, src, language);
       lines.push(`${p.title}: ${result.passed}/${result.total} cases passed`);
     }

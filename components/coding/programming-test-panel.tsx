@@ -17,6 +17,7 @@ import {
   getCodingLanguage,
   type CodingLanguageId,
 } from '@/lib/coding/languages';
+import { effectiveSourceCode } from '@/lib/coding/effective-source';
 import {
   PROGRAMMING_SAMPLE_PROBLEMS,
   type ProgrammingProblem,
@@ -58,11 +59,12 @@ export function ProgrammingTestPanel({ showProblemList = true, className }: Prop
       setRunning(true);
       setOutput(null);
       setMeta(null);
+      const source = effectiveSourceCode(code, language);
       try {
         const res = await fetch('/api/v2/coding/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ language, sourceCode: code, stdin: input }),
+          body: JSON.stringify({ language, sourceCode: source, stdin: input }),
         });
         const data = (await res.json()) as {
           stdout?: string;
@@ -166,8 +168,11 @@ export function ProgrammingTestPanel({ showProblemList = true, className }: Prop
             <CodeEditor
               key={language}
               language={language}
-              value={code}
-              onChange={setCode}
+              value={effectiveSourceCode(code, language)}
+              onChange={(value) => {
+                if (!value.trim() && !code.trim()) return;
+                setCode(value);
+              }}
               height="400px"
             />
           </Card>

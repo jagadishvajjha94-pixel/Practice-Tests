@@ -22,7 +22,8 @@ export async function GET() {
     return NextResponse.json({
       categories: FALLBACK_CATEGORIES,
       source: 'fallback',
-      warning: 'Using built-in categories. Run POST /api/setup/seed to sync Supabase.',
+      warning:
+        'Using built-in categories. Run supabase/migrations/006_test_categories_and_exam_core.sql in Supabase SQL Editor, then NOTIFY pgrst, \'reload schema\';',
     });
   }
 
@@ -40,7 +41,9 @@ export async function GET() {
     return NextResponse.json({
       categories: FALLBACK_CATEGORIES,
       source: 'fallback',
-      warning: error?.message ?? 'No categories in database. Run POST /api/setup/seed.',
+      warning:
+        error?.message ??
+        'No categories in database. Run supabase/migrations/006_test_categories_and_exam_core.sql in Supabase SQL Editor.',
     });
   }
 

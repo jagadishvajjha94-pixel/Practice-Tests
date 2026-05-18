@@ -1,50 +1,59 @@
 import { NextResponse } from 'next/server';
 import { executeCode } from '@/lib/coding/execute';
-import { isCodingLanguageId } from '@/lib/coding/languages';
+import { parseCodingRunRequest } from '@/lib/coding/parse-run-request';
+import { createClient } from '@supabase/supabase-js';
 import { getSupabaseServerClient } from '@/lib/supabase-server';
+
+export const runtime = 'nodejs';
+
+function getServiceSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !key || url.includes('YOUR_') || key.includes('YOUR_')) return null;
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as {
-      language?: string;
-      sourceCode?: string;
-      stdin?: string;
-    };
-
-    const languageRaw = body.language ?? 'python';
-    const sourceCode = body.sourceCode?.trim() ?? '';
-
-    if (!sourceCode) {
-      return NextResponse.json({ error: 'sourceCode required' }, { status: 400 });
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    if (!isCodingLanguageId(languageRaw)) {
-      return NextResponse.json({ error: 'Unsupported language' }, { status: 400 });
+    const parsed = parseCodingRunRequest(body);
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
-    const language = languageRaw;
+    const { language, sourceCode, stdin } = parsed;
+    const result = await executeCode(language, sourceCode, stdin);
 
-    const result = await executeCode(language, sourceCode, body.stdin ?? '');
-
-    const supabase = await getSupabaseServerClient();
-    if (supabase) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const status = result.exitCode === 0 ? 'accepted' : 'error';
-        await supabase.from('coding_submissions').insert({
-          user_id: user.id,
+    // Optional run log (never block execution on DB / schema errors)
+    try {
+      const service = getServiceSupabase();
+      const session = await getSupabaseServerClient();
+      const userId = session
+        ? (await session.auth.getUser()).data.user?.id
+        : undefined;
+      if (service && userId) {
+        await service.from('coding_submissions').insert({
+          user_id: userId,
           language,
           source_code: sourceCode,
-          stdin: body.stdin ?? null,
+          stdin: stdin || null,
           stdout: result.stdout,
           stderr: result.stderr,
-          status,
+          status: result.exitCode === 0 ? 'accepted' : 'error',
           runtime_ms: result.runtimeMs,
           memory_kb: result.memoryKb,
         });
       }
+    } catch {
+      /* ignore */
     }
 
     return NextResponse.json({

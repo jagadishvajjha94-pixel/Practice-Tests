@@ -28,7 +28,11 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const hint =
+      error.message.includes('schema cache') || error.message.includes('test_categories')
+        ? ' Run supabase/migrations/006_test_categories_and_exam_core.sql in Supabase SQL Editor, then NOTIFY pgrst, \'reload schema\';'
+        : '';
+    return NextResponse.json({ error: error.message + hint }, { status: 500 });
   }
   if (!data?.id) {
     return NextResponse.json({ error: `No category found for slug: ${slug}` }, { status: 404 });

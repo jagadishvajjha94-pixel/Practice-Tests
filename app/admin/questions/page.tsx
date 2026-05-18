@@ -6,15 +6,18 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Question, TestCategory } from '@/lib/types';
+import { Question } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
+import { fetchAdminCategories } from '@/lib/fetch-admin-categories';
+import type { CategoryOption } from '@/lib/ai-generator-config';
 
 export default function QuestionsManagementPage() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [categories, setCategories] = useState<TestCategory[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [categoryWarning, setCategoryWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,12 +51,11 @@ export default function QuestionsManagementPage() {
           .select('*')
           .order('created_at', { ascending: false });
 
-        const { data: categoriesData } = await supabase
-          .from('test_categories')
-          .select('*');
+        const { categories: categoryList, warning } = await fetchAdminCategories();
 
         setQuestions(questionsData || []);
-        setCategories(categoriesData || []);
+        setCategories(categoryList);
+        if (warning) setCategoryWarning(warning);
       } catch (error) {
         console.error('Error:', error);
       } finally {
@@ -198,6 +200,11 @@ export default function QuestionsManagementPage() {
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Question bank</h2>
         <p className="text-sm text-gray-600 mt-1">Add, import, and manage MCQs used in practice and department exams.</p>
+        {categoryWarning ? (
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+            {categoryWarning}
+          </p>
+        ) : null}
       </div>
       <div>
         {/* Controls */}
