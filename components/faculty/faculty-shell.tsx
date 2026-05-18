@@ -81,10 +81,16 @@ export function FacultyShell({ children }: { children: React.ReactNode }) {
         <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wider text-slate-300">{COLLEGE.rce} Faculty</p>
-            <h1 className="text-lg font-bold">{COLLEGE.shortName}</h1>
-            {department ? <p className="text-sm text-slate-300 mt-0.5">{department}</p> : null}
+            <h1 className="text-base sm:text-lg font-bold text-white leading-snug">{COLLEGE.name}</h1>
+            <p className="text-sm text-slate-200 mt-0.5">{COLLEGE.departmentTitle}</p>
+            {department ? <p className="text-sm text-slate-300 mt-1">{department}</p> : null}
           </div>
-          <Button variant="outline" className="border-white/30 text-white hover:bg-white/10" onClick={signOut}>
+          <Button
+            type="button"
+            variant="ghost"
+            className="shrink-0 border border-white/50 bg-white/10 !text-white hover:bg-white/20 hover:!text-white shadow-none"
+            onClick={signOut}
+          >
             Sign out
           </Button>
         </div>
