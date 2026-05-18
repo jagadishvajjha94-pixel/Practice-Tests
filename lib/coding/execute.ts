@@ -2,7 +2,10 @@ import {
   getCodingLanguage,
   type CodingLanguageId,
 } from '@/lib/coding/languages';
+import { isServerlessHost } from '@/lib/coding/execute-environment';
+import { executeJavaScriptInProcess } from '@/lib/coding/execute-inprocess-js';
 import { executeCodeLocal } from '@/lib/coding/execute-local';
+import { executeViaWandbox } from '@/lib/coding/execute-wandbox';
 import type { ExecuteResult } from '@/lib/coding/types';
 
 export type { CodingLanguageId as CodingLanguage };
@@ -10,26 +13,31 @@ export type { ExecuteResult } from '@/lib/coding/types';
 
 const PUBLIC_PISTON_HOST = 'emkc.org';
 
-function useCustomPiston(): boolean {
+function pistonUrl(): string | null {
   const url = process.env.PISTON_API_URL?.trim();
-  if (!url || url.includes('YOUR_')) return false;
+  if (!url || url.includes('YOUR_')) return null;
   try {
     const host = new URL(url).hostname;
-    return host !== PUBLIC_PISTON_HOST && !host.endsWith('.emkc.org');
+    if (host === PUBLIC_PISTON_HOST || host.endsWith('.emkc.org')) return null;
+    return url;
   } catch {
-    return false;
+    return null;
   }
+}
+
+function wandboxDisabled(): boolean {
+  return process.env.CODING_DISABLE_WANDBOX === '1' || process.env.CODING_DISABLE_WANDBOX === 'true';
 }
 
 async function executeViaPiston(
   languageId: CodingLanguageId,
   sourceCode: string,
   stdin: string,
+  url: string,
 ): Promise<ExecuteResult> {
   const lang = getCodingLanguage(languageId);
-  const pistonUrl = process.env.PISTON_API_URL!.trim();
   const started = Date.now();
-  const res = await fetch(pistonUrl, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -73,45 +81,95 @@ function localRuntimeMissing(result: ExecuteResult): boolean {
     text.includes('not found') ||
     text.includes('was not found') ||
     text.includes('runtime not found') ||
-    text.includes('cannot run python locally')
+    text.includes('cannot run') ||
+    text.includes('serverless cannot run')
   );
 }
 
-/** Public emkc.org Piston is whitelist-only; local execution is the default for dev/college deploys. */
+async function executeRemote(
+  languageId: CodingLanguageId,
+  sourceCode: string,
+  stdin: string,
+): Promise<ExecuteResult> {
+  const piston = pistonUrl();
+  if (piston) {
+    try {
+      return await executeViaPiston(languageId, sourceCode, stdin, piston);
+    } catch {
+      /* try wandbox */
+    }
+  }
+
+  if (!wandboxDisabled()) {
+    return executeViaWandbox(languageId, sourceCode, stdin);
+  }
+
+  const lang = getCodingLanguage(languageId);
+  throw new Error(
+    `${lang.label} cannot run on this host. Set PISTON_API_URL (self-hosted Piston) or allow Wandbox (default on Vercel).`,
+  );
+}
+
 export async function executeCode(
   languageId: CodingLanguageId,
   sourceCode: string,
   stdin = '',
 ): Promise<ExecuteResult> {
-  if (useCustomPiston()) {
+  const lang = getCodingLanguage(languageId);
+
+  if (isServerlessHost()) {
+    if (languageId === 'javascript') {
+      try {
+        const inProc = executeJavaScriptInProcess(sourceCode, stdin);
+        if (inProc.exitCode === 0 || !localRuntimeMissing(inProc)) {
+          return inProc;
+        }
+      } catch {
+        /* remote */
+      }
+    }
     try {
-      return await executeViaPiston(languageId, sourceCode, stdin);
+      return await executeRemote(languageId, sourceCode, stdin);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Remote execution failed';
+      throw new Error(`${lang.label}: ${msg}`);
+    }
+  }
+
+  const piston = pistonUrl();
+  if (piston) {
+    try {
+      return await executeViaPiston(languageId, sourceCode, stdin, piston);
     } catch {
-      // Fall through to local runner
+      /* local */
     }
   }
 
   try {
     const local = await executeCodeLocal(languageId, sourceCode, stdin);
-    if (localRuntimeMissing(local) && useCustomPiston()) {
+    if (localRuntimeMissing(local)) {
+      if (languageId === 'javascript') {
+        try {
+          return executeJavaScriptInProcess(sourceCode, stdin);
+        } catch {
+          /* wandbox */
+        }
+      }
       try {
-        return await executeViaPiston(languageId, sourceCode, stdin);
+        return await executeRemote(languageId, sourceCode, stdin);
       } catch {
         return local;
       }
     }
     return local;
   } catch (error) {
-    if (useCustomPiston()) {
-      try {
-        return await executeViaPiston(languageId, sourceCode, stdin);
-      } catch {
-        /* use error below */
-      }
+    try {
+      return await executeRemote(languageId, sourceCode, stdin);
+    } catch {
+      const msg = error instanceof Error ? error.message : 'Execution failed';
+      throw new Error(
+        `${lang.label}: ${msg}. Install the runtime locally or set PISTON_API_URL.`,
+      );
     }
-    const msg = error instanceof Error ? error.message : 'Local execution failed';
-    throw new Error(
-      `${msg}. For cloud deploys, set PISTON_API_URL to your own Piston instance. Locally, install Python/Node and restart the dev server from Terminal.`,
-    );
   }
 }

@@ -4,5 +4,5 @@ export interface ExecuteResult {
   exitCode: number;
   runtimeMs: number;
   memoryKb: number | null;
-  engine: 'piston' | 'local';
+  engine: 'piston' | 'local' | 'wandbox' | 'inprocess';
 }

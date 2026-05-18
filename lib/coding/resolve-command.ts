@@ -50,9 +50,7 @@ export function resolveCommand(
   if (cache.has(key)) {
     const hit = cache.get(key);
     if (hit) return hit;
-    throw new Error(
-      `${name} was not found. Install it on the server or set ${name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_PATH in .env.local.`,
-    );
+    throw new Error(`${name} was not found on this machine.`);
   }
 
   const env = augmentedPathEnv();
