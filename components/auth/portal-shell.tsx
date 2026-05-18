@@ -6,6 +6,8 @@ type Props = {
   title?: string;
   subtitle?: string;
   showBackToRoles?: boolean;
+  backHref?: string;
+  backLabel?: string;
   className?: string;
 };
 
@@ -14,6 +16,8 @@ export function PortalShell({
   title,
   subtitle,
   showBackToRoles = false,
+  backHref = '/auth/role',
+  backLabel = '← Change role',
   className,
 }: Props) {
   return (
@@ -34,8 +38,8 @@ export function PortalShell({
 
       {showBackToRoles ? (
         <p className="relative z-10 mt-6 text-center text-sm">
-          <Link href="/auth/role" className="text-[#1e3a5f] hover:underline font-semibold">
-            ← Change role
+          <Link href={backHref} className="text-[#1e3a5f] hover:underline font-semibold">
+            {backLabel}
           </Link>
         </p>
       ) : null}

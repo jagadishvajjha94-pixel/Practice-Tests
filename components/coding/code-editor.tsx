@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { getCodingLanguage } from '@/lib/coding/languages';
 
 const Monaco = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
@@ -9,14 +10,14 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   height?: string;
+  readOnly?: boolean;
 };
 
-export function CodeEditor({ language, value, onChange, height = '360px' }: Props) {
-  const monacoLang =
-    language === 'python' ? 'python' : language === 'java' ? 'java' : language === 'c' ? 'c' : 'plaintext';
+export function CodeEditor({ language, value, onChange, height = '360px', readOnly = false }: Props) {
+  const monacoLang = getCodingLanguage(language).monaco;
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden min-h-[280px]">
+    <div className="rounded-lg border border-slate-200 overflow-hidden min-h-[280px] bg-[#1e1e1e]">
       <Monaco
         height={height}
         language={monacoLang}
@@ -31,8 +32,10 @@ export function CodeEditor({ language, value, onChange, height = '360px' }: Prop
           automaticLayout: true,
           tabSize: 2,
           wordWrap: 'on',
+          readOnly,
         }}
       />
     </div>
   );
 }
+

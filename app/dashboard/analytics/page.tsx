@@ -128,31 +128,45 @@ export default function StudentAnalyticsPage() {
         </Card>
       </div>
 
-      <Card className="p-4 lux-surface h-72">
-        <h2 className="text-sm font-medium mb-4">Score trend</h2>
-        <ResponsiveContainer width="100%" height="85%">
-          <LineChart data={attempts}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-            <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-            <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-      </Card>
+      {attempts.length === 0 ? (
+        <Card className="p-8 lux-surface text-center">
+          <p className="text-slate-800 font-medium">No test attempts yet</p>
+          <p className="text-sm text-slate-600 mt-2">
+            Complete a practice test to see your score trend and analytics here.
+          </p>
+          <Button className="mt-4" asChild>
+            <Link href="/tests">Browse practice tests</Link>
+          </Button>
+        </Card>
+      ) : (
+        <>
+          <Card className="p-4 lux-surface h-72">
+            <h2 className="text-sm font-medium mb-4">Score trend</h2>
+            <ResponsiveContainer width="100%" height="85%">
+              <LineChart data={attempts}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Card>
 
-      <Card className="p-4 lux-surface h-72">
-        <h2 className="text-sm font-medium mb-4">Recent tests</h2>
-        <ResponsiveContainer width="100%" height="85%">
-          <BarChart data={attempts}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-            <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-            <YAxis domain={[0, 100]} />
-            <Tooltip />
-            <Bar dataKey="score" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
+          <Card className="p-4 lux-surface h-72">
+            <h2 className="text-sm font-medium mb-4">Recent tests</h2>
+            <ResponsiveContainer width="100%" height="85%">
+              <BarChart data={attempts}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                <YAxis domain={[0, 100]} />
+                <Tooltip />
+                <Bar dataKey="score" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

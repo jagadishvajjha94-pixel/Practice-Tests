@@ -1,312 +1,70 @@
-'use client';
-
-import { Suspense, useEffect, useState } from 'react';
+import { GraduationCap, Users } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
-import {
-  isSupabasePublicEnvConfigured,
-  SUPABASE_PUBLIC_ENV_MESSAGE,
-} from '@/lib/supabase-public-env';
+import { PortalShell } from '@/components/auth/portal-shell';
+import { AuthFlowPanel } from '@/components/auth/auth-flow-panel';
+import { RoleCard } from '@/components/auth/role-card';
+import { COLLEGE } from '@/lib/college-brand';
 import { isSignupDisabled } from '@/lib/auth-features';
 
-function authRedirectTarget(raw: string | null, fallback = '/dashboard'): string {
-  if (!raw || typeof raw !== 'string') return fallback;
-  const t = raw.trim();
-  if (!t.startsWith('/') || t.startsWith('//')) return fallback;
-  return t;
-}
+type Props = {
+  searchParams: Promise<{ redirect?: string }>;
+};
 
-function toFriendlySignupError(err: unknown): string {
-  const raw = err instanceof Error ? err.message : 'Sign up failed. Please try again.';
-  const normalized = raw.toLowerCase();
-  if (normalized.includes('email rate limit') || normalized.includes('rate limit')) {
-    return 'Signup traffic is high right now. Please try again shortly.';
-  }
-  if (normalized.includes('failed to fetch')) {
-    return 'Network error while signing up. Please check your connection and try again.';
-  }
-  if (normalized.includes('already registered')) {
-    return 'This email is already registered. Please sign in instead.';
-  }
-  return raw;
-}
+export const metadata = {
+  title: `Create account — ${COLLEGE.departmentTitle}`,
+};
 
-function SignUpPageContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectParam = searchParams.get('redirect');
-  const postSignupPath = authRedirectTarget(redirectParam);
-  const loginHref = redirectParam
-    ? `/auth/login?redirect=${encodeURIComponent(redirectParam)}`
-    : '/auth/login';
+export default async function SignupRolePage({ searchParams }: Props) {
+  const params = await searchParams;
+  const q = new URLSearchParams();
+  if (params.redirect) q.set('redirect', params.redirect);
+  const suffix = q.toString() ? `?${q.toString()}` : '';
 
   if (isSignupDisabled()) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-md border-border/90 p-8 text-center shadow-xl">
-          <h1 className="text-2xl font-bold text-foreground mb-3">Registration closed</h1>
-          <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
-            New accounts cannot be created on the website right now. Please sign in with the email and password from your institution.
+      <PortalShell>
+        <AuthFlowPanel title="Registration closed" subtitle="New accounts are not accepted during the exam period.">
+          <p className="text-sm text-slate-700 mb-4">
+            Please sign in with credentials issued by the Training &amp; Placement Department.
           </p>
-          <Button
-            className="w-full bg-indigo-500 hover:bg-indigo-400 text-white"
-            onClick={() => router.push(`${loginHref}${loginHref.includes('?') ? '&' : '?'}notice=signup_closed`)}
+          <Link
+            href={`/auth/role${suffix}`}
+            className="inline-flex w-full items-center justify-center rounded-lg bg-[#1e3a5f] px-4 py-3 text-sm font-semibold text-white hover:bg-[#16304f]"
           >
             Go to sign in
-          </Button>
-        </Card>
-      </div>
+          </Link>
+        </AuthFlowPanel>
+      </PortalShell>
     );
   }
 
-  const isSupabaseConfigured = isSupabasePublicEnvConfigured();
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  // Local-only convenience setup; disabled in production unless explicitly enabled.
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'development') return;
-    if (process.env.NEXT_PUBLIC_AUTO_DB_SETUP !== 'true') return;
-
-    const initDb = async () => {
-      try {
-        // Initialize database with direct SQL
-        const initResponse = await fetch('/api/setup/init-direct', { method: 'POST' });
-        console.log('Init response:', initResponse.status);
-
-        // Seed with sample data
-        const seedResponse = await fetch('/api/setup/seed-direct', { method: 'POST' });
-        console.log('Seed response:', seedResponse.status);
-      } catch (err) {
-        console.log('Setup info:', err);
-      }
-    };
-    initDb();
-  }, []);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!isSupabaseConfigured) {
-      setError(SUPABASE_PUBLIC_ENV_MESSAGE);
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const supabase = createSupabaseBrowserClient();
-      if (!supabase) {
-        throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
-      }
-
-      if (formData.password !== formData.confirmPassword) {
-        throw new Error('Passwords do not match');
-      }
-
-      if (formData.password.length < 6) {
-        throw new Error('Password must be at least 6 characters');
-      }
-
-      if (!formData.fullName.trim()) {
-        throw new Error('Full name is required');
-      }
-
-      // Use server signup API first (can create confirmed users when service role key is available).
-      const signupRes = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          fullName: formData.fullName,
-          next: postSignupPath,
-        }),
-      });
-      const signupJson = (await signupRes.json().catch(() => ({}))) as {
-        error?: string;
-        user_id?: string | null;
-        email_confirmed?: boolean;
-      };
-      if (!signupRes.ok) {
-        throw new Error(signupJson.error || 'Sign up failed. Please try again.');
-      }
-
-      const userId = signupJson.user_id ?? null;
-
-      // Create user profile in database
-      if (userId) {
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert([
-            {
-              id: userId,
-              email: formData.email,
-              full_name: formData.fullName,
-              subscription_status: 'free',
-            },
-          ]);
-
-        if (profileError) {
-          console.warn('Profile creation warning:', profileError);
-          // Don't fail if profile creation fails - user is already signed up
-        }
-      }
-
-      // Sign in immediately; if backend still requires confirmation, route to login page.
-      const signInResult = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
-      if (signInResult.error) {
-        router.push(loginHref);
-        return;
-      }
-
-      setError(null);
-      router.push(postSignupPath);
-    } catch (err) {
-      const errorMsg = toFriendlySignupError(err);
-      // Rate-limit and network failures are expected operational states; keep console quieter for users.
-      if (!/too many signup attempts|signup traffic is high|network error|already registered/i.test(errorMsg)) {
-        console.error('Sign up error:', errorMsg);
-      }
-      setError(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-md border-border/90 shadow-xl">
-        <div className="p-6 sm:p-8">
-          <h1 className="text-2xl font-bold text-foreground mb-2">Join PrepIndia</h1>
-          <p className="text-muted-foreground mb-6">Create your account to start preparing</p>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-500/20 border border-red-400/50 rounded-lg text-sm text-red-100">
-              {error}
-            </div>
-          )}
-          {!isSupabaseConfigured && !error && (
-            <div className="mb-4 p-3 bg-amber-500/20 border border-amber-400/50 rounded-lg text-sm text-amber-100">
-              {SUPABASE_PUBLIC_ENV_MESSAGE}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-foreground mb-1">
-                Full Name
-              </label>
-              <Input
-                id="fullName"
-                name="fullName"
-                type="text"
-                placeholder="John Doe"
-                value={formData.fullName}
-                onChange={handleChange}
-                className="border-border bg-background/70 text-foreground placeholder:text-muted-foreground"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
-                Email
-              </label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@example.com"
-                value={formData.email}
-                onChange={handleChange}
-                className="border-border bg-background/70 text-foreground placeholder:text-muted-foreground"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
-                Password
-              </label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Min 6 characters"
-                value={formData.password}
-                onChange={handleChange}
-                className="border-border bg-background/70 text-foreground placeholder:text-muted-foreground"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground mb-1">
-                Confirm Password
-              </label>
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                placeholder="Confirm password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className="border-border bg-background/70 text-foreground placeholder:text-muted-foreground"
-                required
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading || !isSupabaseConfigured}
-              className="w-full bg-indigo-500 hover:bg-indigo-400 text-white"
-            >
-              {loading ? 'Creating account...' : 'Sign Up'}
-            </Button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link href={loginHref} className="text-primary hover:text-primary/90 font-medium underline-offset-4 hover:underline">
-              Sign in
-            </Link>
-          </p>
+    <PortalShell>
+      <AuthFlowPanel
+        title="Create account"
+        subtitle="Students and faculty can register. Admin access is issued by the examination cell only."
+      >
+        <div className="space-y-3">
+          <RoleCard
+            href={`/auth/signup/student${suffix}`}
+            title="Student registration"
+            description="Roll number, department, year, and password"
+            icon={GraduationCap}
+          />
+          <RoleCard
+            href={`/auth/signup/faculty${suffix}`}
+            title="Faculty registration"
+            description="Employee ID and password"
+            icon={Users}
+          />
         </div>
-      </Card>
-    </div>
-  );
-}
-
-export default function SignUpPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center p-4 text-muted-foreground">
-          Loading…
-        </div>
-      }
-    >
-      <SignUpPageContent />
-    </Suspense>
+        <p className="mt-6 text-center text-sm text-slate-700">
+          Already registered?{' '}
+          <Link href={`/auth/role${suffix}`} className="font-semibold text-[#1e3a5f] hover:underline">
+            Sign in
+          </Link>
+        </p>
+      </AuthFlowPanel>
+    </PortalShell>
   );
 }

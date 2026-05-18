@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { executeCode, type CodingLanguage } from '@/lib/coding/execute';
+import { executeCode } from '@/lib/coding/execute';
+import { isCodingLanguageId } from '@/lib/coding/languages';
 import { getSupabaseServerClient } from '@/lib/supabase-server';
 
 export async function POST(request: Request) {
@@ -10,16 +11,18 @@ export async function POST(request: Request) {
       stdin?: string;
     };
 
-    const language = (body.language ?? 'python') as CodingLanguage;
+    const languageRaw = body.language ?? 'python';
     const sourceCode = body.sourceCode?.trim() ?? '';
 
     if (!sourceCode) {
       return NextResponse.json({ error: 'sourceCode required' }, { status: 400 });
     }
 
-    if (!['python', 'java', 'c'].includes(language)) {
+    if (!isCodingLanguageId(languageRaw)) {
       return NextResponse.json({ error: 'Unsupported language' }, { status: 400 });
     }
+
+    const language = languageRaw;
 
     const result = await executeCode(language, sourceCode, body.stdin ?? '');
 

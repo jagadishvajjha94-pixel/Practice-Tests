@@ -30,6 +30,7 @@ import {
 } from '@/lib/college-auth';
 import { useCollegeSignIn } from '@/components/auth/use-college-sign-in';
 import { isSupabasePublicEnvConfigured, SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
+import { isSignupDisabled } from '@/lib/auth-features';
 
 const REMEMBER_KEY = 'rce_student_remember';
 
@@ -39,6 +40,11 @@ function StudentLoginForm() {
   const notice = searchParams.get('notice');
   const postLogin =
     redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/dashboard';
+
+  const signupOpen = !isSignupDisabled();
+  const signupHref = redirect
+    ? `/auth/signup/student?redirect=${encodeURIComponent(redirect)}`
+    : '/auth/signup/student';
 
   const { signIn, loading, error, setError } = useCollegeSignIn();
   const [rollNumber, setRollNumber] = useState('');
@@ -212,6 +218,15 @@ function StudentLoginForm() {
           >
             {loading ? 'Signing in…' : 'Sign in to portal'}
           </Button>
+
+          {signupOpen ? (
+            <p className="text-center text-sm text-slate-700 pt-1">
+              New student?{' '}
+              <Link href={signupHref} className="font-semibold text-[#1e3a5f] hover:underline">
+                Create account
+              </Link>
+            </p>
+          ) : null}
         </form>
       </AuthCard>
     </PortalShell>

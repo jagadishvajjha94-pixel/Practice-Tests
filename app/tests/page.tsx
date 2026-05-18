@@ -22,8 +22,8 @@ export default function TestsPage() {
         <div className="max-w-6xl mx-auto px-4">
           <h1 className="text-3xl sm:text-4xl font-bold text-[#0c2340] mb-3">Practice Tests</h1>
           <p className="text-slate-700 text-lg font-medium max-w-3xl">
-            Psychometric, SWARX communication, AI interview, and the All India competitive MCQ
-            paper — single portal access.
+            Psychometric, SWARX, AI interview, competitive MCQ paper, and programming with a
+            multi-language editor — single portal access.
           </p>
         </div>
       </div>
@@ -54,11 +54,15 @@ export default function TestsPage() {
                 <h2 className="text-xl font-bold text-slate-900 mb-2">{item.name}</h2>
                 <p className="text-sm leading-relaxed text-slate-700 font-medium">{item.description}</p>
                 <div className="mt-4 text-sm font-semibold text-[#1e3a5f] group-hover:underline">
-                  {item.accent === 'emerald'
-                    ? 'Enter examination hall →'
-                    : item.accent === 'blue'
+                  {'cta' in item && typeof item.cta === 'string'
+                    ? item.cta
+                    : item.id === 'ai-interview'
                       ? 'Start AI interview →'
-                      : 'Start Practicing →'}
+                      : item.id === 'programming'
+                        ? 'Open programming test →'
+                        : item.accent === 'emerald'
+                          ? 'Enter examination hall →'
+                          : 'Start Practicing →'}
                 </div>
               </Card>
             </Link>

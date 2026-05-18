@@ -90,6 +90,17 @@ export const PRACTICE_HUB_ITEMS = [
       '60 MCQs · 90 minutes · Maths, Science, Chemistry, Aptitude, Reasoning, Logic, English & Computer.',
     accent: 'emerald' as const,
   },
+  {
+    id: 'programming',
+    href: '/tests/programming',
+    name: 'Programming',
+    icon: '💻',
+    badge: '7 languages',
+    description:
+      'Monaco code editor — Python, Java, C, C++, JavaScript, Go, and C#. Compile and run with sample test cases.',
+    accent: 'blue' as const,
+    cta: 'Open programming test →',
+  },
 ];
 
 export const DIFFICULTY_LEVELS = ['easy', 'medium', 'hard'] as const;

@@ -7,14 +7,14 @@ import {
 } from '@/lib/supabase-public-env'
 
 export async function proxy(request: NextRequest) {
-  if (
-    process.env.NEXT_PUBLIC_SIGNUP_DISABLED === 'true' &&
-    request.nextUrl.pathname === '/auth/signup'
-  ) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/auth/role'
-    url.searchParams.set('notice', 'signup_closed')
-    return NextResponse.redirect(url)
+  if (process.env.NEXT_PUBLIC_SIGNUP_DISABLED === 'true') {
+    const signupPaths = ['/auth/signup', '/auth/signup/student', '/auth/signup/faculty'];
+    if (signupPaths.includes(request.nextUrl.pathname)) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/auth/role';
+      url.searchParams.set('notice', 'signup_closed');
+      return NextResponse.redirect(url);
+    }
   }
 
   let response = NextResponse.next({

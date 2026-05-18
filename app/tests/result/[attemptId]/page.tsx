@@ -9,6 +9,10 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { adaptQuestionRow, adaptTestRow, answersMatchMcq, extractJoinedQuestion } from '@/lib/practice-mappers';
 import { formatSupabaseError } from '@/lib/utils';
+import {
+  LOCAL_ATTEMPT_GUEST_USER_ID,
+  loadLocalTestAttempt,
+} from '@/lib/local-test-attempts';
 
 interface ResultData {
   attempt: TestAttempt;
@@ -100,21 +104,6 @@ export default function TestResultPage({
 
   useEffect(() => {
     const fetchResult = async () => {
-      if (attemptId.startsWith('local-')) {
-        try {
-          const raw = localStorage.getItem(`localTestAttempt:${attemptId}`);
-          if (raw) {
-            const parsed = JSON.parse(raw) as ResultData;
-            setResultData(parsed);
-          }
-        } catch (error) {
-          console.error('Error loading local result:', formatSupabaseError(error), error);
-        } finally {
-          setLoading(false);
-        }
-        return;
-      }
-
       try {
         const supabase = getSupabaseBrowserClient();
         if (!supabase) {
@@ -122,11 +111,34 @@ export default function TestResultPage({
           return;
         }
 
-        // Fetch attempt
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (attemptId.startsWith('local-')) {
+          const ownerId = user?.id ?? LOCAL_ATTEMPT_GUEST_USER_ID;
+          const parsed = loadLocalTestAttempt(ownerId, attemptId);
+          if (parsed?.attempt && parsed.test) {
+            setResultData(parsed as ResultData);
+          } else if (user?.id) {
+            setFetchError('Result not found for your account.');
+          } else {
+            setFetchError('Sign in to view this result, or retake the test.');
+          }
+          return;
+        }
+
+        if (!user) {
+          setFetchError('Sign in to view your test results.');
+          return;
+        }
+
+        // Fetch attempt (scoped to signed-in student)
         const { data: attempt, error: attemptError } = await supabase
           .from('test_attempts')
           .select('*')
           .eq('id', attemptId)
+          .eq('user_id', user.id)
           .single();
 
         if (attemptError) throw attemptError;

@@ -25,6 +25,10 @@ import { clearExamDraft } from '@/lib/exam-v2/autosave';
 import { assignQuestionsToSections } from '@/lib/exam-v2/load-sections';
 import { scoreBySections, scoreMcqWithNegativeMarking } from '@/lib/exam-v2/scoring';
 import { computeSectionProgress, type TestSectionConfig } from '@/lib/exam-v2/section-timer';
+import {
+  LOCAL_ATTEMPT_GUEST_USER_ID,
+  saveLocalTestAttempt,
+} from '@/lib/local-test-attempts';
 
 /** When `test_attempts` has no JSON `answers`, some DBs keep rows in `question_answers` or `test_answers`. */
 async function persistOptionalPerQuestionRows(
@@ -208,12 +212,12 @@ export default function TestInterface({ test, questions, fullAccess, examSection
     return computeSectionProgress(examSections, sectionIndex, sectionTimeLeft);
   }, [sectionMode, examSections, sectionIndex, sectionTimeLeft]);
 
-  const saveLocalAttemptAndNavigate = (scorePercent: number) => {
+  const saveLocalAttemptAndNavigate = (scorePercent: number, ownerUserId: string) => {
     const localAttemptId = `local-${Date.now()}`;
-    const payload = {
+    saveLocalTestAttempt(ownerUserId, localAttemptId, {
       attempt: {
         id: localAttemptId,
-        user_id: 'local-user',
+        user_id: ownerUserId,
         test_id: test.id,
         started_at: new Date().toISOString(),
         completed_at: new Date().toISOString(),
@@ -226,8 +230,7 @@ export default function TestInterface({ test, questions, fullAccess, examSection
       test,
       questions,
       answers,
-    };
-    localStorage.setItem(`localTestAttempt:${localAttemptId}`, JSON.stringify(payload));
+    });
     clearExamDraft(test.id);
     setIsSubmitted(true);
     router.push(`/tests/result/${localAttemptId}`);
@@ -261,14 +264,14 @@ export default function TestInterface({ test, questions, fullAccess, examSection
 
       const supabase = getSupabaseBrowserClient();
       if (!supabase) {
-        saveLocalAttemptAndNavigate(scorePercent);
+        saveLocalAttemptAndNavigate(scorePercent, LOCAL_ATTEMPT_GUEST_USER_ID);
         return;
       }
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
         if (test.id.startsWith('fallback-')) {
-          saveLocalAttemptAndNavigate(scorePercent);
+          saveLocalAttemptAndNavigate(scorePercent, LOCAL_ATTEMPT_GUEST_USER_ID);
         } else {
           router.push(loginHref);
         }
@@ -360,7 +363,13 @@ export default function TestInterface({ test, questions, fullAccess, examSection
           const { netScore, maxScore } = scoreMcqWithNegativeMarking(questions, answers, 0);
           fallbackPercent = maxScore > 0 ? (netScore / maxScore) * 100 : 0;
         }
-        saveLocalAttemptAndNavigate(fallbackPercent);
+        let ownerId = LOCAL_ATTEMPT_GUEST_USER_ID;
+        const sb = getSupabaseBrowserClient();
+        if (sb) {
+          const { data: { user: fallbackUser } } = await sb.auth.getUser();
+          if (fallbackUser?.id) ownerId = fallbackUser.id;
+        }
+        saveLocalAttemptAndNavigate(fallbackPercent, ownerId);
         return;
       }
       const message = formatSupabaseError(error);

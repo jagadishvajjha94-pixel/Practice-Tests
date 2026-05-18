@@ -1,8 +1,10 @@
+import Link from 'next/link';
 import { GraduationCap, Shield, Users } from 'lucide-react';
 import { PortalShell } from '@/components/auth/portal-shell';
 import { AuthFlowPanel } from '@/components/auth/auth-flow-panel';
 import { RoleCard } from '@/components/auth/role-card';
 import { COLLEGE } from '@/lib/college-brand';
+import { isSignupDisabled } from '@/lib/auth-features';
 
 type Props = {
   searchParams: Promise<{ redirect?: string; notice?: string }>;
@@ -18,10 +20,16 @@ export default async function RoleSelectionPage({ searchParams }: Props) {
   if (params.redirect) q.set('redirect', params.redirect);
   if (params.notice) q.set('notice', params.notice);
   const suffix = q.toString() ? `?${q.toString()}` : '';
+  const signupOpen = !isSignupDisabled();
 
   return (
     <PortalShell>
       <AuthFlowPanel title="Sign in" subtitle="Select your role to continue">
+        {params.notice === 'signup_closed' ? (
+          <p className="mb-4 text-sm font-medium text-amber-950 bg-amber-50 border border-amber-300/60 rounded-lg px-4 py-3">
+            New registrations are closed. Sign in with credentials issued by your department.
+          </p>
+        ) : null}
         <div className="space-y-3">
           <RoleCard
             href={`/auth/login/student${suffix}`}
@@ -42,6 +50,14 @@ export default async function RoleSelectionPage({ searchParams }: Props) {
             icon={Shield}
           />
         </div>
+        {signupOpen ? (
+          <p className="mt-6 text-center text-sm text-slate-700 border-t border-slate-200 pt-5">
+            New to the portal?{' '}
+            <Link href={`/auth/signup${suffix}`} className="font-semibold text-[#1e3a5f] hover:underline">
+              Create student or faculty account
+            </Link>
+          </p>
+        ) : null}
       </AuthFlowPanel>
     </PortalShell>
   );

@@ -1,58 +1,41 @@
-import { spawn } from 'node:child_process';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import {
+  getCodingLanguage,
+  type CodingLanguageId,
+} from '@/lib/coding/languages';
+import { executeCodeLocal } from '@/lib/coding/execute-local';
+import type { ExecuteResult } from '@/lib/coding/types';
 
-export type CodingLanguage = 'python' | 'java' | 'c';
+export type { CodingLanguageId as CodingLanguage };
+export type { ExecuteResult } from '@/lib/coding/types';
 
-export interface ExecuteResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-  runtimeMs: number;
-  memoryKb: number | null;
-  engine: 'piston' | 'local';
-}
+const PUBLIC_PISTON_HOST = 'emkc.org';
 
-const PISTON_URL = process.env.PISTON_API_URL ?? 'https://emkc.org/api/v2/piston/execute';
-
-const PISTON_LANG: Record<CodingLanguage, { language: string; version: string }> = {
-  python: { language: 'python', version: '3.10.0' },
-  java: { language: 'java', version: '15.0.2' },
-  c: { language: 'c', version: '10.2.0' },
-};
-
-export async function executeCode(
-  language: CodingLanguage,
-  sourceCode: string,
-  stdin = '',
-): Promise<ExecuteResult> {
-  const piston = await executeViaPiston(language, sourceCode, stdin).catch(() => null);
-  if (piston) return piston;
-
-  if (language === 'python' && process.env.ALLOW_LOCAL_CODE_EXEC === 'true') {
-    return executePythonLocal(sourceCode, stdin);
+function useCustomPiston(): boolean {
+  const url = process.env.PISTON_API_URL?.trim();
+  if (!url || url.includes('YOUR_')) return false;
+  try {
+    const host = new URL(url).hostname;
+    return host !== PUBLIC_PISTON_HOST && !host.endsWith('.emkc.org');
+  } catch {
+    return false;
   }
-
-  throw new Error(
-    'Code execution unavailable. Ensure outbound HTTPS to Piston or set ALLOW_LOCAL_CODE_EXEC=true for Python-only local runs.',
-  );
 }
 
 async function executeViaPiston(
-  language: CodingLanguage,
+  languageId: CodingLanguageId,
   sourceCode: string,
   stdin: string,
 ): Promise<ExecuteResult> {
-  const spec = PISTON_LANG[language];
+  const lang = getCodingLanguage(languageId);
+  const pistonUrl = process.env.PISTON_API_URL!.trim();
   const started = Date.now();
-  const res = await fetch(PISTON_URL, {
+  const res = await fetch(pistonUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      language: spec.language,
-      version: spec.version,
-      files: [{ name: language === 'java' ? 'Main.java' : 'main', content: sourceCode }],
+      language: lang.piston.language,
+      version: lang.piston.version,
+      files: [{ name: lang.fileName, content: sourceCode }],
       stdin,
       run_timeout: 8000,
       compile_timeout: 12000,
@@ -60,7 +43,8 @@ async function executeViaPiston(
   });
 
   if (!res.ok) {
-    throw new Error(`Piston HTTP ${res.status}`);
+    const text = await res.text().catch(() => '');
+    throw new Error(`Piston HTTP ${res.status}${text ? `: ${text.slice(0, 200)}` : ''}`);
   }
 
   const data = (await res.json()) as {
@@ -82,63 +66,26 @@ async function executeViaPiston(
   };
 }
 
-function runProcess(
-  command: string,
-  args: string[],
-  stdin: string,
-  timeoutMs: number,
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  return new Promise((resolve) => {
-    const proc = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
+/** Public emkc.org Piston is whitelist-only; local execution is the default for dev/college deploys. */
+export async function executeCode(
+  languageId: CodingLanguageId,
+  sourceCode: string,
+  stdin = '',
+): Promise<ExecuteResult> {
+  if (useCustomPiston()) {
+    try {
+      return await executeViaPiston(languageId, sourceCode, stdin);
+    } catch {
+      // Fall through to local runner
+    }
+  }
 
-    const finish = (exitCode: number) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ stdout, stderr, exitCode });
-    };
-
-    const timer = setTimeout(() => {
-      proc.kill('SIGKILL');
-      finish(124);
-    }, timeoutMs);
-
-    proc.stdout.on('data', (chunk: Buffer | string) => {
-      stdout += String(chunk);
-    });
-    proc.stderr.on('data', (chunk: Buffer | string) => {
-      stderr += String(chunk);
-    });
-    proc.on('error', (err) => {
-      stderr += String(err);
-      finish(1);
-    });
-    proc.on('close', (code) => finish(code ?? 0));
-
-    if (stdin) proc.stdin.write(stdin);
-    proc.stdin.end();
-  });
-}
-
-async function executePythonLocal(sourceCode: string, stdin: string): Promise<ExecuteResult> {
-  const dir = await mkdtemp(join(tmpdir(), 'prepindia-code-'));
-  const file = join(dir, 'main.py');
-  const started = Date.now();
   try {
-    await writeFile(file, sourceCode, 'utf8');
-    const { stdout, stderr, exitCode } = await runProcess('python3', [file], stdin, 8000);
-    return {
-      stdout,
-      stderr,
-      exitCode,
-      runtimeMs: Date.now() - started,
-      memoryKb: null,
-      engine: 'local',
-    };
-  } finally {
-    await rm(dir, { recursive: true, force: true });
+    return await executeCodeLocal(languageId, sourceCode, stdin);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Local execution failed';
+    throw new Error(
+      `${msg}. For cloud deploys, install language runtimes on the server or set PISTON_API_URL to your own Piston instance.`,
+    );
   }
 }

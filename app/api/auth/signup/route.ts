@@ -5,12 +5,19 @@ import {
   SUPABASE_PUBLIC_ENV_MESSAGE,
 } from '@/lib/supabase-public-env';
 import { isSignupDisabled } from '@/lib/auth-features';
+import {
+  isPublicSignupEmailAllowed,
+  isSignupRoleAllowed,
+  type CollegeSignupRole,
+} from '@/lib/college-signup';
 
 type SignupBody = {
   email?: string;
   password?: string;
   fullName?: string;
   next?: string;
+  role?: string;
+  metadata?: Record<string, string>;
 };
 
 function safeNextPath(next: unknown): string {
@@ -49,7 +56,8 @@ async function confirmAndResetExistingUser(
   serviceRoleKey: string,
   userId: string,
   password: string,
-  fullName: string
+  fullName: string,
+  userMetadata: Record<string, string>
 ): Promise<boolean> {
   const res = await fetch(`${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
     method: 'PUT',
@@ -61,7 +69,7 @@ async function confirmAndResetExistingUser(
     body: JSON.stringify({
       email_confirm: true,
       password,
-      user_metadata: { full_name: fullName },
+      user_metadata: { full_name: fullName, ...userMetadata },
     }),
   });
   return res.ok;
@@ -92,13 +100,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
-  const email = body.email?.trim();
+  const email = body.email?.trim().toLowerCase();
   const password = body.password ?? '';
   const fullName = body.fullName?.trim();
+  const role = body.role as CollegeSignupRole | undefined;
+  const metadata = body.metadata ?? {};
 
   if (!email || !password || !fullName) {
     return NextResponse.json({ error: 'Email, password, and full name are required.' }, { status: 400 });
   }
+
+  if (role && !isSignupRoleAllowed(role)) {
+    return NextResponse.json(
+      { error: 'Admin accounts cannot be created online. Contact the examination cell.' },
+      { status: 403 },
+    );
+  }
+
+  if (!isPublicSignupEmailAllowed(email)) {
+    return NextResponse.json(
+      { error: 'Admin accounts cannot be created online. Contact the examination cell.' },
+      { status: 403 },
+    );
+  }
+
+  if (password.length < 6) {
+    return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 });
+  }
+
+  const userMetadata: Record<string, string> = {
+    full_name: fullName,
+    ...(role ? { role } : {}),
+    ...metadata,
+  };
 
   const next = safeNextPath(body.next);
   const emailRedirectTo = `${request.nextUrl.origin}/auth/callback?next=${encodeURIComponent(next)}`;
@@ -118,7 +152,7 @@ export async function POST(request: NextRequest) {
           email,
           password,
           email_confirm: true,
-          user_metadata: { full_name: fullName },
+          user_metadata: userMetadata,
         }),
       });
 
@@ -138,7 +172,8 @@ export async function POST(request: NextRequest) {
               serviceRoleKey,
               existing.id,
               password,
-              fullName
+              fullName,
+              userMetadata,
             );
             if (recovered) {
               return NextResponse.json({
@@ -175,7 +210,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         email,
         password,
-        data: { full_name: fullName },
+        data: userMetadata,
         options: { emailRedirectTo },
       }),
     });

@@ -9,39 +9,9 @@ import { User, TestAttempt, Test } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { buildUserFromAuth, formatSupabaseError } from '@/lib/utils';
+import { getLocalAttemptsForUser } from '@/lib/local-test-attempts';
 
 type DashboardAttempt = TestAttempt & { test: Test };
-
-function getLocalAttempts(): DashboardAttempt[] {
-  if (typeof window === 'undefined') return [];
-  const out: DashboardAttempt[] = [];
-
-  for (let i = 0; i < window.localStorage.length; i++) {
-    const key = window.localStorage.key(i);
-    if (!key || !key.startsWith('localTestAttempt:')) continue;
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as {
-        attempt?: TestAttempt;
-        test?: Test;
-      };
-      if (!parsed.attempt || !parsed.test) continue;
-      out.push({
-        ...parsed.attempt,
-        test: parsed.test,
-      });
-    } catch {
-      // Ignore malformed local attempt payloads.
-    }
-  }
-
-  return out.sort(
-    (a, b) =>
-      new Date(b.created_at ?? b.completed_at ?? 0).getTime() -
-      new Date(a.created_at ?? a.completed_at ?? 0).getTime()
-  );
-}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -58,7 +28,7 @@ export default function DashboardPage() {
         if (!supabase) {
           console.warn(SUPABASE_PUBLIC_ENV_MESSAGE);
           setSupabaseEnvMissing(true);
-          setAttempts(getLocalAttempts());
+          setAttempts([]);
           setLoading(false);
           return;
         }
@@ -68,6 +38,8 @@ export default function DashboardPage() {
           router.push('/auth/login');
           return;
         }
+
+        const localAttemptsForUser = getLocalAttemptsForUser<DashboardAttempt>(authUser.id);
 
         // Check admin role so we can hide candidate-only actions.
         const { data: adminRow } = await supabase
@@ -135,7 +107,7 @@ export default function DashboardPage() {
             'Attempts fetch warning:',
             formatSupabaseError(attemptsError)
           );
-          setAttempts(getLocalAttempts());
+          setAttempts(localAttemptsForUser);
         } else {
           const serverAttempts = ((attemptsData || []) as DashboardAttempt[]).map((a) => ({
             ...a,
@@ -158,11 +130,16 @@ export default function DashboardPage() {
                   updated_at: a.created_at,
                 } as Test),
           }));
-          const merged = [...getLocalAttempts(), ...serverAttempts].sort(
-            (a, b) =>
-              new Date(b.created_at ?? b.completed_at ?? 0).getTime() -
-              new Date(a.created_at ?? a.completed_at ?? 0).getTime()
-          );
+          const merged = [...localAttemptsForUser, ...serverAttempts]
+            .filter(
+              (a, idx, arr) =>
+                arr.findIndex((x) => String(x.id) === String(a.id)) === idx,
+            )
+            .sort(
+              (a, b) =>
+                new Date(b.created_at ?? b.completed_at ?? 0).getTime() -
+                new Date(a.created_at ?? a.completed_at ?? 0).getTime(),
+            );
           setAttempts(merged.slice(0, 10));
         }
       } catch (error) {
