@@ -6,6 +6,12 @@ import {
   getCodingLanguage,
   type CodingLanguageId,
 } from '@/lib/coding/languages';
+import {
+  augmentedPathEnv,
+  resolveCommand,
+  resolveNode,
+  resolvePython,
+} from '@/lib/coding/resolve-command';
 import type { ExecuteResult } from '@/lib/coding/types';
 
 const RUN_TIMEOUT_MS = 10000;
@@ -22,6 +28,7 @@ function runProcess(
     const proc = spawn(command, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: augmentedPathEnv(),
     });
     let stdout = '';
     let stderr = '';
@@ -47,7 +54,10 @@ function runProcess(
       stderr += String(chunk);
     });
     proc.on('error', (err) => {
-      stderr += err instanceof Error ? err.message : String(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      stderr += msg.includes('ENOENT')
+        ? `\n${msg}\n\nRuntime not found. On Vercel, set PISTON_API_URL to a self-hosted Piston instance. Locally, install the language runtime or restart the dev server from a terminal where \`python3 --version\` works.`
+        : msg;
       finish(1);
     });
     proc.on('close', (code) => finish(code ?? 0));
@@ -66,11 +76,32 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   }
 }
 
+function runtimeMissingMessage(tool: string, detail: string): string {
+  const vercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
+  const hint = vercel
+    ? 'Add PISTON_API_URL in Vercel env vars (self-hosted Piston) — serverless cannot run local compilers.'
+    : 'Install the runtime (e.g. `brew install python`) and restart `npm run dev` from Terminal, not only from the IDE.';
+  return `${detail}\n\n${hint}`;
+}
+
 async function runPython(dir: string, source: string, stdin: string): Promise<ExecuteResult> {
   const file = join(dir, 'main.py');
   const started = Date.now();
+  let python: string;
+  try {
+    python = resolvePython();
+  } catch (e) {
+    return {
+      stdout: '',
+      stderr: runtimeMissingMessage('Python', e instanceof Error ? e.message : 'Python not found'),
+      exitCode: 1,
+      runtimeMs: Date.now() - started,
+      memoryKb: null,
+      engine: 'local',
+    };
+  }
   await writeFile(file, source, 'utf8');
-  const { stdout, stderr, exitCode } = await runProcess('python3', [file], stdin, dir);
+  const { stdout, stderr, exitCode } = await runProcess(python, [file], stdin, dir);
   return { stdout, stderr, exitCode, runtimeMs: Date.now() - started, memoryKb: null, engine: 'local' };
 }
 
@@ -78,7 +109,8 @@ async function runJavaScript(dir: string, source: string, stdin: string): Promis
   const file = join(dir, 'main.js');
   const started = Date.now();
   await writeFile(file, source, 'utf8');
-  const { stdout, stderr, exitCode } = await runProcess('node', [file], stdin, dir);
+  const node = resolveNode();
+  const { stdout, stderr, exitCode } = await runProcess(node, [file], stdin, dir);
   return { stdout, stderr, exitCode, runtimeMs: Date.now() - started, memoryKb: null, engine: 'local' };
 }
 
@@ -87,7 +119,8 @@ async function runC(dir: string, source: string, stdin: string): Promise<Execute
   const bin = join(dir, 'main');
   const started = Date.now();
   await writeFile(src, source, 'utf8');
-  const compile = await runProcess('gcc', ['-O2', '-o', bin, src], '', dir, COMPILE_TIMEOUT_MS);
+  const gcc = resolveCommand('gcc', [process.env.GCC_PATH, 'gcc', '/usr/bin/gcc', '/opt/homebrew/bin/gcc']);
+  const compile = await runProcess(gcc, ['-O2', '-o', bin, src], '', dir, COMPILE_TIMEOUT_MS);
   if (compile.exitCode !== 0) {
     return {
       stdout: compile.stdout,
@@ -115,7 +148,8 @@ async function runCpp(dir: string, source: string, stdin: string): Promise<Execu
   const bin = join(dir, 'main');
   const started = Date.now();
   await writeFile(src, source, 'utf8');
-  const compile = await runProcess('g++', ['-O2', '-std=c++17', '-o', bin, src], '', dir, COMPILE_TIMEOUT_MS);
+  const gpp = resolveCommand('g++', [process.env.GPP_PATH, 'g++', '/usr/bin/g++', '/opt/homebrew/bin/g++']);
+  const compile = await runProcess(gpp, ['-O2', '-std=c++17', '-o', bin, src], '', dir, COMPILE_TIMEOUT_MS);
   if (compile.exitCode !== 0) {
     return {
       stdout: compile.stdout,
@@ -142,7 +176,8 @@ async function runJava(dir: string, source: string, stdin: string): Promise<Exec
   const file = join(dir, 'Main.java');
   const started = Date.now();
   await writeFile(file, source, 'utf8');
-  const compile = await runProcess('javac', [file], '', dir, COMPILE_TIMEOUT_MS);
+  const javac = resolveCommand('javac', [process.env.JAVAC_PATH, 'javac', '/usr/bin/javac']);
+  const compile = await runProcess(javac, [file], '', dir, COMPILE_TIMEOUT_MS);
   if (compile.exitCode !== 0) {
     return {
       stdout: compile.stdout,
@@ -153,7 +188,8 @@ async function runJava(dir: string, source: string, stdin: string): Promise<Exec
       engine: 'local',
     };
   }
-  const run = await runProcess('java', ['-cp', dir, 'Main'], stdin, dir);
+  const java = resolveCommand('java', [process.env.JAVA_PATH, 'java', '/usr/bin/java']);
+  const run = await runProcess(java, ['-cp', dir, 'Main'], stdin, dir);
   return {
     stdout: run.stdout,
     stderr: run.stderr,
@@ -168,7 +204,8 @@ async function runGo(dir: string, source: string, stdin: string): Promise<Execut
   const file = join(dir, 'main.go');
   const started = Date.now();
   await writeFile(file, source, 'utf8');
-  const run = await runProcess('go', ['run', file], stdin, dir, COMPILE_TIMEOUT_MS);
+  const go = resolveCommand('go', [process.env.GO_PATH, 'go', '/usr/local/go/bin/go', '/opt/homebrew/bin/go']);
+  const run = await runProcess(go, ['run', file], stdin, dir, COMPILE_TIMEOUT_MS);
   if (run.stderr.includes('ENOENT') || run.stderr.includes('not found')) {
     return {
       stdout: '',

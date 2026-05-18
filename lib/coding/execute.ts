@@ -66,6 +66,17 @@ async function executeViaPiston(
   };
 }
 
+function localRuntimeMissing(result: ExecuteResult): boolean {
+  const text = `${result.stderr} ${result.stdout}`.toLowerCase();
+  return (
+    text.includes('enoent') ||
+    text.includes('not found') ||
+    text.includes('was not found') ||
+    text.includes('runtime not found') ||
+    text.includes('cannot run python locally')
+  );
+}
+
 /** Public emkc.org Piston is whitelist-only; local execution is the default for dev/college deploys. */
 export async function executeCode(
   languageId: CodingLanguageId,
@@ -81,11 +92,26 @@ export async function executeCode(
   }
 
   try {
-    return await executeCodeLocal(languageId, sourceCode, stdin);
+    const local = await executeCodeLocal(languageId, sourceCode, stdin);
+    if (localRuntimeMissing(local) && useCustomPiston()) {
+      try {
+        return await executeViaPiston(languageId, sourceCode, stdin);
+      } catch {
+        return local;
+      }
+    }
+    return local;
   } catch (error) {
+    if (useCustomPiston()) {
+      try {
+        return await executeViaPiston(languageId, sourceCode, stdin);
+      } catch {
+        /* use error below */
+      }
+    }
     const msg = error instanceof Error ? error.message : 'Local execution failed';
     throw new Error(
-      `${msg}. For cloud deploys, install language runtimes on the server or set PISTON_API_URL to your own Piston instance.`,
+      `${msg}. For cloud deploys, set PISTON_API_URL to your own Piston instance. Locally, install Python/Node and restart the dev server from Terminal.`,
     );
   }
 }
