@@ -54,15 +54,11 @@ export default function TestsPage() {
                 <h2 className="text-xl font-bold text-slate-900 mb-2">{item.name}</h2>
                 <p className="text-sm leading-relaxed text-slate-700 font-medium">{item.description}</p>
                 <div className="mt-4 text-sm font-semibold text-[#1e3a5f] group-hover:underline">
-                  {'cta' in item && typeof item.cta === 'string'
-                    ? item.cta
-                    : item.id === 'ai-interview'
+                  {item.accent === 'emerald'
+                    ? 'Enter examination hall →'
+                    : item.accent === 'blue'
                       ? 'Start AI interview →'
-                      : item.id === 'programming'
-                        ? 'Open programming test →'
-                        : item.accent === 'emerald'
-                          ? 'Enter examination hall →'
-                          : 'Start Practicing →'}
+                      : 'Start Practicing →'}
                 </div>
               </Card>
             </Link>
