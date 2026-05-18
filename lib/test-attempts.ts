@@ -1,12 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Test, TestAttempt } from '@/lib/types';
 import { adaptTestRow } from '@/lib/practice-mappers';
-import {
-  getBrowserDashboardAttempts,
-} from '@/lib/local-test-attempts';
+import { getDashboardFeedAttempts } from '@/lib/dashboard-feed';
+import { getBrowserDashboardAttempts } from '@/lib/local-test-attempts';
 import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
 
-export { getBrowserDashboardAttempts };
+export { getBrowserDashboardAttempts, getDashboardFeedAttempts };
 
 export type AttemptRow = Record<string, unknown> & {
   id?: string | number;
@@ -135,10 +134,22 @@ function shouldOmitTestId(testId: string): boolean {
   return !isUuid(testId);
 }
 
+async function resolveTestIdForInsert(
+  supabase: SupabaseClient,
+  testId: string,
+): Promise<string | null> {
+  if (!shouldOmitTestId(testId)) return testId;
+  const { data } = await supabase.from('tests').select('id').limit(1).maybeSingle();
+  if (data?.id != null) return String(data.id);
+  return null;
+}
+
 export async function persistTestAttempt(
   supabase: SupabaseClient,
   input: PersistAttemptInput,
 ): Promise<{ id: string }> {
+  const resolvedTestId = await resolveTestIdForInsert(supabase, input.testId);
+
   const baseCommon = {
     user_id: input.userId,
     started_at: input.startedAtIso,
@@ -146,9 +157,10 @@ export async function persistTestAttempt(
     status: 'completed' as const,
   };
 
-  const base = shouldOmitTestId(input.testId)
-    ? baseCommon
-    : { ...baseCommon, test_id: input.testId };
+  const base =
+    resolvedTestId != null
+      ? { ...baseCommon, test_id: resolvedTestId }
+      : baseCommon;
 
   const title = input.testName?.trim() || 'Practice test';
 
@@ -261,29 +273,24 @@ async function queryAttempts(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<AttemptRow[]> {
-  const attempts = async (orderCol: string) =>
-    supabase.from('test_attempts').select('*').eq('user_id', userId).order(orderCol, {
-      ascending: false,
-    }).limit(30);
-
-  const byCreated = await attempts('created_at');
-  if (!byCreated.error && byCreated.data?.length) {
-    return byCreated.data as AttemptRow[];
-  }
-
-  const byStarted = await attempts('started_at');
-  if (!byStarted.error && byStarted.data?.length) {
-    return byStarted.data as AttemptRow[];
-  }
-
-  const byId = await attempts('id');
-  if (!byId.error && byId.data?.length) {
-    return byId.data as AttemptRow[];
-  }
-
-  const plain = await supabase.from('test_attempts').select('*').eq('user_id', userId).limit(30);
+  const plain = await supabase.from('test_attempts').select('*').eq('user_id', userId).limit(50);
   if (!plain.error && plain.data?.length) {
     return plain.data as AttemptRow[];
+  }
+
+  const attempts = async (orderCol: string) =>
+    supabase
+      .from('test_attempts')
+      .select('*')
+      .eq('user_id', userId)
+      .order(orderCol, { ascending: false })
+      .limit(50);
+
+  for (const col of ['created_at', 'started_at', 'id']) {
+    const res = await attempts(col);
+    if (!res.error && res.data?.length) {
+      return res.data as AttemptRow[];
+    }
   }
 
   return [];
@@ -311,11 +318,17 @@ export async function fetchAttemptsForUser(
   });
 }
 
+export function getClientDashboardAttempts(userId: string): DashboardAttemptView[] {
+  const feed = getDashboardFeedAttempts(userId);
+  const browser = getBrowserDashboardAttempts<DashboardAttemptView>(userId);
+  return mergeAttempts(feed, browser);
+}
+
 export async function fetchStudentDashboardAttempts(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<DashboardAttemptView[]> {
-  const browser = getBrowserDashboardAttempts<DashboardAttemptView>(userId);
+  const client = getClientDashboardAttempts(userId);
 
   let serverAttempts: DashboardAttemptView[] = [];
   try {
@@ -337,7 +350,7 @@ export async function fetchStudentDashboardAttempts(
     serverAttempts = await fetchAttemptsForUser(supabase, userId);
   }
 
-  return mergeAttempts(browser, serverAttempts).slice(0, 15);
+  return mergeAttempts(client, serverAttempts).slice(0, 15);
 }
 
 function mergeAttempts<T extends TestAttempt & { test: Test }>(local: T[], server: T[]): T[] {

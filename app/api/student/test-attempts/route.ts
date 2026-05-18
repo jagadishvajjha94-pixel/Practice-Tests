@@ -4,8 +4,11 @@ import {
   ensureStudentUserRow,
   fetchAttemptsForUser,
   persistTestAttempt,
+  fallbackTestForAttempt,
+  normalizeAttemptRow,
   type PersistAttemptInput,
 } from '@/lib/test-attempts';
+import type { TestAttempt } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +66,38 @@ export async function POST(request: Request) {
 
   try {
     const { id } = await persistTestAttempt(service, input);
-    return NextResponse.json({ id });
+    const attempts = await fetchAttemptsForUser(service, auth.ctx.user.id);
+    const saved = attempts.find((row) => String(row.id) === String(id));
+    const attempt: TestAttempt & { test: { name: string } } = saved ?? {
+      ...normalizeAttemptRow({
+        id,
+        user_id: auth.ctx.user.id,
+        test_id: input.testId,
+        score: input.scorePercent,
+        percentage_score: input.scorePercent,
+        status: 'completed',
+        created_at: input.completedAtIso,
+        completed_at: input.completedAtIso,
+        started_at: input.startedAtIso,
+        time_taken: input.elapsedSec,
+      }),
+      test: {
+        ...fallbackTestForAttempt({
+          id,
+          user_id: auth.ctx.user.id,
+          test_id: input.testId,
+          started_at: input.startedAtIso,
+          completed_at: input.completedAtIso,
+          score: input.scorePercent,
+          answers: null,
+          time_taken: input.elapsedSec,
+          status: 'completed',
+          created_at: input.completedAtIso,
+        }),
+        name: input.testName ?? 'Practice test',
+      },
+    };
+    return NextResponse.json({ id, attempt });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to save attempt';
     console.error('[test-attempts POST]', message, error);

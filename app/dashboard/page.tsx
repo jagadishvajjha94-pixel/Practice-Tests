@@ -11,7 +11,7 @@ import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { buildUserFromAuth, formatSupabaseError } from '@/lib/utils';
 import {
   fetchStudentDashboardAttempts,
-  getBrowserDashboardAttempts,
+  getClientDashboardAttempts,
 } from '@/lib/test-attempts';
 
 type DashboardAttempt = TestAttempt & { test: Test };
@@ -35,6 +35,12 @@ export default function DashboardPage() {
           setLoading(false);
           return;
         }
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id) {
+          setAttempts(getClientDashboardAttempts(session.user.id));
+        }
+
         const { data: { user: authUser } } = await supabase.auth.getUser();
 
         if (!authUser) {
@@ -103,7 +109,11 @@ export default function DashboardPage() {
         }
 
         const mergedAttempts = await fetchStudentDashboardAttempts(supabase, authUser.id);
-        setAttempts(mergedAttempts as DashboardAttempt[]);
+        setAttempts((prev) => {
+          const next = mergedAttempts as DashboardAttempt[];
+          if (next.length === 0 && prev.length > 0) return prev;
+          return next.length > 0 ? next : prev;
+        });
       } catch (error) {
         console.error(
           'Error fetching dashboard data:',
@@ -114,7 +124,7 @@ export default function DashboardPage() {
         if (supabase) {
           const { data: { user: fallbackUser } } = await supabase.auth.getUser();
           if (fallbackUser?.id) {
-            setAttempts(getBrowserDashboardAttempts(fallbackUser.id));
+            setAttempts(getClientDashboardAttempts(fallbackUser.id));
           }
         }
       } finally {

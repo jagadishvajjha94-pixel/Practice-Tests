@@ -35,6 +35,7 @@ import {
   persistTestAttempt,
 } from '@/lib/test-attempts';
 import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
+import { buildFeedEntry, pushDashboardFeedEntry } from '@/lib/dashboard-feed';
 
 /** When `test_attempts` has no JSON `answers`, some DBs keep rows in `question_answers` or `test_answers`. */
 async function persistOptionalPerQuestionRows(
@@ -302,6 +303,23 @@ export default function TestInterface({ test, questions, fullAccess, examSection
 
       saveLocalTestAttempt(user.id, localAttemptId, localPayload);
 
+      const writeFeed = (id: string) => {
+        pushDashboardFeedEntry(
+          user.id,
+          buildFeedEntry({
+            id,
+            userId: user.id,
+            testId: test.id,
+            testName: test.name,
+            scorePercent,
+            elapsedSec,
+            completedAtIso: nowIso,
+          }),
+        );
+      };
+
+      writeFeed(localAttemptId);
+
       let attemptId = localAttemptId;
 
       try {
@@ -324,8 +342,16 @@ export default function TestInterface({ test, questions, fullAccess, examSection
           }),
         });
         if (apiRes.ok) {
-          const json = (await apiRes.json()) as { id?: string };
+          const json = (await apiRes.json()) as {
+            id?: string;
+            attempt?: { id?: string; score?: number; test?: { name?: string } };
+          };
           if (json.id) attemptId = String(json.id);
+          if (json.attempt?.id) {
+            writeFeed(String(json.attempt.id));
+          } else if (json.id) {
+            writeFeed(String(json.id));
+          }
         }
       } catch {
         // API unavailable — fall back to direct Supabase insert below
@@ -358,6 +384,7 @@ export default function TestInterface({ test, questions, fullAccess, examSection
           ...localPayload,
           attempt: { ...localPayload.attempt, id: attemptId },
         });
+        writeFeed(attemptId);
       }
 
       if (!attemptId.startsWith('local-')) {
