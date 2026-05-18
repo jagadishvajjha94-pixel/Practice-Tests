@@ -46,6 +46,8 @@ export default function AppSessionBar() {
   if (!email) return null;
   if (isExamFocusRoute(pathname)) return null;
   if (pathname === '/' || pathname?.startsWith('/auth')) return null;
+  // Account shortcuts only on student dashboard (not on every page).
+  if (pathname !== '/dashboard') return null;
 
   const handleLogout = async () => {
     const supabase = getSupabaseBrowserClient();

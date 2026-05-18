@@ -95,9 +95,9 @@ export const PRACTICE_HUB_ITEMS = [
     href: '/tests/programming',
     name: 'Programming',
     icon: '💻',
-    badge: '7 languages',
+    badge: '60 min · 7 languages',
     description:
-      'Monaco code editor — Python, Java, C, C++, JavaScript, Go, and C#. Compile and run with sample test cases.',
+      'HackerRank-style timed test: problem panel, Monaco editor, run & submit. Python, Java, C, C++, JavaScript, Go, C#.',
     accent: 'blue' as const,
     cta: 'Open programming test →',
   },

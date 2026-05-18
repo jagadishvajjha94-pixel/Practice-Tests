@@ -9,7 +9,7 @@ import { COLLEGE } from '@/lib/college-brand';
 export default function CollegeSiteHeader() {
   const pathname = usePathname();
 
-  if (pathname === '/') {
+  if (pathname === '/' || pathname?.startsWith('/tests/programming') || pathname === '/coding') {
     return null;
   }
 

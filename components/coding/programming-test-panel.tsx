@@ -143,13 +143,13 @@ export function ProgrammingTestPanel({ showProblemList = true, className }: Prop
                 <SelectTrigger className="w-[160px] bg-white">
                   <SelectValue placeholder="Language" />
                 </SelectTrigger>
-                <SelectContent>
-                  {CODING_LANGUAGES.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <SelectContent className="z-[10000] bg-white text-slate-900 border-slate-200">
+                {CODING_LANGUAGES.map((l) => (
+                  <SelectItem key={l.id} value={l.id} className="text-slate-900">
+                    {l.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
               </Select>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={runAgainstSample} disabled={running}>
@@ -163,7 +163,13 @@ export function ProgrammingTestPanel({ showProblemList = true, className }: Prop
             <p className="text-xs text-slate-600">
               {CODING_LANGUAGES.length} languages · Monaco editor · runs on college server (local compilers)
             </p>
-            <CodeEditor language={language} value={code} onChange={setCode} height="400px" />
+            <CodeEditor
+              key={language}
+              language={language}
+              value={code}
+              onChange={setCode}
+              height="400px"
+            />
           </Card>
 
           <div className="flex flex-col gap-4">

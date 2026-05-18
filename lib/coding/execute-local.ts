@@ -8,14 +8,15 @@ import {
 } from '@/lib/coding/languages';
 import type { ExecuteResult } from '@/lib/coding/types';
 
-const TIMEOUT_MS = 8000;
+const RUN_TIMEOUT_MS = 10000;
+const COMPILE_TIMEOUT_MS = 20000;
 
 function runProcess(
   command: string,
   args: string[],
   stdin: string,
   cwd: string,
-  timeoutMs = TIMEOUT_MS,
+  timeoutMs = RUN_TIMEOUT_MS,
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve) => {
     const proc = spawn(command, args, {
@@ -86,7 +87,7 @@ async function runC(dir: string, source: string, stdin: string): Promise<Execute
   const bin = join(dir, 'main');
   const started = Date.now();
   await writeFile(src, source, 'utf8');
-  const compile = await runProcess('gcc', ['-O2', '-o', bin, src], '', dir, 12000);
+  const compile = await runProcess('gcc', ['-O2', '-o', bin, src], '', dir, COMPILE_TIMEOUT_MS);
   if (compile.exitCode !== 0) {
     return {
       stdout: compile.stdout,
@@ -114,7 +115,7 @@ async function runCpp(dir: string, source: string, stdin: string): Promise<Execu
   const bin = join(dir, 'main');
   const started = Date.now();
   await writeFile(src, source, 'utf8');
-  const compile = await runProcess('g++', ['-O2', '-std=c++17', '-o', bin, src], '', dir, 12000);
+  const compile = await runProcess('g++', ['-O2', '-std=c++17', '-o', bin, src], '', dir, COMPILE_TIMEOUT_MS);
   if (compile.exitCode !== 0) {
     return {
       stdout: compile.stdout,
@@ -141,7 +142,7 @@ async function runJava(dir: string, source: string, stdin: string): Promise<Exec
   const file = join(dir, 'Main.java');
   const started = Date.now();
   await writeFile(file, source, 'utf8');
-  const compile = await runProcess('javac', [file], '', dir, 12000);
+  const compile = await runProcess('javac', [file], '', dir, COMPILE_TIMEOUT_MS);
   if (compile.exitCode !== 0) {
     return {
       stdout: compile.stdout,
@@ -167,7 +168,7 @@ async function runGo(dir: string, source: string, stdin: string): Promise<Execut
   const file = join(dir, 'main.go');
   const started = Date.now();
   await writeFile(file, source, 'utf8');
-  const run = await runProcess('go', ['run', file], stdin, dir, 12000);
+  const run = await runProcess('go', ['run', file], stdin, dir, COMPILE_TIMEOUT_MS);
   if (run.stderr.includes('ENOENT') || run.stderr.includes('not found')) {
     return {
       stdout: '',
