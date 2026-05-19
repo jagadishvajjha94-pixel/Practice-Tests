@@ -325,6 +325,7 @@ export default function TestInterface({ test, questions, fullAccess, examSection
             scorePercent,
             elapsedSec,
             completedAtIso: nowIso,
+            totalQuestions: questions.length,
           }),
         );
       };
@@ -351,6 +352,7 @@ export default function TestInterface({ test, questions, fullAccess, examSection
             startedAtIso: nowIso,
             completedAtIso: nowIso,
             examKind,
+            totalQuestions: questions.length,
           }),
         });
         if (apiRes.ok) {

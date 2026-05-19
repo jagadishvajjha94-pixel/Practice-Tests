@@ -11,7 +11,6 @@ import { PROGRAMMING_DASHBOARD_TEST_ID } from '@/lib/programming-dashboard';
 import {
   fetchStudentDashboardStats,
   statEntryToAttempt,
-  type DashboardStatEntry,
 } from '@/lib/student-dashboard-stats';
 import { fallbackTestForAttempt, normalizeAttemptRow, type AttemptRow } from '@/lib/test-attempts';
 
@@ -23,13 +22,45 @@ export type LoadedAttemptResult = {
   summaryOnly: boolean;
 };
 
-function payloadToResult(parsed: LocalTestAttemptPayload, summaryOnly: boolean): LoadedAttemptResult {
+type AnswerRow = {
+  question_id: unknown;
+  user_answer?: unknown;
+  userAnswer?: unknown;
+  marked_for_review?: unknown;
+};
+
+function mergeRowsIntoAnswers(
+  base: Record<string, unknown>,
+  rows: AnswerRow[] | null | undefined,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base };
+  if (!rows?.length) return out;
+  for (const row of rows) {
+    const qid = String(row.question_id);
+    const prev =
+      out[qid] != null && typeof out[qid] === 'object'
+        ? (out[qid] as Record<string, unknown>)
+        : {};
+    const ua = row.user_answer ?? row.userAnswer ?? prev.userAnswer;
+    out[qid] = {
+      ...prev,
+      userAnswer: ua,
+      isMarkedForReview: row.marked_for_review ?? prev.isMarkedForReview,
+    };
+  }
+  return out;
+}
+
+function payloadToResult(parsed: LocalTestAttemptPayload): LoadedAttemptResult {
+  const questions = (parsed.questions as Question[] | undefined) ?? [];
+  const answers = (parsed.answers as Record<string, unknown> | undefined) ?? {};
+  const hasDetail = questions.length > 0 && Object.keys(answers).length > 0;
   return {
     attempt: parsed.attempt,
     test: parsed.test,
-    questions: (parsed.questions as Question[] | undefined) ?? [],
-    answers: (parsed.answers as Record<string, unknown> | undefined) ?? {},
-    summaryOnly: summaryOnly || !(parsed.questions?.length),
+    questions,
+    answers,
+    summaryOnly: !hasDetail,
   };
 }
 
@@ -44,6 +75,7 @@ function feedEntryToResult(entry: DashboardFeedEntry): LoadedAttemptResult {
     created_at: entry.created_at,
     completed_at: entry.completed_at,
     time_taken: entry.time_taken,
+    total_questions: entry.total_questions,
   });
   return {
     attempt,
@@ -54,15 +86,46 @@ function feedEntryToResult(entry: DashboardFeedEntry): LoadedAttemptResult {
   };
 }
 
-function syntheticTestFromRow(row: AttemptRow, title?: string): Test {
+function syntheticTestFromRow(row: AttemptRow, title?: string, totalQuestions?: number): Test {
   const attempt = normalizeAttemptRow(row);
-  const name =
-    title ?? String((row as { test_title?: string }).test_title ?? 'Practice test');
+  const name = title ?? String((row as { test_title?: string }).test_title ?? 'Practice test');
   return {
     ...fallbackTestForAttempt(attempt),
     id: attempt.test_id || 'summary',
     name,
+    total_questions: totalQuestions ?? 0,
   };
+}
+
+function findRichLocalPayload(userId: string, attemptId: string): LocalTestAttemptPayload | null {
+  const direct = loadLocalTestAttempt(userId, attemptId);
+  if (direct?.questions?.length && direct.answers && Object.keys(direct.answers).length) {
+    return direct;
+  }
+
+  if (typeof window === 'undefined') return direct;
+
+  const detailPrefix = `localTestAttemptDetail:${userId}:`;
+  const mainPrefix = `localTestAttempt:${userId}:`;
+
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (!key) continue;
+    const isDetail = key.startsWith(detailPrefix) && key.endsWith(`:${attemptId}`);
+    const isMain = key.startsWith(mainPrefix) && key.endsWith(`:${attemptId}`);
+    if (!isDetail && !isMain) continue;
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as LocalTestAttemptPayload;
+      if (String(parsed.attempt?.id) !== String(attemptId)) continue;
+      if (parsed.questions?.length && parsed.answers) return parsed;
+    } catch {
+      // ignore
+    }
+  }
+
+  return direct;
 }
 
 async function loadFromTestAttemptsTable(
@@ -122,18 +185,44 @@ async function loadFromTestAttemptsTable(
     test = syntheticTestFromRow(row);
   }
 
-  const baseAnswers =
+  let mergedAnswers: Record<string, unknown> =
     row.answers != null && typeof row.answers === 'object'
-      ? (row.answers as Record<string, unknown>)
+      ? { ...(row.answers as Record<string, unknown>) }
       : {};
+
+  const { data: qaRows } = await supabase
+    .from('question_answers')
+    .select('question_id,user_answer,marked_for_review')
+    .eq('attempt_id', attemptNorm.id);
+  if (qaRows?.length) {
+    mergedAnswers = mergeRowsIntoAnswers(mergedAnswers, qaRows as AnswerRow[]);
+  }
+
+  const { data: taRows } = await supabase
+    .from('test_answers')
+    .select('question_id,user_answer')
+    .eq('attempt_id', attemptNorm.id);
+  if (taRows?.length) {
+    mergedAnswers = mergeRowsIntoAnswers(mergedAnswers, taRows as AnswerRow[]);
+  }
+
+  const hasDetail = questions.length > 0 && Object.keys(mergedAnswers).length > 0;
 
   return {
     attempt: attemptNorm,
     test,
     questions,
-    answers: baseAnswers,
-    summaryOnly: questions.length === 0 || !Object.keys(baseAnswers).length,
+    answers: mergedAnswers,
+    summaryOnly: !hasDetail,
   };
+}
+
+function pickRicher(a: LoadedAttemptResult | null, b: LoadedAttemptResult | null): LoadedAttemptResult | null {
+  if (!a) return b;
+  if (!b) return a;
+  if (!a.summaryOnly && b.summaryOnly) return a;
+  if (a.summaryOnly && !b.summaryOnly) return b;
+  return a;
 }
 
 export async function loadAttemptResult(
@@ -143,61 +232,46 @@ export async function loadAttemptResult(
 ): Promise<LoadedAttemptResult | null> {
   const ownerId = userId ?? LOCAL_ATTEMPT_GUEST_USER_ID;
 
-  const local = loadLocalTestAttempt(ownerId, attemptId);
-  if (local?.attempt && local.test) {
-    const hasQuestions = Boolean(local.questions?.length);
-    return payloadToResult(local, !hasQuestions);
-  }
+  let best: LoadedAttemptResult | null = null;
 
-  if (typeof window !== 'undefined' && userId) {
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (!key?.includes(`:${attemptId}`)) continue;
-      if (!key.includes(userId)) continue;
-      try {
-        const raw = window.localStorage.getItem(key);
-        if (!raw) continue;
-        const parsed = JSON.parse(raw) as LocalTestAttemptPayload;
-        if (String(parsed.attempt?.id) === String(attemptId) && parsed.test) {
-          return payloadToResult(parsed, !parsed.questions?.length);
-        }
-      } catch {
-        // ignore
-      }
-    }
+  const localRich = findRichLocalPayload(ownerId, attemptId);
+  if (localRich?.attempt && localRich.test) {
+    best = pickRicher(best, payloadToResult(localRich));
   }
 
   if (userId) {
+    const fromDb = await loadFromTestAttemptsTable(supabase, userId, attemptId);
+    best = pickRicher(best, fromDb);
+
     for (const entry of getDashboardFeedEntries(userId)) {
       if (String(entry.id) === String(attemptId)) {
-        return feedEntryToResult(entry);
+        best = pickRicher(best, feedEntryToResult(entry));
+        break;
       }
     }
 
     const stats = await fetchStudentDashboardStats(supabase, userId);
     const fromStats = stats.find((row) => String(row.id) === String(attemptId));
     if (fromStats) {
-      return {
+      best = pickRicher(best, {
         attempt: fromStats,
         test: fromStats.test,
         questions: [],
         answers: {},
         summaryOnly: true,
-      };
+      });
     }
-
-    const fromDb = await loadFromTestAttemptsTable(supabase, userId, attemptId);
-    if (fromDb) return fromDb;
   }
 
-  if (attemptId.startsWith('local-') || attemptId.startsWith('pending-')) {
-    const guest = loadLocalTestAttempt(LOCAL_ATTEMPT_GUEST_USER_ID, attemptId);
+  if (!best && (attemptId.startsWith('local-') || attemptId.startsWith('pending-'))) {
+    const guest = findRichLocalPayload(LOCAL_ATTEMPT_GUEST_USER_ID, attemptId);
     if (guest?.attempt && guest.test) {
-      return payloadToResult(guest, !guest.questions?.length);
+      best = payloadToResult(guest);
     }
   }
 
   if (
+    !best &&
     userId &&
     (attemptId.includes('programming') || attemptId.startsWith('local-programming'))
   ) {
@@ -206,10 +280,11 @@ export async function loadAttemptResult(
         String(entry.id) === String(attemptId) ||
         entry.test_id === PROGRAMMING_DASHBOARD_TEST_ID
       ) {
-        return feedEntryToResult(entry);
+        best = feedEntryToResult(entry);
+        break;
       }
     }
   }
 
-  return null;
+  return best;
 }

@@ -27,10 +27,38 @@ export type AttemptRow = Record<string, unknown> & {
 };
 
 export function toAttemptScore(row: AttemptRow): number {
-  const score = toNum(row.score);
-  if (score != null) return score;
-  const pct = toNum(row.percentage_score);
-  if (pct != null) return pct;
+  return resolveStoredPercent(
+    toNum(row.percentage_score),
+    toNum(row.score),
+    toNum(row.total_score),
+  );
+}
+
+/** Prefer explicit percentage; ignore raw net score mistakenly stored in `score`. */
+export function resolveStoredPercent(
+  percentageScore?: number | null,
+  score?: number | null,
+  totalScoreRaw?: number | null,
+  totalQuestions?: number,
+): number {
+  const pct = percentageScore;
+  if (pct != null && pct >= 0 && pct <= 100) return pct;
+
+  const s = score;
+  const total = totalScoreRaw;
+  const q = totalQuestions ?? 0;
+
+  if (s != null && s >= 0 && s <= 100) return s;
+
+  if (s != null && q > 0 && s <= q && total == null) {
+    return Math.round((s / q) * 100);
+  }
+
+  if (total != null && q > 0) {
+    return Math.round((total / q) * 100);
+  }
+
+  if (s != null) return s;
   return 0;
 }
 

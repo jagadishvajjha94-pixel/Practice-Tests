@@ -67,6 +67,8 @@ export async function POST(request: Request) {
     testName = `Department · ${testName}`;
   }
 
+  const totalQuestions = Number(body.totalQuestions) || 0;
+
   const input: PersistAttemptInput = {
     userId,
     testId: String(body.testId ?? ''),
@@ -92,6 +94,7 @@ export async function POST(request: Request) {
     scorePercent,
     elapsedSec: input.elapsedSec,
     completedAtIso: input.completedAtIso,
+    totalQuestions: totalQuestions || undefined,
   });
 
   try {

@@ -11,6 +11,7 @@ export type DashboardStatEntry = {
   created_at: string;
   completed_at: string | null;
   time_taken: number | null;
+  total_questions?: number;
 };
 
 export function statEntryToAttempt(entry: DashboardStatEntry): TestAttempt & { test: Test } {
@@ -19,7 +20,7 @@ export function statEntryToAttempt(entry: DashboardStatEntry): TestAttempt & { t
     name: entry.test_name,
     category_id: '',
     duration: 0,
-    total_questions: 0,
+    total_questions: entry.total_questions ?? 0,
     passing_score: null,
     description: null,
     difficulty_level: null,
@@ -50,6 +51,7 @@ export function buildStatEntry(input: {
   scorePercent: number;
   elapsedSec?: number;
   completedAtIso?: string;
+  totalQuestions?: number;
 }): DashboardStatEntry {
   const now = input.completedAtIso ?? new Date().toISOString();
   return {
@@ -62,6 +64,7 @@ export function buildStatEntry(input: {
     created_at: now,
     completed_at: now,
     time_taken: input.elapsedSec ?? null,
+    total_questions: input.totalQuestions,
   };
 }
 

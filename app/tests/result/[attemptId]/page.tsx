@@ -9,7 +9,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { answersMatchMcq } from '@/lib/practice-mappers';
 import { buildFeedEntry, pushDashboardFeedEntry } from '@/lib/dashboard-feed';
-import { formatScorePercent } from '@/lib/format-score';
+import { computeResultStats, formatTimeTaken } from '@/lib/result-stats';
 import { loadAttemptResult } from '@/lib/load-attempt-result';
 import { formatSupabaseError } from '@/lib/utils';
 
@@ -117,6 +117,7 @@ export default function TestResultPage({
               scorePercent: loaded.attempt.score ?? 0,
               elapsedSec: loaded.attempt.time_taken ?? undefined,
               completedAtIso: loaded.attempt.completed_at ?? undefined,
+              totalQuestions: loaded.test.total_questions || loaded.questions.length || undefined,
             }),
           );
         }
@@ -153,60 +154,29 @@ export default function TestResultPage({
   const { attempt, test, questions, answers } = resultData;
   const attemptRow = attempt as AttemptRow;
 
-  const storedScore = toNum(attemptRow.score);
-  const storedPct = toNum(attemptRow.percentage_score);
-  const totalScoreDb = toNum(attemptRow.total_score);
+  const stats = computeResultStats({
+    questions,
+    answers: answers as Record<string, unknown>,
+    storedScore: toNum(attemptRow.score),
+    storedPct: toNum(attemptRow.percentage_score),
+    totalScoreRaw: toNum(attemptRow.total_score),
+    totalQuestionsHint: test.total_questions || questions.length,
+    summaryOnly,
+  });
 
-  const answeredCount = Object.values(answers).filter(
-    (a: { userAnswer?: unknown }) =>
-      a?.userAnswer !== null && a?.userAnswer !== undefined && a?.userAnswer !== ''
-  ).length;
-
-  const hasPerQuestion = answersHaveUserSelections(answers as Record<string, unknown>);
-
-  let correctCount = 0;
-  for (const question of questions) {
-    const userAnswer = answers[question.id]?.userAnswer;
-    if (answersMatchMcq(userAnswer, question.correct_answer)) {
-      correctCount++;
-    }
-  }
-
-  if (!hasPerQuestion && questions.length > 0) {
-    if (totalScoreDb != null) {
-      correctCount = Math.min(questions.length, Math.max(0, Math.round(totalScoreDb)));
-    } else if (storedPct != null) {
-      correctCount = Math.min(
-        questions.length,
-        Math.max(0, Math.round((storedPct / 100) * questions.length))
-      );
-    }
-  }
-
-  const displayAnsweredCount =
-    hasPerQuestion
-      ? answeredCount
-      : questions.length > 0 &&
-          (totalScoreDb != null || storedPct != null || storedScore != null)
-        ? questions.length
-        : answeredCount;
-
-  const percentage =
-    questions.length > 0
-      ? Math.round((correctCount / questions.length) * 100)
-      : Math.round(storedPct ?? storedScore ?? attempt.score ?? 0);
-
-  const displayPercentage = formatScorePercent(
-    questions.length > 0 ? percentage : (storedPct ?? storedScore ?? attempt.score ?? 0),
-  );
+  const {
+    correctCount,
+    incorrectCount,
+    unansweredCount,
+    displayPercentage,
+  } = stats;
 
   const derivedFromAggregateOnly =
     summaryOnly ||
-    (questions.length > 0 &&
-      !hasPerQuestion &&
-      (totalScoreDb != null || storedPct != null || storedScore != null));
+    (questions.length > 0 && !answersHaveUserSelections(answers as Record<string, unknown>));
 
   const isPassed = Number(displayPercentage) >= (test.passing_score || 40);
+  const timeLabel = formatTimeTaken(attempt.time_taken);
 
   return (
     <div className="exam-mode min-h-screen bg-white text-gray-900 py-12">
@@ -238,19 +208,15 @@ export default function TestResultPage({
             <p className="text-gray-700 text-sm">Correct Answers</p>
           </Card>
           <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
-            <div className="text-2xl font-bold text-orange-600 mb-2">{questions.length - correctCount}</div>
+            <div className="text-2xl font-bold text-orange-600 mb-2">{incorrectCount}</div>
             <p className="text-gray-700 text-sm">Incorrect Answers</p>
           </Card>
           <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
-            <div className="text-2xl font-bold text-[#1e3a5f] mb-2">
-              {questions.length - displayAnsweredCount}
-            </div>
+            <div className="text-2xl font-bold text-[#1e3a5f] mb-2">{unansweredCount}</div>
             <p className="text-gray-700 text-sm">Unanswered</p>
           </Card>
           <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
-            <div className="text-2xl font-bold text-green-600 mb-2">
-              {attempt.time_taken ? Math.floor(attempt.time_taken / 60) : 0}m
-            </div>
+            <div className="text-2xl font-bold text-green-600 mb-2">{timeLabel}</div>
             <p className="text-gray-700 text-sm">Time Taken</p>
           </Card>
         </div>

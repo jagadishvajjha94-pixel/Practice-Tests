@@ -10,6 +10,7 @@ export type DashboardFeedEntry = {
   created_at: string;
   completed_at: string | null;
   time_taken: number | null;
+  total_questions?: number;
 };
 
 const FEED_PREFIX = 'prepindia:dashboard-feed:';
@@ -164,6 +165,7 @@ export function buildFeedEntry(input: {
   scorePercent: number;
   elapsedSec?: number;
   completedAtIso?: string;
+  totalQuestions?: number;
 }): DashboardFeedEntry {
   const now = input.completedAtIso ?? new Date().toISOString();
   return {
@@ -176,5 +178,6 @@ export function buildFeedEntry(input: {
     created_at: now,
     completed_at: now,
     time_taken: input.elapsedSec ?? null,
+    total_questions: input.totalQuestions,
   };
 }
