@@ -10,6 +10,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { buildUserFromAuth, formatSupabaseError } from '@/lib/utils';
 import { getLastSubmitEntry, toDashboardAttemptFromFeed } from '@/lib/dashboard-feed';
+import { formatScorePercent, averageScorePercent } from '@/lib/format-score';
 import {
   fetchStudentDashboardAttempts,
   getClientDashboardAttempts,
@@ -239,17 +240,20 @@ export default function DashboardPage() {
             <div className="text-muted-foreground text-sm font-medium mb-2">Average Score</div>
             <div className="text-3xl font-bold text-emerald-600">
               {attempts.length > 0
-                ? Math.round(
-                    attempts.reduce((sum, a) => sum + (a.score || 0), 0) / attempts.length
+                ? formatScorePercent(
+                    averageScorePercent(attempts.map((a) => Number(a.score) || 0)),
                   )
-                : 0}
+                : '0.00'}
               %
             </div>
           </Card>
           <Card className="p-6">
             <div className="text-muted-foreground text-sm font-medium mb-2">Best Score</div>
             <div className="text-3xl font-bold text-accent">
-              {attempts.length > 0 ? Math.max(...attempts.map(a => a.score || 0)) : 0}%
+              {attempts.length > 0
+                ? formatScorePercent(Math.max(...attempts.map((a) => Number(a.score) || 0)))
+                : '0.00'}
+              %
             </div>
           </Card>
         </div>
@@ -329,7 +333,7 @@ export default function DashboardPage() {
                       <td className="py-3 px-4 text-foreground">{attempt.test?.name}</td>
                       <td className="py-3 px-4">
                         <span className={`font-semibold ${attempt.score! >= 40 ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {Math.round(attempt.score || 0)}%
+                          {formatScorePercent(attempt.score)}%
                         </span>
                       </td>
                       <td className="py-3 px-4">
@@ -341,7 +345,10 @@ export default function DashboardPage() {
                         {new Date(attempt.created_at).toLocaleDateString()}
                       </td>
                       <td className="py-3 px-4">
-                        <Link href={`/tests/result/${attempt.id}`} className="text-[#1e3a5f] hover:text-[#16304f] font-medium">
+                        <Link
+                          href={`/tests/result/${encodeURIComponent(String(attempt.id))}`}
+                          className="text-[#1e3a5f] hover:text-[#16304f] font-medium"
+                        >
                           View
                         </Link>
                       </td>

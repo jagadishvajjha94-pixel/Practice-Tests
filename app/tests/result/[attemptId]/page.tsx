@@ -7,49 +7,17 @@ import { Card } from '@/components/ui/card';
 import { TestAttempt, Test, Question } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
-import { adaptQuestionRow, adaptTestRow, answersMatchMcq, extractJoinedQuestion } from '@/lib/practice-mappers';
-import { formatSupabaseError } from '@/lib/utils';
+import { answersMatchMcq } from '@/lib/practice-mappers';
 import { buildFeedEntry, pushDashboardFeedEntry } from '@/lib/dashboard-feed';
-import {
-  LOCAL_ATTEMPT_GUEST_USER_ID,
-  loadLocalTestAttempt,
-} from '@/lib/local-test-attempts';
+import { formatScorePercent } from '@/lib/format-score';
+import { loadAttemptResult } from '@/lib/load-attempt-result';
+import { formatSupabaseError } from '@/lib/utils';
 
 interface ResultData {
   attempt: TestAttempt;
   test: Test;
   questions: Question[];
   answers: Record<string, any>;
-}
-
-/** DB rows may use snake_case; some schemas use `question_answers` / `test_answers` instead of JSON `answers`. */
-type AnswerRow = {
-  question_id: unknown;
-  user_answer?: unknown;
-  userAnswer?: unknown;
-  marked_for_review?: unknown;
-};
-
-function mergeRowsIntoAnswers(
-  base: Record<string, unknown>,
-  rows: AnswerRow[] | null | undefined
-): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...base };
-  if (!rows?.length) return out;
-  for (const row of rows) {
-    const qid = String(row.question_id);
-    const prev =
-      out[qid] != null && typeof out[qid] === 'object'
-        ? (out[qid] as Record<string, unknown>)
-        : {};
-    const ua = row.user_answer ?? row.userAnswer ?? prev.userAnswer;
-    out[qid] = {
-      ...prev,
-      userAnswer: ua,
-      isMarkedForReview: row.marked_for_review ?? prev.isMarkedForReview,
-    };
-  }
-  return out;
 }
 
 function answersHaveUserSelections(answers: Record<string, unknown>): boolean {
@@ -100,6 +68,7 @@ export default function TestResultPage({
 }) {
   const { attemptId } = use(params);
   const [resultData, setResultData] = useState<ResultData | null>(null);
+  const [summaryOnly, setSummaryOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -116,131 +85,41 @@ export default function TestResultPage({
           data: { user },
         } = await supabase.auth.getUser();
 
-        if (attemptId.startsWith('local-')) {
-          const ownerId = user?.id ?? LOCAL_ATTEMPT_GUEST_USER_ID;
-          const parsed = loadLocalTestAttempt(ownerId, attemptId);
-          if (parsed?.attempt && parsed.test) {
-            setResultData(parsed as ResultData);
-            if (user?.id) {
-              pushDashboardFeedEntry(
-                user.id,
-                buildFeedEntry({
-                  id: String(parsed.attempt.id),
-                  userId: user.id,
-                  testId: parsed.test.id,
-                  testName: parsed.test.name,
-                  scorePercent: parsed.attempt.score ?? 0,
-                  elapsedSec: parsed.attempt.time_taken ?? undefined,
-                  completedAtIso: parsed.attempt.completed_at ?? undefined,
-                }),
-              );
-            }
-          } else if (user?.id) {
-            setFetchError('Result not found for your account.');
-          } else {
-            setFetchError('Sign in to view this result, or retake the test.');
-          }
-          return;
-        }
-
-        if (!user) {
+        if (!user && !attemptId.startsWith('local-')) {
           setFetchError('Sign in to view your test results.');
           return;
         }
 
-        // Fetch attempt (scoped to signed-in student)
-        const { data: attempt, error: attemptError } = await supabase
-          .from('test_attempts')
-          .select('*')
-          .eq('id', attemptId)
-          .eq('user_id', user.id)
-          .single();
-
-        if (attemptError) throw attemptError;
-
-        const attemptTyped = attempt as AttemptRow;
-
-        // Fetch test
-        const { data: test, error: testError } = await supabase
-          .from('tests')
-          .select('*')
-          .eq('id', attempt.test_id)
-          .single();
-
-        if (testError) throw testError;
-
-        // Fetch questions
-        const { data: testQuestions, error: questionsError } = await supabase
-          .from('test_questions')
-          .select('question:questions(*)')
-          .eq('test_id', test.id)
-          .order('order', { ascending: true });
-
-        if (questionsError) throw questionsError;
-
-        let questions = (testQuestions ?? [])
-          .map(extractJoinedQuestion)
-          .filter((q): q is Record<string, unknown> => q != null)
-          .map(adaptQuestionRow);
-
-        if (questions.length === 0) {
-          const { data: directQs, error: dErr } = await supabase
-            .from('questions')
-            .select('*')
-            .eq('test_id', attempt.test_id)
-            .order('id', { ascending: true });
-          if (!dErr && directQs?.length) {
-            questions = directQs.map((q) =>
-              adaptQuestionRow(q as Record<string, unknown>)
-            );
-          }
+        const loaded = await loadAttemptResult(supabase, attemptId, user?.id);
+        if (!loaded) {
+          setFetchError(
+            user ? 'Result not found. It may have been saved on another device.' : 'Sign in to view this result.',
+          );
+          return;
         }
 
-        const baseAnswers =
-          attemptTyped.answers != null && typeof attemptTyped.answers === 'object'
-            ? (attemptTyped.answers as Record<string, unknown>)
-            : {};
-
-        let mergedAnswers: Record<string, unknown> = { ...baseAnswers };
-
-        const { data: qaRows, error: qaErr } = await supabase
-          .from('question_answers')
-          .select('question_id,user_answer,marked_for_review')
-          .eq('attempt_id', attemptTyped.id);
-        if (!qaErr && qaRows?.length) {
-          mergedAnswers = mergeRowsIntoAnswers(mergedAnswers, qaRows as AnswerRow[]);
-        }
-
-        const { data: taRows, error: taErr } = await supabase
-          .from('test_answers')
-          .select('question_id,user_answer')
-          .eq('attempt_id', attemptTyped.id);
-        if (!taErr && taRows?.length) {
-          mergedAnswers = mergeRowsIntoAnswers(mergedAnswers, taRows as AnswerRow[]);
-        }
-
-        const adaptedTest = adaptTestRow(test as Record<string, unknown>);
         setResultData({
-          attempt: attemptTyped,
-          test: adaptedTest,
-          questions,
-          answers: mergedAnswers,
+          attempt: loaded.attempt,
+          test: loaded.test,
+          questions: loaded.questions,
+          answers: loaded.answers,
         });
+        setSummaryOnly(loaded.summaryOnly);
 
-        const scoreRaw = attemptTyped.score ?? attemptTyped.percentage_score;
-        const scoreNum = typeof scoreRaw === 'number' ? scoreRaw : Number(scoreRaw) || 0;
-        pushDashboardFeedEntry(
-          user.id,
-          buildFeedEntry({
-            id: String(attemptTyped.id),
-            userId: user.id,
-            testId: adaptedTest.id,
-            testName: adaptedTest.name,
-            scorePercent: scoreNum,
-            elapsedSec: attemptTyped.time_taken ?? undefined,
-            completedAtIso: attemptTyped.completed_at ?? undefined,
-          }),
-        );
+        if (user?.id) {
+          pushDashboardFeedEntry(
+            user.id,
+            buildFeedEntry({
+              id: String(loaded.attempt.id),
+              userId: user.id,
+              testId: loaded.test.id,
+              testName: loaded.test.name,
+              scorePercent: loaded.attempt.score ?? 0,
+              elapsedSec: loaded.attempt.time_taken ?? undefined,
+              completedAtIso: loaded.attempt.completed_at ?? undefined,
+            }),
+          );
+        }
       } catch (error) {
         console.error('Error fetching result:', formatSupabaseError(error), error);
         setFetchError(formatSupabaseError(error));
@@ -262,8 +141,11 @@ export default function TestResultPage({
 
   if (!resultData) {
     return (
-      <div className="exam-mode min-h-screen bg-white text-gray-900 flex flex-col items-center justify-center px-4 text-center">
-        <p className="text-gray-700 mb-2">{fetchError ?? 'Results not found'}</p>
+      <div className="exam-mode min-h-screen bg-white text-gray-900 flex flex-col items-center justify-center px-4 text-center gap-4">
+        <p className="text-gray-700">{fetchError ?? 'Results not found'}</p>
+        <Link href="/dashboard">
+          <Button variant="outline">Back to Dashboard</Button>
+        </Link>
       </div>
     );
   }
@@ -312,14 +194,19 @@ export default function TestResultPage({
   const percentage =
     questions.length > 0
       ? Math.round((correctCount / questions.length) * 100)
-      : Math.round(storedPct ?? storedScore ?? 0);
+      : Math.round(storedPct ?? storedScore ?? attempt.score ?? 0);
+
+  const displayPercentage = formatScorePercent(
+    questions.length > 0 ? percentage : (storedPct ?? storedScore ?? attempt.score ?? 0),
+  );
 
   const derivedFromAggregateOnly =
-    questions.length > 0 &&
-    !hasPerQuestion &&
-    (totalScoreDb != null || storedPct != null || storedScore != null);
+    summaryOnly ||
+    (questions.length > 0 &&
+      !hasPerQuestion &&
+      (totalScoreDb != null || storedPct != null || storedScore != null));
 
-  const isPassed = percentage >= (test.passing_score || 40);
+  const isPassed = Number(displayPercentage) >= (test.passing_score || 40);
 
   return (
     <div className="exam-mode min-h-screen bg-white text-gray-900 py-12">
@@ -327,12 +214,13 @@ export default function TestResultPage({
         {/* Result Header */}
         <div className="text-center mb-8">
           <div className={`text-6xl font-bold mb-4 ${isPassed ? 'text-green-600' : 'text-red-600'}`}>
-            {percentage}%
+            {displayPercentage}%
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             {isPassed ? '🎉 Congratulations!' : 'Result'}
           </h1>
-          <p className="text-gray-700">
+          <p className="text-lg text-gray-800 font-medium">{test.name}</p>
+          <p className="text-gray-700 mt-2">
             {isPassed ? 'You passed the test!' : 'Keep practicing to improve your score'}
           </p>
           {derivedFromAggregateOnly ? (
@@ -371,9 +259,15 @@ export default function TestResultPage({
         {derivedFromAggregateOnly ? (
           <Card className="p-6 mb-8 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <p className="text-gray-700 text-center">
-              Question-by-question review is not available for this attempt because only a summary score was
-              saved on the server.
+              {summaryOnly
+                ? 'This is a summary of your attempt. Detailed question review is not stored for this test type (e.g. programming or summary-only save).'
+                : 'Question-by-question review is not available for this attempt because only a summary score was saved on the server.'}
             </p>
+            {attempt.completed_at ? (
+              <p className="text-sm text-gray-500 text-center mt-3">
+                Completed {new Date(attempt.completed_at).toLocaleString()}
+              </p>
+            ) : null}
           </Card>
         ) : (
           <Card className="p-6 mb-8 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
