@@ -438,12 +438,59 @@ export async function fetchStudentDashboardAttempts(
 
 export type { DashboardStatEntry };
 
-function mergeAttempts<T extends TestAttempt & { test: Test }>(local: T[], server: T[]): T[] {
-  return [...local, ...server]
-    .filter((a, idx, arr) => arr.findIndex((x) => String(x.id) === String(a.id)) === idx)
-    .sort(
-      (a, b) =>
-        new Date(b.created_at ?? b.completed_at ?? 0).getTime() -
-        new Date(a.created_at ?? a.completed_at ?? 0).getTime(),
-    );
+/** Local-only placeholder ids that get replaced once the server persists. */
+function isPlaceholderId(id: string): boolean {
+  return id.startsWith('local-') || id.startsWith('pending-');
+}
+
+/** Time bucket so a local-* and a server uuid for the same submission collapse. */
+function dedupBucketKey(row: TestAttempt & { test: Test }): string {
+  const testId = String(row.test_id ?? row.test?.id ?? '');
+  const ts = new Date(row.completed_at ?? row.created_at ?? 0).getTime();
+  if (!testId || !Number.isFinite(ts) || ts <= 0) return '';
+  // 2-minute window — local + server saves for the same submission land here.
+  const minute = Math.floor(ts / 120000);
+  return `${testId}:${minute}`;
+}
+
+export function mergeAttempts<T extends TestAttempt & { test: Test }>(
+  primary: T[],
+  secondary: T[],
+): T[] {
+  const seenIds = new Set<string>();
+  const byBucket = new Map<string, T>();
+  const ordered: T[] = [];
+
+  const add = (row: T) => {
+    const id = String(row.id);
+    if (seenIds.has(id)) return;
+    const bucket = dedupBucketKey(row);
+    if (bucket) {
+      const existing = byBucket.get(bucket);
+      if (existing) {
+        const existingId = String(existing.id);
+        const replace = isPlaceholderId(existingId) && !isPlaceholderId(id);
+        if (replace) {
+          // Drop the placeholder in favour of the real server row.
+          seenIds.delete(existingId);
+          const idx = ordered.findIndex((r) => String(r.id) === existingId);
+          if (idx >= 0) ordered.splice(idx, 1);
+        } else {
+          return; // Keep the existing (non-placeholder) entry.
+        }
+      }
+      byBucket.set(bucket, row);
+    }
+    seenIds.add(id);
+    ordered.push(row);
+  };
+
+  for (const row of primary) add(row);
+  for (const row of secondary) add(row);
+
+  return ordered.sort(
+    (a, b) =>
+      new Date(b.created_at ?? b.completed_at ?? 0).getTime() -
+      new Date(a.created_at ?? a.completed_at ?? 0).getTime(),
+  );
 }

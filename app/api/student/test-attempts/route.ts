@@ -68,6 +68,10 @@ export async function POST(request: Request) {
   }
 
   const totalQuestions = Number(body.totalQuestions) || 0;
+  const answersIn =
+    body.answers != null && typeof body.answers === 'object'
+      ? (body.answers as Record<string, unknown>)
+      : {};
 
   const input: PersistAttemptInput = {
     userId,
@@ -75,7 +79,7 @@ export async function POST(request: Request) {
     testName,
     scorePercent,
     rawNetScore: Number(body.rawNetScore) || 0,
-    answers: {},
+    answers: answersIn,
     elapsedSec: Number(body.elapsedSec) || 0,
     startedAtIso: typeof body.startedAtIso === 'string' ? body.startedAtIso : nowIso,
     completedAtIso: typeof body.completedAtIso === 'string' ? body.completedAtIso : nowIso,

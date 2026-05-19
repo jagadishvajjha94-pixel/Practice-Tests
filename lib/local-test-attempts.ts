@@ -165,6 +165,27 @@ export function loadLocalTestAttempt(
   }
 }
 
+/** Remove a saved attempt (main + detail + session index) for the given user. */
+export function removeLocalTestAttempt(userId: string, attemptId: string): void {
+  if (typeof window === 'undefined' || !userId || !attemptId) return;
+  try {
+    window.localStorage.removeItem(localAttemptStorageKey(userId, attemptId));
+    window.localStorage.removeItem(detailStorageKey(userId, attemptId));
+    // Legacy unscoped key
+    window.localStorage.removeItem(`${KEY_PREFIX}${attemptId}`);
+
+    const idxKey = attemptIndexKey(userId);
+    const raw = window.sessionStorage.getItem(idxKey);
+    if (raw) {
+      const list = JSON.parse(raw) as Array<TestAttempt & { test: Test }>;
+      const next = list.filter((row) => String(row.id) !== String(attemptId));
+      window.sessionStorage.setItem(idxKey, JSON.stringify(next));
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export function getLocalAttemptsForUser<T extends TestAttempt & { test: Test }>(
   userId: string,
 ): T[] {

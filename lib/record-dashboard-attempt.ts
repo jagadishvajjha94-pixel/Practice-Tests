@@ -1,6 +1,11 @@
-import { buildFeedEntry, pushDashboardFeedEntry } from '@/lib/dashboard-feed';
+import {
+  buildFeedEntry,
+  pushDashboardFeedEntry,
+  removeDashboardFeedEntry,
+} from '@/lib/dashboard-feed';
 import {
   LOCAL_ATTEMPT_GUEST_USER_ID,
+  removeLocalTestAttempt,
   saveLocalTestAttempt,
 } from '@/lib/local-test-attempts';
 import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
@@ -62,7 +67,8 @@ export async function recordDashboardAttempt(
   const ownerId = user?.id ?? LOCAL_ATTEMPT_GUEST_USER_ID;
   const nowIso = new Date().toISOString();
   const elapsedSec = input.elapsedSec ?? 0;
-  let attemptId = `local-${input.examKind ?? 'practice'}-${Date.now()}`;
+  const localAttemptId = `local-${input.examKind ?? 'practice'}-${Date.now()}`;
+  let attemptId = localAttemptId;
 
   const test = minimalTest(input);
 
@@ -130,13 +136,12 @@ export async function recordDashboardAttempt(
         attempt?: DashboardAttemptView;
         attempts?: DashboardAttemptView[];
       };
-      if (json.id) attemptId = String(json.id);
       if (json.attempts?.length) {
         cacheApiAttempts(user.id, json.attempts);
       } else if (json.attempt) {
         cacheApiAttempts(user.id, [json.attempt]);
       }
-      if (json.id && json.id !== attemptId) {
+      if (json.id && json.id !== localAttemptId) {
         saveLocalTestAttempt(user.id, json.id, {
           ...localPayload,
           attempt: { ...localPayload.attempt, id: json.id },
@@ -153,6 +158,9 @@ export async function recordDashboardAttempt(
             completedAtIso: nowIso,
           }),
         );
+        // Drop the local placeholder so the dashboard doesn't show two rows.
+        removeLocalTestAttempt(user.id, localAttemptId);
+        removeDashboardFeedEntry(user.id, localAttemptId);
         attemptId = json.id;
       }
     }

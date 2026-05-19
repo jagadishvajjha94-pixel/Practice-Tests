@@ -14,6 +14,7 @@ import { formatScorePercent, averageScorePercent } from '@/lib/format-score';
 import {
   fetchStudentDashboardAttempts,
   getClientDashboardAttempts,
+  mergeAttempts,
 } from '@/lib/test-attempts';
 
 type DashboardAttempt = TestAttempt & { test: Test };
@@ -22,19 +23,7 @@ function mergeDashboardAttempts(
   a: DashboardAttempt[],
   b: DashboardAttempt[],
 ): DashboardAttempt[] {
-  const seen = new Set<string>();
-  const out: DashboardAttempt[] = [];
-  for (const row of [...a, ...b]) {
-    const id = String(row.id);
-    if (seen.has(id)) continue;
-    seen.add(id);
-    out.push(row);
-  }
-  return out.sort(
-    (x, y) =>
-      new Date(y.created_at ?? y.completed_at ?? 0).getTime() -
-      new Date(x.created_at ?? x.completed_at ?? 0).getTime(),
-  );
+  return mergeAttempts<DashboardAttempt>(a, b);
 }
 
 export default function DashboardPage() {

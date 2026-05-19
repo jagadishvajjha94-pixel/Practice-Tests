@@ -217,12 +217,29 @@ async function loadFromTestAttemptsTable(
   };
 }
 
-function pickRicher(a: LoadedAttemptResult | null, b: LoadedAttemptResult | null): LoadedAttemptResult | null {
+function countAttempted(answers: Record<string, unknown>): number {
+  let n = 0;
+  for (const value of Object.values(answers)) {
+    if (value == null || typeof value !== 'object') continue;
+    const ua = (value as { userAnswer?: unknown }).userAnswer;
+    if (ua !== null && ua !== undefined && ua !== '') n += 1;
+  }
+  return n;
+}
+
+function richnessScore(result: LoadedAttemptResult): number {
+  if (result.summaryOnly) return 0;
+  // Per-question detail is most valuable; question count breaks ties.
+  return countAttempted(result.answers) * 1000 + result.questions.length;
+}
+
+function pickRicher(
+  a: LoadedAttemptResult | null,
+  b: LoadedAttemptResult | null,
+): LoadedAttemptResult | null {
   if (!a) return b;
   if (!b) return a;
-  if (!a.summaryOnly && b.summaryOnly) return a;
-  if (a.summaryOnly && !b.summaryOnly) return b;
-  return a;
+  return richnessScore(b) > richnessScore(a) ? b : a;
 }
 
 export async function loadAttemptResult(

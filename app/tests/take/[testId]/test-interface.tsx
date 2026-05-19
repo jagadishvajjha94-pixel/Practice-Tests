@@ -27,6 +27,7 @@ import { scoreBySections, scoreMcqWithNegativeMarking } from '@/lib/exam-v2/scor
 import { computeSectionProgress, type TestSectionConfig } from '@/lib/exam-v2/section-timer';
 import {
   LOCAL_ATTEMPT_GUEST_USER_ID,
+  removeLocalTestAttempt,
   saveLocalTestAttempt,
 } from '@/lib/local-test-attempts';
 import {
@@ -37,7 +38,11 @@ import {
   type DashboardAttemptView,
 } from '@/lib/test-attempts';
 import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
-import { buildFeedEntry, pushDashboardFeedEntry } from '@/lib/dashboard-feed';
+import {
+  buildFeedEntry,
+  pushDashboardFeedEntry,
+  removeDashboardFeedEntry,
+} from '@/lib/dashboard-feed';
 import {
   dashboardDisplayNameForTest,
   isDepartmentExamTest,
@@ -353,6 +358,7 @@ export default function TestInterface({ test, questions, fullAccess, examSection
             completedAtIso: nowIso,
             examKind,
             totalQuestions: questions.length,
+            answers,
           }),
         });
         if (apiRes.ok) {
@@ -405,6 +411,10 @@ export default function TestInterface({ test, questions, fullAccess, examSection
           attempt: { ...localPayload.attempt, id: attemptId },
         });
         writeFeed(attemptId);
+        // Avoid duplicate dashboard rows: drop the local placeholder now that
+        // the server attempt id is canonical.
+        removeLocalTestAttempt(user.id, localAttemptId);
+        removeDashboardFeedEntry(user.id, localAttemptId);
       }
 
       if (!attemptId.startsWith('local-')) {

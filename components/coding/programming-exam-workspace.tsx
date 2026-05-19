@@ -17,6 +17,7 @@ import {
   outputsMatch,
   type ProgrammingProblem,
 } from '@/lib/coding/sample-problems';
+import { pickBestLanguageForProblem } from '@/lib/coding/grade-helpers';
 import {
   clearExamTimer,
   formatExamTimer,
@@ -173,11 +174,23 @@ export function ProgrammingExamWorkspace() {
     let total = 0;
     const lines: string[] = [];
     for (const p of PROGRAMMING_SAMPLE_PROBLEMS) {
-      const src = effectiveSourceCode(codeStore[codeStorageKey(p.id, language)], language);
-      const result = await gradeProblem(p, src, language);
+      // Grade each problem in whichever language has actual user-written
+      // code (not just the stub). Falls back to the current language.
+      const sourcesByLang: Record<CodingLanguageId, string | undefined> = {} as Record<
+        CodingLanguageId,
+        string | undefined
+      >;
+      for (const l of CODING_LANGUAGES) {
+        sourcesByLang[l.id] = codeStore[codeStorageKey(p.id, l.id)];
+      }
+      const gradingLang = pickBestLanguageForProblem(sourcesByLang, language);
+      const src = effectiveSourceCode(sourcesByLang[gradingLang], gradingLang);
+      const result = await gradeProblem(p, src, gradingLang);
       passed += result.passed;
       total += result.total;
-      lines.push(`${p.title}: ${result.passed}/${result.total} cases passed`);
+      lines.push(
+        `${p.title}: ${result.passed}/${result.total} cases passed (${gradingLang})`,
+      );
     }
     const scorePercent = total > 0 ? (passed / total) * 100 : 0;
     return { passed, total, scorePercent, lines };

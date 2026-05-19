@@ -76,6 +76,57 @@ export function pushDashboardFeedEntry(userId: string, entry: DashboardFeedEntry
   }
 }
 
+/** Remove an entry from all feed surfaces (user list, last-submit, global). */
+export function removeDashboardFeedEntry(userId: string, attemptId: string): void {
+  if (typeof window === 'undefined' || !userId || !attemptId) return;
+  const matches = (entry: DashboardFeedEntry | null) =>
+    entry != null && String(entry.id) === String(attemptId);
+
+  try {
+    const key = feedKey(userId);
+    const raw = window.localStorage.getItem(key);
+    if (raw) {
+      const list = JSON.parse(raw) as DashboardFeedEntry[];
+      const next = list.filter((row) => String(row.id) !== String(attemptId));
+      if (next.length) {
+        window.localStorage.setItem(key, JSON.stringify(next));
+      } else {
+        window.localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const sessionRaw = window.sessionStorage.getItem(feedKey(userId));
+    if (sessionRaw) {
+      const list = JSON.parse(sessionRaw) as DashboardFeedEntry[];
+      const next = list.filter((row) => String(row.id) !== String(attemptId));
+      if (next.length) {
+        window.sessionStorage.setItem(feedKey(userId), JSON.stringify(next));
+      } else {
+        window.sessionStorage.removeItem(feedKey(userId));
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const globalRaw = window.localStorage.getItem(GLOBAL_DASHBOARD_FEED_KEY);
+    if (globalRaw && matches(JSON.parse(globalRaw) as DashboardFeedEntry)) {
+      window.localStorage.removeItem(GLOBAL_DASHBOARD_FEED_KEY);
+    }
+    const lastRaw = window.sessionStorage.getItem(LAST_SUBMIT_SESSION_KEY);
+    if (lastRaw && matches(JSON.parse(lastRaw) as DashboardFeedEntry)) {
+      window.sessionStorage.removeItem(LAST_SUBMIT_SESSION_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export function getLastSubmitEntry(): DashboardFeedEntry | null {
   if (typeof window === 'undefined') return null;
   try {
