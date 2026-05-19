@@ -17,6 +17,7 @@ import {
   isSupabasePublicEnvConfigured,
   SUPABASE_PUBLIC_ENV_MESSAGE,
 } from '@/lib/supabase-public-env';
+import { StatusAlert } from '@/components/ui/status-alert';
 
 function AdminLoginForm() {
   const router = useRouter();
@@ -84,11 +85,7 @@ function AdminLoginForm() {
         description="Examination cell and system administrators."
       >
         <form onSubmit={onSubmit} className="space-y-4 text-left">
-          {error ? (
-            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              {error}
-            </p>
-          ) : null}
+          {error ? <StatusAlert variant="error">{error}</StatusAlert> : null}
 
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-slate-700 mb-1">

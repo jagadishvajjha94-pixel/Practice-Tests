@@ -31,6 +31,7 @@ import {
 import { useCollegeSignIn } from '@/components/auth/use-college-sign-in';
 import { isSupabasePublicEnvConfigured, SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { isSignupDisabled } from '@/lib/auth-features';
+import { StatusAlert } from '@/components/ui/status-alert';
 
 const REMEMBER_KEY = 'rce_student_remember';
 
@@ -113,19 +114,12 @@ function StudentLoginForm() {
       >
         <form onSubmit={onSubmit} className="space-y-5">
           {notice === 'signup_closed' ? (
-            <p className="text-sm font-medium text-amber-950 bg-amber-50 border border-amber-300/60 rounded-lg px-4 py-3">
+            <StatusAlert variant="info">
               New registrations are closed. Sign in with credentials issued by your department.
-            </p>
+            </StatusAlert>
           ) : null}
 
-          {error ? (
-            <p
-              className="text-sm font-medium text-red-950 bg-red-50 border border-red-200 rounded-lg px-4 py-3"
-              role="alert"
-            >
-              {error}
-            </p>
-          ) : null}
+          {error ? <StatusAlert variant="error">{error}</StatusAlert> : null}
 
           <FormField
             id="rollNumber"
