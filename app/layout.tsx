@@ -26,7 +26,11 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      className={`${geist.variable} ${geistMono.variable}`}
+    >
       <body className={`${geist.className} font-sans antialiased bg-background text-foreground min-h-dvh`}>
         <CollegeSiteHeader />
         <GlobalBackButton />
