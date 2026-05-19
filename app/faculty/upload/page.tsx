@@ -1,14 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusAlert } from '@/components/ui/status-alert';
+import { Badge } from '@/components/ui/badge';
 import { ACADEMIC_YEARS, DEPARTMENTS } from '@/lib/college-brand';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
+import { cn } from '@/lib/utils';
+
+type Step = 'details' | 'questions' | 'review';
+
+const STEPS: Array<{ id: Step; label: string; hint: string }> = [
+  { id: 'details', label: 'Exam details', hint: 'Topic · Branches · Years · Duration' },
+  { id: 'questions', label: 'Questions', hint: 'Upload PDF or enter manually' },
+  { id: 'review', label: 'Review & submit', hint: 'Summary then send for approval' },
+];
 
 const emptyQuestion = (): FacultyExamQuestion => ({
   question_text: '',
@@ -19,16 +29,32 @@ const emptyQuestion = (): FacultyExamQuestion => ({
   correct_answer: 'A',
 });
 
+const questionIsValid = (q: FacultyExamQuestion) =>
+  q.question_text.trim().length > 0 &&
+  q.option_a.trim().length > 0 &&
+  q.option_b.trim().length > 0 &&
+  q.option_c.trim().length > 0 &&
+  q.option_d.trim().length > 0;
+
 export default function FacultyUploadPage() {
   const router = useRouter();
+  const [step, setStep] = useState<Step>('details');
+
+  // Step 1 – details
   const [department, setDepartment] = useState('');
+  const [extraBranches, setExtraBranches] = useState<string[]>([]);
   const [title, setTitle] = useState('');
+  const [topic, setTopic] = useState('');
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState(30);
   const [years, setYears] = useState<string[]>([]);
+
+  // Step 2 – questions
   const [questions, setQuestions] = useState<FacultyExamQuestion[]>([emptyQuestion()]);
-  const [submitting, setSubmitting] = useState(false);
   const [parsingPdf, setParsingPdf] = useState(false);
+
+  // UX state
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pdfNote, setPdfNote] = useState<string | null>(null);
@@ -43,13 +69,33 @@ export default function FacultyUploadPage() {
     void load();
   }, []);
 
-  const toggleYear = (year: string) => {
+  const toggleYear = (year: string) =>
     setYears((prev) => (prev.includes(year) ? prev.filter((y) => y !== year) : [...prev, year]));
-  };
 
-  const updateQuestion = (index: number, patch: Partial<FacultyExamQuestion>) => {
+  const toggleBranch = (branch: string) =>
+    setExtraBranches((prev) =>
+      prev.includes(branch) ? prev.filter((b) => b !== branch) : [...prev, branch],
+    );
+
+  const updateQuestion = (index: number, patch: Partial<FacultyExamQuestion>) =>
     setQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, ...patch } : q)));
-  };
+
+  const removeQuestion = (index: number) =>
+    setQuestions((prev) => prev.filter((_, i) => i !== index));
+
+  const validQuestionCount = useMemo(
+    () => questions.filter(questionIsValid).length,
+    [questions],
+  );
+
+  const detailsValid =
+    department.length > 0 &&
+    title.trim().length > 0 &&
+    years.length > 0 &&
+    duration >= 5 &&
+    duration <= 180;
+
+  const canProceedFromQuestions = validQuestionCount > 0;
 
   const handlePdfImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -64,9 +110,7 @@ export default function FacultyUploadPage() {
         data: { session },
       } = (await supabase?.auth.getSession()) ?? { data: { session: null } };
       const headers: Record<string, string> = {};
-      if (session?.access_token) {
-        headers.Authorization = `Bearer ${session.access_token}`;
-      }
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
 
       const form = new FormData();
       form.append('file', file);
@@ -77,11 +121,9 @@ export default function FacultyUploadPage() {
       });
       const json = (await res.json()) as {
         questions?: FacultyExamQuestion[];
-        count?: number;
         warnings?: string[];
         error?: string;
       };
-
       if (!res.ok) throw new Error(json.error ?? 'Could not read PDF');
 
       const imported = json.questions ?? [];
@@ -91,14 +133,10 @@ export default function FacultyUploadPage() {
             'No questions found. Format: numbered questions, options A–D, and Answer: X.',
         );
       }
-
       setQuestions(imported);
       setPdfNote(
         `Imported ${imported.length} question${imported.length === 1 ? '' : 's'} from PDF. Review and edit below before submitting.`,
       );
-      if (json.warnings?.length) {
-        setPdfNote(`${json.warnings.join(' ')} ${imported.length} questions loaded.`);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'PDF import failed');
     } finally {
@@ -107,21 +145,18 @@ export default function FacultyUploadPage() {
     }
   };
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitExam = async () => {
     setError(null);
     setMessage(null);
-
-    if (!department) {
-      setError('Select your department before submitting.');
+    if (!detailsValid) {
+      setError('Please complete exam details (title, branch, and at least one year).');
+      setStep('details');
       return;
     }
-    if (!title.trim()) {
-      setError('Exam title is required.');
-      return;
-    }
-    if (years.length === 0) {
-      setError('Select at least one target year.');
+    const cleanQuestions = questions.filter(questionIsValid);
+    if (cleanQuestions.length === 0) {
+      setError('Add at least one complete MCQ (question + 4 options).');
+      setStep('questions');
       return;
     }
 
@@ -138,17 +173,21 @@ export default function FacultyUploadPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
+          topic: topic.trim() || undefined,
           description: description.trim() || undefined,
           target_years: years,
+          target_branches: extraBranches,
           duration_minutes: duration,
-          questions,
+          questions: cleanQuestions,
         }),
       });
       const json = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(json.error ?? 'Submit failed');
 
-      setMessage('Exam submitted for approval. Students will see it once the examination cell approves it.');
-      setTimeout(() => router.push('/faculty/dashboard'), 1500);
+      setMessage(
+        'Submitted for approval. Students see it once the examination cell approves it.',
+      );
+      setTimeout(() => router.push('/faculty/dashboard'), 1300);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submit failed');
     } finally {
@@ -157,157 +196,408 @@ export default function FacultyUploadPage() {
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-4xl">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Department exam submission</h2>
-        <p className="text-slate-600 mt-1 text-sm leading-relaxed">
-          Upload a question paper PDF or enter MCQs manually. Submissions require examination-cell approval
-          before students can attempt the test.
+        <h2 className="app-title-lg">Create a department exam</h2>
+        <p className="app-subtitle">
+          Pick a topic, choose the branches and years it should reach, attach MCQs, then send it to
+          the examination cell for approval. Students cannot see or attempt the test until admin
+          approves it.
         </p>
       </div>
+
+      <Stepper current={step} onSelect={setStep} canEnter={{ details: true, questions: detailsValid, review: detailsValid && canProceedFromQuestions }} />
 
       {error ? <StatusAlert variant="error">{error}</StatusAlert> : null}
       {message ? <StatusAlert variant="success">{message}</StatusAlert> : null}
       {pdfNote ? <StatusAlert variant="info">{pdfNote}</StatusAlert> : null}
 
-      <Card className="p-6 space-y-4 border-dashed border-slate-300 bg-slate-50/50">
-        <div>
-          <h3 className="font-semibold text-slate-900">Import from PDF</h3>
-          <p className="text-sm text-slate-600 mt-1">
-            Upload your department question paper (.pdf). Questions should be numbered with options A–D and an
-            answer key (e.g. <span className="font-mono text-xs">Answer: B</span>).
-          </p>
-        </div>
-        <Input
-          type="file"
-          accept=".pdf,application/pdf"
-          disabled={parsingPdf}
-          onChange={(e) => void handlePdfImport(e)}
-          className="bg-white"
-        />
-        {parsingPdf ? (
-          <p className="text-sm text-slate-500">Reading question paper…</p>
-        ) : null}
-      </Card>
-
-      <Card className="p-6 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
-          <select
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/30"
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            required
-          >
-            <option value="">Select department</option>
-            {DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Exam title</label>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Description (optional)</label>
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Duration (minutes)</label>
-          <Input
-            type="number"
-            min={5}
-            max={180}
-            value={duration}
-            onChange={(e) => setDuration(Number(e.target.value))}
-          />
-        </div>
-
-        <div>
-          <p className="text-sm font-medium text-slate-700 mb-2">Target years</p>
-          <div className="flex flex-wrap gap-2">
-            {ACADEMIC_YEARS.map((y) => (
-              <button
-                key={y}
-                type="button"
-                onClick={() => toggleYear(y)}
-                className={`px-3 py-1.5 rounded-full text-sm border transition ${
-                  years.includes(y)
-                    ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
-                    : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
-                }`}
-              >
-                {y}
-              </button>
-            ))}
-          </div>
-        </div>
-      </Card>
-
-      <Card className="p-6 space-y-4">
-        <div className="flex items-center justify-between gap-3">
+      {step === 'details' ? (
+        <Card className="p-6 sm:p-8 space-y-6">
           <div>
-            <h3 className="font-semibold text-slate-900">MCQ questions</h3>
-            <p className="text-xs text-slate-500 mt-0.5">{questions.length} question(s) in this paper</p>
+            <h3 className="app-section-title">Exam details</h3>
+            <p className="app-muted mt-0.5">Branches, years, topic, and duration.</p>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setQuestions((q) => [...q, emptyQuestion()])}
-          >
-            Add question
-          </Button>
-        </div>
 
-        {questions.map((q, idx) => (
-          <div key={idx} className="border border-slate-200 rounded-xl p-4 space-y-2 bg-white">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Question {idx + 1}
-            </p>
-            <Input
-              placeholder="Question text"
-              value={q.question_text}
-              onChange={(e) => updateQuestion(idx, { question_text: e.target.value })}
-            />
-            {(['A', 'B', 'C', 'D'] as const).map((letter) => (
+          <div className="grid sm:grid-cols-2 gap-5">
+            <Field label="Exam title" hint="Shown to students on the test hub.">
               <Input
-                key={letter}
-                placeholder={`Option ${letter}`}
-                value={q[`option_${letter.toLowerCase()}` as 'option_a']}
-                onChange={(e) =>
-                  updateQuestion(idx, {
-                    [`option_${letter.toLowerCase()}`]: e.target.value,
-                  } as Partial<FacultyExamQuestion>)
-                }
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Operating Systems · Mid-1"
+                required
               />
-            ))}
-            <select
-              className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
-              value={q.correct_answer}
-              onChange={(e) =>
-                updateQuestion(idx, {
-                  correct_answer: e.target.value as FacultyExamQuestion['correct_answer'],
-                })
-              }
-            >
-              <option value="A">Correct answer: A</option>
-              <option value="B">Correct answer: B</option>
-              <option value="C">Correct answer: C</option>
-              <option value="D">Correct answer: D</option>
-            </select>
+            </Field>
+            <Field label="Topic / unit" hint="Optional. Helps students prepare.">
+              <Input
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="e.g. Process scheduling"
+              />
+            </Field>
           </div>
-        ))}
-      </Card>
 
-      <Button type="submit" disabled={submitting} className="bg-[#1e3a5f] hover:bg-[#16304f] text-white">
-        {submitting ? 'Submitting…' : 'Submit for approval'}
-      </Button>
-    </form>
+          <Field label="Short description" hint="One or two lines visible to admin & students.">
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Covers Chapters 3–4 from the syllabus."
+            />
+          </Field>
+
+          <Field
+            label="Primary branch (your department)"
+            hint="Auto-filled from your faculty profile."
+          >
+            <select
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/30"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              required
+            >
+              <option value="">Select your department</option>
+              {DEPARTMENTS.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field
+            label="Make available to additional branches"
+            hint="Leave empty if the exam is for your branch only."
+          >
+            <div className="flex flex-wrap gap-2">
+              {DEPARTMENTS.filter((d) => d !== department).map((d) => {
+                const active = extraBranches.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => toggleBranch(d)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-full text-xs font-medium border transition',
+                      active
+                        ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                        : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400',
+                    )}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+
+          <div className="grid sm:grid-cols-2 gap-5">
+            <Field label="Target years" hint="Students must be in one of these years.">
+              <div className="flex flex-wrap gap-2">
+                {ACADEMIC_YEARS.map((y) => {
+                  const active = years.includes(y);
+                  return (
+                    <button
+                      key={y}
+                      type="button"
+                      onClick={() => toggleYear(y)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-full text-xs font-medium border transition',
+                        active
+                          ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                          : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400',
+                      )}
+                    >
+                      {y}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+
+            <Field label="Duration (minutes)" hint="Between 5 and 180.">
+              <Input
+                type="number"
+                min={5}
+                max={180}
+                value={duration}
+                onChange={(e) => setDuration(Number(e.target.value))}
+              />
+            </Field>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              onClick={() => setStep('questions')}
+              disabled={!detailsValid}
+              className="bg-[#1e3a5f] hover:bg-[#16304f]"
+            >
+              Continue to questions →
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
+      {step === 'questions' ? (
+        <>
+          <Card className="p-6 sm:p-8 space-y-4 border-dashed border-slate-300 bg-slate-50/50">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="app-section-title">Import from PDF</h3>
+                <p className="app-muted mt-0.5">
+                  Upload a .pdf question paper. Numbered questions with options A–D and an answer
+                  key (e.g. <span className="font-mono text-xs">Answer: B</span>) work best.
+                </p>
+              </div>
+              <Badge tone="brand">PDF · auto-parse</Badge>
+            </div>
+            <Input
+              type="file"
+              accept=".pdf,application/pdf"
+              disabled={parsingPdf}
+              onChange={(e) => void handlePdfImport(e)}
+              className="bg-white"
+            />
+            {parsingPdf ? (
+              <p className="text-sm text-slate-500">Reading question paper…</p>
+            ) : null}
+          </Card>
+
+          <Card className="p-6 sm:p-8 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h3 className="app-section-title">MCQ questions</h3>
+                <p className="app-muted mt-0.5">
+                  {validQuestionCount} of {questions.length} marked complete
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setQuestions((q) => [...q, emptyQuestion()])}
+              >
+                + Add question
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              {questions.map((q, idx) => (
+                <div
+                  key={idx}
+                  className="border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3 bg-white"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Question {idx + 1}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {questionIsValid(q) ? (
+                        <Badge tone="success">Complete</Badge>
+                      ) : (
+                        <Badge tone="warning">Incomplete</Badge>
+                      )}
+                      {questions.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => removeQuestion(idx)}
+                          className="text-xs font-medium text-slate-500 hover:text-red-600"
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <Input
+                    placeholder="Question text"
+                    value={q.question_text}
+                    onChange={(e) => updateQuestion(idx, { question_text: e.target.value })}
+                  />
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {(['A', 'B', 'C', 'D'] as const).map((letter) => (
+                      <Input
+                        key={letter}
+                        placeholder={`Option ${letter}`}
+                        value={q[`option_${letter.toLowerCase()}` as 'option_a']}
+                        onChange={(e) =>
+                          updateQuestion(idx, {
+                            [`option_${letter.toLowerCase()}`]: e.target.value,
+                          } as Partial<FacultyExamQuestion>)
+                        }
+                      />
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-500">Correct answer:</span>
+                    {(['A', 'B', 'C', 'D'] as const).map((letter) => (
+                      <button
+                        key={letter}
+                        type="button"
+                        onClick={() => updateQuestion(idx, { correct_answer: letter })}
+                        className={cn(
+                          'h-7 w-7 rounded-full text-xs font-bold border transition',
+                          q.correct_answer === letter
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400',
+                        )}
+                      >
+                        {letter}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <div className="flex justify-between pt-2">
+            <Button variant="outline" onClick={() => setStep('details')}>
+              ← Back
+            </Button>
+            <Button
+              onClick={() => setStep('review')}
+              disabled={!canProceedFromQuestions}
+              className="bg-[#1e3a5f] hover:bg-[#16304f]"
+            >
+              Review submission →
+            </Button>
+          </div>
+        </>
+      ) : null}
+
+      {step === 'review' ? (
+        <Card className="p-6 sm:p-8 space-y-5">
+          <div>
+            <h3 className="app-section-title">Review submission</h3>
+            <p className="app-muted mt-0.5">
+              Confirm the details below. Once submitted, the test is locked from students until
+              admin approves it.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-5 rounded-xl border border-slate-200 bg-slate-50/60 p-5">
+            <DetailRow label="Title">{title || '—'}</DetailRow>
+            <DetailRow label="Topic">{topic || '—'}</DetailRow>
+            <DetailRow label="Primary branch">{department || '—'}</DetailRow>
+            <DetailRow label="Additional branches">
+              {extraBranches.length ? extraBranches.join(', ') : '— (own branch only)'}
+            </DetailRow>
+            <DetailRow label="Target years">
+              {years.length ? years.join(', ') : '—'}
+            </DetailRow>
+            <DetailRow label="Duration">{duration} minutes</DetailRow>
+            <DetailRow label="Questions">{validQuestionCount} complete</DetailRow>
+            <DetailRow label="Status on submit">
+              <Badge tone="warning">Pending admin approval</Badge>
+            </DetailRow>
+          </div>
+
+          {description ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                Description
+              </p>
+              {description}
+            </div>
+          ) : null}
+
+          <div className="flex justify-between pt-2">
+            <Button variant="outline" onClick={() => setStep('questions')}>
+              ← Back
+            </Button>
+            <Button
+              disabled={submitting}
+              onClick={() => void submitExam()}
+              className="bg-[#1e3a5f] hover:bg-[#16304f]"
+            >
+              {submitting ? 'Submitting…' : 'Submit for approval'}
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-slate-800 mb-1">{label}</label>
+      {hint ? <p className="text-xs text-slate-500 mb-2">{hint}</p> : null}
+      {children}
+    </div>
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+        {label}
+      </p>
+      <div className="text-sm text-slate-900 font-medium">{children}</div>
+    </div>
+  );
+}
+
+function Stepper({
+  current,
+  onSelect,
+  canEnter,
+}: {
+  current: Step;
+  onSelect: (s: Step) => void;
+  canEnter: Record<Step, boolean>;
+}) {
+  return (
+    <ol className="grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-white p-2">
+      {STEPS.map((s, idx) => {
+        const active = current === s.id;
+        const enabled = canEnter[s.id];
+        return (
+          <li key={s.id}>
+            <button
+              type="button"
+              disabled={!enabled}
+              onClick={() => enabled && onSelect(s.id)}
+              className={cn(
+                'w-full flex items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
+                active && 'bg-[#1e3a5f] text-white',
+                !active && enabled && 'hover:bg-slate-50 text-slate-800',
+                !enabled && 'opacity-50 cursor-not-allowed text-slate-500',
+              )}
+            >
+              <span
+                className={cn(
+                  'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                  active
+                    ? 'bg-white text-[#0c2340]'
+                    : 'bg-[#1e3a5f]/10 text-[#1e3a5f]',
+                )}
+              >
+                {idx + 1}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-bold leading-tight">{s.label}</span>
+                <span
+                  className={cn(
+                    'mt-0.5 block text-[11px] leading-snug',
+                    active ? 'text-white/80' : 'text-slate-500',
+                  )}
+                >
+                  {s.hint}
+                </span>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

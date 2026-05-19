@@ -20,19 +20,28 @@ export async function GET() {
   const year = profile?.academic_year ?? auth.ctx.resolved.academicYear;
 
   if (!department || !year) {
-    return NextResponse.json({ exams: [], message: 'Complete your profile (department and year)' });
+    return NextResponse.json({
+      exams: [],
+      message: 'Complete your profile (department and year)',
+    });
   }
 
+  // Approved exams whose primary department matches OR whose target_branches
+  // include the student's branch — both filtered to the student's year.
   const { data: requests } = await admin
     .from('faculty_exam_requests')
-    .select('id, title, description, duration_minutes, target_years, published_test_id, department, created_at')
+    .select(
+      'id, title, topic, description, duration_minutes, target_years, target_branches, published_test_id, department, created_at',
+    )
     .eq('status', 'approved')
-    .eq('department', department)
     .not('published_test_id', 'is', null);
 
   const exams = (requests ?? []).filter((r) => {
     const years = (r.target_years as string[]) ?? [];
-    return years.includes(year);
+    if (!years.includes(year)) return false;
+    if (r.department === department) return true;
+    const branches = (r.target_branches as string[]) ?? [];
+    return branches.includes(department);
   });
 
   return NextResponse.json({ exams, department, year });

@@ -35,7 +35,9 @@ export async function POST(request: NextRequest) {
   let body: {
     title?: string;
     description?: string;
+    topic?: string;
     target_years?: string[];
+    target_branches?: string[];
     duration_minutes?: number;
     questions?: unknown[];
   };
@@ -81,15 +83,25 @@ export async function POST(request: NextRequest) {
   }
 
   const duration = Math.min(180, Math.max(5, Number(body.duration_minutes) || 30));
+  const targetBranches = Array.from(
+    new Set(
+      (body.target_branches ?? [])
+        .map((b) => String(b).trim())
+        .filter((b) => b.length > 0 && b !== department),
+    ),
+  );
+  const topic = body.topic?.trim() || null;
 
   const { data, error } = await admin
     .from('faculty_exam_requests')
     .insert({
       faculty_user_id: auth.ctx.resolved.id,
       department,
+      topic,
       title,
       description: body.description?.trim() ?? null,
       target_years: targetYears,
+      target_branches: targetBranches,
       duration_minutes: duration,
       questions_json: questions,
       status: 'pending',

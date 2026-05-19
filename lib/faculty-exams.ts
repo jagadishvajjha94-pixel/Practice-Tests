@@ -16,9 +16,17 @@ export type FacultyExamRequest = {
   id: string;
   faculty_user_id: string;
   department: string;
+  /** Topic / unit / chapter the exam covers (e.g. "Operating Systems · Scheduling"). */
+  topic: string | null;
   title: string;
   description: string | null;
   target_years: string[];
+  /**
+   * Additional branches the exam should be made available to. Empty array means
+   * "only faculty's own department". A student sees the exam if their branch
+   * matches `department` OR is included in `target_branches`.
+   */
+  target_branches: string[];
   duration_minutes: number;
   questions_json: FacultyExamQuestion[];
   status: FacultyExamStatus;
