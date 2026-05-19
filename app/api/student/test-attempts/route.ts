@@ -83,6 +83,10 @@ export async function POST(request: Request) {
     elapsedSec: Number(body.elapsedSec) || 0,
     startedAtIso: typeof body.startedAtIso === 'string' ? body.startedAtIso : nowIso,
     completedAtIso: typeof body.completedAtIso === 'string' ? body.completedAtIso : nowIso,
+    proctorSessionId:
+      typeof body.proctorSessionId === 'string' ? body.proctorSessionId : undefined,
+    proctorViolations: Number(body.proctorViolations) || 0,
+    proctorAutoSubmit: Boolean(body.proctorAutoSubmit),
   };
 
   await ensureStudentUserRow(service, {
@@ -104,6 +108,14 @@ export async function POST(request: Request) {
   try {
     const { id } = await persistTestAttempt(service, input);
     statEntry.id = id;
+
+    if (input.proctorSessionId) {
+      await service
+        .from('exam_violations')
+        .update({ attempt_id: id, test_id: input.testId || null })
+        .eq('user_id', userId)
+        .filter('metadata->>sessionId', 'eq', input.proctorSessionId);
+    }
 
     await appendStudentDashboardStat(service, userId, statEntry);
 

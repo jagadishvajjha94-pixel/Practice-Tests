@@ -151,6 +151,9 @@ export type PersistAttemptInput = {
   elapsedSec: number;
   startedAtIso: string;
   completedAtIso: string;
+  proctorSessionId?: string;
+  proctorViolations?: number;
+  proctorAutoSubmit?: boolean;
 };
 
 export type DashboardAttemptView = TestAttempt & { test: Test };
@@ -196,10 +199,21 @@ export async function persistTestAttempt(
       : baseCommon;
 
   const title = input.testName?.trim() || 'Practice test';
+  const proctorFields =
+    input.proctorSessionId != null ||
+    input.proctorViolations != null ||
+    input.proctorAutoSubmit != null
+      ? {
+          proctor_session_id: input.proctorSessionId ?? null,
+          proctor_violations: input.proctorViolations ?? 0,
+          proctor_auto_submit: input.proctorAutoSubmit ?? false,
+        }
+      : {};
 
   const payloads: Record<string, unknown>[] = [
     {
       ...base,
+      ...proctorFields,
       score: input.scorePercent,
       time_taken: input.elapsedSec,
       answers: input.answers,
@@ -250,7 +264,10 @@ export async function persistTestAttempt(
       !isMissingColumnError(error, 'started_at') &&
       !isMissingColumnError(error, 'completed_at') &&
       !isMissingColumnError(error, 'status') &&
-      !isMissingColumnError(error, 'test_id')
+      !isMissingColumnError(error, 'test_id') &&
+      !isMissingColumnError(error, 'proctor_violations') &&
+      !isMissingColumnError(error, 'proctor_auto_submit') &&
+      !isMissingColumnError(error, 'proctor_session_id')
     ) {
       const code = (error as { code?: string })?.code;
       if (code === '23503' || code === '22P02') continue;

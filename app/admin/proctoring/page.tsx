@@ -1,40 +1,45 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { Badge } from '@/components/ui/badge';
 
 type ViolationRow = {
   id: string;
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  branch: string | null;
   violation_type: string;
   test_id: string | null;
   attempt_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
-  users?: { email?: string; full_name?: string | null } | null;
+};
+
+type Summary = {
+  total?: number;
+  byType?: Record<string, number>;
+  studentsFlagged?: number;
+  autoSubmits?: number;
 };
 
 export default function AdminProctoringPage() {
-  const router = useRouter();
   const [rows, setRows] = useState<ViolationRow[]>([]);
+  const [summary, setSummary] = useState<Summary>({});
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState(true);
 
   const load = useCallback(async () => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) return;
-    const { data } = await supabase
-      .from('exam_violations')
-      .select('*, users(email, full_name)')
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    setRows((data as ViolationRow[]) ?? []);
+    const res = await fetch('/api/admin/proctoring');
+    if (res.ok) {
+      const json = (await res.json()) as { violations?: ViolationRow[]; summary?: Summary };
+      setRows(json.violations ?? []);
+      setSummary(json.summary ?? {});
+    }
     setLoading(false);
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -42,25 +47,27 @@ export default function AdminProctoringPage() {
 
   useEffect(() => {
     if (!live) return;
-    const id = window.setInterval(() => void load(), 8000);
+    const id = window.setInterval(() => void load(), 10000);
     return () => clearInterval(id);
   }, [live, load]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading…</div>;
+    return (
+      <div className="min-h-[40vh] flex items-center justify-center text-muted-foreground">
+        Loading proctoring data…
+      </div>
+    );
   }
-
-  const byType = rows.reduce<Record<string, number>>((acc, r) => {
-    acc[r.violation_type] = (acc[r.violation_type] ?? 0) + 1;
-    return acc;
-  }, {});
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Proctoring</h2>
-          <p className="text-sm text-gray-600 mt-1">Review integrity flags and live exam violation events.</p>
+          <p className="text-sm text-gray-600 mt-1">
+            Exam integrity flags — tab switches, camera absence (&gt;5s), suspicious behavior, and
+            auto-submits after 7 incidents.
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant={live ? 'default' : 'outline'} size="sm" onClick={() => setLive((v) => !v)}>
@@ -69,16 +76,30 @@ export default function AdminProctoringPage() {
           <Button variant="outline" size="sm" onClick={() => void load()}>
             Refresh
           </Button>
-          </div>
+        </div>
       </div>
 
       <div className="grid sm:grid-cols-4 gap-3">
-        {Object.entries(byType).map(([type, count]) => (
-          <Card key={type} className="p-4 lux-surface">
-            <p className="text-xs text-muted-foreground uppercase">{type.replace(/_/g, ' ')}</p>
-            <p className="text-2xl font-bold text-foreground">{count}</p>
-          </Card>
-        ))}
+        <Card className="p-4 lux-surface">
+          <p className="text-xs text-muted-foreground uppercase">Total incidents</p>
+          <p className="text-2xl font-bold">{summary.total ?? 0}</p>
+        </Card>
+        <Card className="p-4 lux-surface">
+          <p className="text-xs text-muted-foreground uppercase">Students flagged</p>
+          <p className="text-2xl font-bold">{summary.studentsFlagged ?? 0}</p>
+        </Card>
+        <Card className="p-4 lux-surface">
+          <p className="text-xs text-muted-foreground uppercase">Auto-submits</p>
+          <p className="text-2xl font-bold text-amber-700">{summary.autoSubmits ?? 0}</p>
+        </Card>
+        {Object.entries(summary.byType ?? {})
+          .filter(([t]) => ['tab_switch', 'face_absent', 'face_suspicious'].includes(t))
+          .map(([type, count]) => (
+            <Card key={type} className="p-4 lux-surface">
+              <p className="text-xs text-muted-foreground uppercase">{type.replace(/_/g, ' ')}</p>
+              <p className="text-2xl font-bold">{count}</p>
+            </Card>
+          ))}
       </div>
 
       <Card className="lux-surface overflow-hidden">
@@ -88,6 +109,7 @@ export default function AdminProctoringPage() {
               <tr>
                 <th className="text-left p-3">Time</th>
                 <th className="text-left p-3">Student</th>
+                <th className="text-left p-3">Branch</th>
                 <th className="text-left p-3">Type</th>
                 <th className="text-left p-3">Test</th>
                 <th className="text-left p-3">Details</th>
@@ -99,8 +121,16 @@ export default function AdminProctoringPage() {
                   <td className="p-3 text-muted-foreground whitespace-nowrap">
                     {new Date(r.created_at).toLocaleString()}
                   </td>
-                  <td className="p-3">{r.users?.email ?? '—'}</td>
-                  <td className="p-3 font-medium text-amber-200">{r.violation_type}</td>
+                  <td className="p-3">
+                    <p className="font-medium">{r.full_name || r.email || '—'}</p>
+                    {r.email ? <p className="text-xs text-muted-foreground">{r.email}</p> : null}
+                  </td>
+                  <td className="p-3 text-xs">{r.branch ?? '—'}</td>
+                  <td className="p-3">
+                    <Badge tone={r.violation_type.includes('auto_submit') ? 'danger' : 'warning'}>
+                      {r.violation_type.replace(/_/g, ' ')}
+                    </Badge>
+                  </td>
                   <td className="p-3 text-xs">{r.test_id?.slice(0, 8) ?? '—'}</td>
                   <td className="p-3 text-xs text-muted-foreground max-w-xs truncate">
                     {r.metadata ? JSON.stringify(r.metadata) : '—'}
@@ -109,8 +139,8 @@ export default function AdminProctoringPage() {
               ))}
               {!rows.length ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-muted-foreground">
-                    No violations yet. Start an exam with proctoring enabled on /tests/take.
+                  <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                    No violations yet. Students will appear here during proctored exams on /tests/take.
                   </td>
                 </tr>
               ) : null}

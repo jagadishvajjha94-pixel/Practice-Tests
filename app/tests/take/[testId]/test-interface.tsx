@@ -20,6 +20,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TestAnswer } from './test-context';
 import { useExamAutosave } from '@/hooks/use-exam-autosave';
 import { useExamProctoring } from '@/hooks/use-exam-proctoring';
+import { ExamProctorPanel } from '@/components/proctor/exam-proctor-panel';
+import type { ProctorSubmitReason, ProctorSummary } from '@/lib/exam-v2/proctoring-config';
+import { getExamViolations } from '@/lib/exam-v2/proctoring';
 import { useSectionExam } from '@/hooks/use-section-exam';
 import { clearExamDraft } from '@/lib/exam-v2/autosave';
 import { assignQuestionsToSections } from '@/lib/exam-v2/load-sections';
@@ -92,9 +95,18 @@ interface TestInterfaceProps {
   /** When false, only the first {@link PRACTICE_PREVIEW_QUESTION_LIMIT} questions are usable until the user signs in. */
   fullAccess: boolean;
   examSections?: TestSectionConfig[];
+  proctorEnabled?: boolean;
+  proctorSessionId?: string;
 }
 
-export default function TestInterface({ test, questions, fullAccess, examSections = [] }: TestInterfaceProps) {
+export default function TestInterface({
+  test,
+  questions,
+  fullAccess,
+  examSections = [],
+  proctorEnabled = false,
+  proctorSessionId = '',
+}: TestInterfaceProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -121,14 +133,56 @@ export default function TestInterface({ test, questions, fullAccess, examSection
   const speedSec = speedActive ? Math.floor(Number(speedSecRaw)) : 0;
   const [questionTimeLeft, setQuestionTimeLeft] = useState(-1);
 
-  const submitRef = useRef<() => Promise<void>>(async () => {});
+  const submitRef = useRef<(options?: SubmitOptions) => Promise<void>>(async () => {});
   const prevTimeRemainingRef = useRef<number | null>(null);
+  const proctorVideoRef = useRef<HTMLVideoElement>(null);
+  const proctorSummaryRef = useRef<ProctorSummary | null>(null);
 
-  const { tabSwitchCount, enterFullscreen } = useExamProctoring({
+  type SubmitOptions = {
+    submitReason?: ProctorSubmitReason;
+    proctorSummary?: ProctorSummary;
+  };
+
+  const proctorActive = fullAccess && proctorEnabled && Boolean(proctorSessionId);
+
+  const {
+    violationCount,
+    tabSwitchCount,
+    cameraReady,
+    cameraError,
+    faceStatus,
+    autoSubmitTriggered,
+    startCamera,
+    enterFullscreen,
+    maxViolations,
+  } = useExamProctoring({
     testId: test.id,
-    enabled: fullAccess,
-    requireFullscreen: false,
+    sessionId: proctorSessionId || test.id,
+    enabled: proctorActive,
+    requireCamera: true,
+    videoRef: proctorVideoRef,
+    onMaxViolations: ({ violationCount: count }) => {
+      proctorSummaryRef.current = {
+        sessionId: proctorSessionId,
+        violationCount: count,
+        autoSubmitted: true,
+        submitReason: 'proctor_violations',
+        violations: getExamViolations(proctorSessionId).map((v) => ({
+          type: v.type,
+          at: v.at,
+        })),
+      };
+      void submitRef.current({
+        submitReason: 'proctor_violations',
+        proctorSummary: proctorSummaryRef.current,
+      });
+    },
   });
+
+  useEffect(() => {
+    if (!proctorActive) return;
+    void startCamera();
+  }, [proctorActive, startCamera]);
 
   useExamAutosave({
     testId: test.id,
@@ -173,7 +227,7 @@ export default function TestInterface({ test, questions, fullAccess, examSection
     prevTimeRemainingRef.current = t;
     if (prev === null) return;
     if (prev > 0 && t === 0) {
-      void submitRef.current();
+      void submitRef.current({ submitReason: 'timeout' });
     }
   }, [timeRemaining, isSubmitted, submitting]);
 
@@ -253,11 +307,26 @@ export default function TestInterface({ test, questions, fullAccess, examSection
     router.push(`/tests/result/${localAttemptId}`);
   };
 
-  async function handleSubmitTest() {
+  async function handleSubmitTest(options?: SubmitOptions) {
     if (!currentQuestion || submitting || isSubmitted) return;
 
     setSubmitting(true);
     try {
+      const submitReason = options?.submitReason ?? 'manual';
+      const proctorSummary =
+        options?.proctorSummary ??
+        (proctorActive
+          ? {
+              sessionId: proctorSessionId,
+              violationCount,
+              autoSubmitted: submitReason === 'proctor_violations',
+              submitReason,
+              violations: getExamViolations(proctorSessionId).map((v) => ({
+                type: v.type,
+                at: v.at,
+              })),
+            }
+          : undefined);
       let scorePercent = 0;
       let rawNetScore = 0;
       if (sectionMode && examSections.length) {
@@ -299,6 +368,13 @@ export default function TestInterface({ test, questions, fullAccess, examSection
           ? 'competitive'
           : 'practice';
 
+      const answersPayload = proctorSummary
+        ? {
+            ...answers,
+            __proctor: proctorSummary,
+          }
+        : answers;
+
       const localPayload = {
         attempt: {
           id: localAttemptId,
@@ -307,14 +383,14 @@ export default function TestInterface({ test, questions, fullAccess, examSection
           started_at: nowIso,
           completed_at: nowIso,
           score: scorePercent,
-          answers,
+          answers: answersPayload,
           time_taken: elapsedSec,
           status: 'completed' as const,
           created_at: nowIso,
         },
         test,
         questions,
-        answers,
+        answers: answersPayload,
       };
 
       saveLocalTestAttempt(user.id, localAttemptId, localPayload);
@@ -358,7 +434,11 @@ export default function TestInterface({ test, questions, fullAccess, examSection
             completedAtIso: nowIso,
             examKind,
             totalQuestions: questions.length,
-            answers,
+            answers: answersPayload,
+            proctorSessionId: proctorSummary?.sessionId,
+            proctorViolations: proctorSummary?.violationCount ?? 0,
+            proctorAutoSubmit: proctorSummary?.autoSubmitted ?? false,
+            submitReason,
           }),
         });
         if (apiRes.ok) {
@@ -392,10 +472,13 @@ export default function TestInterface({ test, questions, fullAccess, examSection
             testName: dashboardTestName,
             scorePercent,
             rawNetScore,
-            answers,
+            answers: answersPayload,
             elapsedSec,
             startedAtIso: nowIso,
             completedAtIso: nowIso,
+            proctorSessionId: proctorSummary?.sessionId,
+            proctorViolations: proctorSummary?.violationCount ?? 0,
+            proctorAutoSubmit: proctorSummary?.autoSubmitted ?? false,
           });
           attemptId = saved.id;
         } catch (clientPersistError) {
@@ -419,6 +502,20 @@ export default function TestInterface({ test, questions, fullAccess, examSection
 
       if (!attemptId.startsWith('local-')) {
         await persistOptionalPerQuestionRows(supabase, attemptId, questions, answers);
+      }
+
+      if (!attemptId.startsWith('local-') && proctorSummary?.sessionId) {
+        void fetch('/api/v2/proctor/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            testId: test.id,
+            sessionId: proctorSummary.sessionId,
+            attemptId,
+            linkAttempt: true,
+          }),
+          keepalive: true,
+        });
       }
 
       clearExamDraft(test.id);
@@ -544,19 +641,24 @@ export default function TestInterface({ test, questions, fullAccess, examSection
         </div>
       </header>
 
-      {fullAccess && tabSwitchCount > 0 ? (
-        <div className="fixed top-[4.75rem] inset-x-0 z-40 bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-center text-xs text-amber-900">
-          Tab switch detected ({tabSwitchCount}) — recorded for proctoring.
-          <button type="button" className="ml-2 underline" onClick={() => void enterFullscreen()}>
-            Enter fullscreen
-          </button>
-        </div>
+      {proctorActive ? (
+        <ExamProctorPanel
+          videoRef={proctorVideoRef}
+          violationCount={violationCount}
+          maxViolations={maxViolations}
+          tabSwitchCount={tabSwitchCount}
+          cameraReady={cameraReady}
+          cameraError={cameraError}
+          faceStatus={faceStatus}
+          autoSubmitTriggered={autoSubmitTriggered}
+          onEnterFullscreen={() => void enterFullscreen()}
+        />
       ) : null}
 
       <div
         aria-hidden
         className={
-          fullAccess && tabSwitchCount > 0
+          proctorActive && violationCount > 0
             ? 'h-[6.25rem] shrink-0 md:h-[6.5rem]'
             : 'h-[4.75rem] shrink-0 md:h-20'
         }
@@ -714,7 +816,7 @@ export default function TestInterface({ test, questions, fullAccess, examSection
                   Continue Test
                 </Button>
                 <Button
-                  onClick={handleSubmitTest}
+                  onClick={() => void handleSubmitTest()}
                   disabled={submitting}
                   className="flex-1"
                 >

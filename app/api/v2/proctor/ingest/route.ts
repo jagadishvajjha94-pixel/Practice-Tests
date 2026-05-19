@@ -1,61 +1,83 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '@/lib/supabase-server';
+import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 
 const PROCTOR_URL = (process.env.AI_PROCTOR_URL ?? 'http://127.0.0.1:8090').replace(/\/$/, '');
 const PROCTOR_TOKEN = process.env.INTERNAL_API_TOKEN ?? 'dev-internal-token-change-me';
 
+type IngestItem = {
+  type: string;
+  metadata?: Record<string, unknown>;
+};
+
 export async function POST(request: Request) {
+  const auth = await requireAuth(['student', 'faculty', 'admin']);
+  if ('response' in auth) return auth.response;
+
   const body = (await request.json()) as {
     testId?: string;
     attemptId?: string;
+    sessionId?: string;
     type?: string;
-    score?: number;
     metadata?: Record<string, unknown>;
-    examSessionId?: string;
-    userId?: string;
+    batch?: IngestItem[];
+    linkAttempt?: boolean;
   };
 
-  if (!body.type) {
-    return NextResponse.json({ error: 'type required' }, { status: 400 });
+  const admin = getServiceSupabase();
+  const userId = auth.ctx.user.id;
+  const sessionId = body.sessionId ?? body.attemptId ?? body.testId ?? null;
+
+  if (body.linkAttempt && body.attemptId && sessionId && admin) {
+    await admin
+      .from('exam_violations')
+      .update({ attempt_id: body.attemptId, test_id: body.testId ?? null })
+      .eq('user_id', userId)
+      .filter('metadata->>sessionId', 'eq', sessionId);
   }
 
-  const supabase = await getSupabaseServerClient();
-  let userId = body.userId ?? null;
+  const items: IngestItem[] = body.batch?.length
+    ? body.batch
+    : body.type
+      ? [{ type: body.type, metadata: body.metadata }]
+      : [];
 
-  if (supabase) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    userId = user?.id ?? userId;
+  if (!items.length && !body.linkAttempt) {
+    return NextResponse.json({ error: 'type or batch required' }, { status: 400 });
+  }
 
-    await supabase.from('exam_violations').insert({
+  if (admin && items.length) {
+    const rows = items.map((item) => ({
       user_id: userId,
       test_id: body.testId ?? null,
       attempt_id: body.attemptId ?? null,
-      violation_type: body.type,
-      metadata: body.metadata ?? null,
-    });
-  }
-
-  const sessionId = body.examSessionId ?? body.attemptId ?? body.testId ?? 'unknown';
-  try {
-    await fetch(`${PROCTOR_URL}/v1/signals`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-internal-token': PROCTOR_TOKEN,
+      violation_type: item.type,
+      metadata: {
+        ...(item.metadata ?? {}),
+        sessionId,
       },
-      body: JSON.stringify({
-        examSessionId: sessionId,
-        userId: userId ?? 'anonymous',
-        type: body.type,
-        score: body.score ?? null,
-        metadata: body.metadata ?? {},
-      }),
-    });
-  } catch {
-    /* proctor service optional in dev */
+    }));
+    await admin.from('exam_violations').insert(rows);
   }
 
-  return NextResponse.json({ ok: true });
+  if (items.length) {
+    void Promise.allSettled(
+      items.map((item) =>
+        fetch(`${PROCTOR_URL}/v1/signals`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-token': PROCTOR_TOKEN,
+          },
+          body: JSON.stringify({
+            examSessionId: sessionId ?? 'unknown',
+            userId,
+            type: item.type,
+            metadata: { ...(item.metadata ?? {}), testId: body.testId },
+          }),
+        }),
+      ),
+    );
+  }
+
+  return NextResponse.json({ ok: true, stored: items.length });
 }

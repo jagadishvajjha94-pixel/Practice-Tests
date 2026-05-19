@@ -11,6 +11,7 @@ const navItems = [
   { href: '/faculty/dashboard', label: 'Overview' },
   { href: '/faculty/upload', label: 'Upload exam' },
   { href: '/faculty/performance', label: 'Student performance' },
+  { href: '/faculty/proctoring', label: 'Proctoring' },
 ] as const;
 
 export function FacultyShell({ children }: { children: React.ReactNode }) {

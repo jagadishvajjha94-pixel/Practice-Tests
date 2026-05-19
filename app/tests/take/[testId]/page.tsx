@@ -29,6 +29,8 @@ import {
 import { isSignupDisabled } from '@/lib/auth-features';
 import { defaultRedirectForRole } from '@/lib/roles';
 import { useAppRole } from '@/lib/use-app-role';
+import { ProctorConsentGate } from '@/components/proctor/proctor-consent-gate';
+import { createProctorSessionId } from '@/lib/exam-v2/proctoring';
 
 /** `pending` = waiting on Supabase session; avoid starting the test until resolved (prevents full-paper race). */
 type PracticeAccessState = 'pending' | 'guest' | 'full';
@@ -52,6 +54,7 @@ export default function TakeTestPage({
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [testStarted, setTestStarted] = useState(false);
+  const [proctorSessionId, setProctorSessionId] = useState('');
   const [practiceAccess, setPracticeAccess] = useState<PracticeAccessState>('pending');
   const [examSections, setExamSections] = useState<TestSectionConfig[]>([]);
 
@@ -249,17 +252,53 @@ export default function TakeTestPage({
         : null;
   const runtimeTest =
     practiceAccess === 'full'
-      ? { ...test, duration: PSYCHOMETRIC_FULL_MINUTES, total_questions: PSYCHOMETRIC_FULL_QUESTIONS }
+      ? { ...test, duration: test.duration, total_questions: test.total_questions ?? questions.length }
       : practiceAccess === 'guest'
         ? { ...test, duration: PSYCHOMETRIC_GUEST_MINUTES, total_questions: PRACTICE_PREVIEW_QUESTION_LIMIT }
         : { ...test, duration: test.duration, total_questions: test.total_questions };
 
+  const beginProctoredExam = () => {
+    const supabase = getSupabaseBrowserClient();
+    void supabase?.auth.getUser().then(({ data }) => {
+      setProctorSessionId(createProctorSessionId(testId, data.user?.id ?? undefined));
+      setTestStarted(true);
+    });
+  };
+
   if (!testStarted) {
+    if (practiceAccess === 'full') {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <Card className="max-w-lg w-full border-border/90 p-8 shadow-xl">
+            <h1 className="text-2xl font-bold text-foreground mb-2">{test.name}</h1>
+            <div className="space-y-4 mb-6 rounded-lg border border-border bg-muted/40 p-4 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Questions</span>
+                <span className="font-semibold">{questions.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Duration</span>
+                <span className="font-semibold">{test.duration} minutes</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Proctoring</span>
+                <span className="font-semibold text-amber-700">Camera + tab monitoring</span>
+              </div>
+            </div>
+            {test.description ? (
+              <p className="text-sm text-muted-foreground mb-4">{test.description}</p>
+            ) : null}
+            <ProctorConsentGate onReady={beginProctoredExam} onCancel={() => router.back()} />
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="max-w-md w-full border-border/90 p-8 shadow-xl">
           <h1 className="text-2xl font-bold text-foreground mb-4">{test.name}</h1>
-          
+
           <div className="space-y-4 mb-6 rounded-lg border border-border bg-muted/40 p-4">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Questions:</span>
@@ -329,14 +368,6 @@ export default function TakeTestPage({
                 'Answer all questions within the given time limit. You can review your answers before submission.'
               )}
             </p>
-            {test.id.startsWith('fallback-psychometric') ? (
-              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                This paper draws <strong>200 different</strong> visual/pattern items per session from a large
-                bank (about 128k variants). Your set does not repeat inside the 30 minutes; other candidates
-                normally get a different mix. For a fresh draw on the same device, open a new browser tab in
-                incognito/private mode (or clear session storage for this site) before starting.
-              </p>
-            ) : null}
           </div>
 
           <Button
@@ -344,13 +375,9 @@ export default function TakeTestPage({
             disabled={practiceAccess === 'pending'}
             className="w-full mb-2"
           >
-            {practiceAccess === 'pending' ? 'Checking account…' : 'Start Test'}
+            {practiceAccess === 'pending' ? 'Checking account…' : 'Start preview'}
           </Button>
-          <Button
-            onClick={() => router.back()}
-            variant="outline"
-            className="w-full"
-          >
+          <Button onClick={() => router.back()} variant="outline" className="w-full">
             Cancel
           </Button>
         </Card>
@@ -365,6 +392,8 @@ export default function TakeTestPage({
         questions={questions}
         fullAccess={practiceAccess === 'full'}
         examSections={examSections}
+        proctorEnabled={practiceAccess === 'full'}
+        proctorSessionId={proctorSessionId}
       />
     </TestProvider>
   );
