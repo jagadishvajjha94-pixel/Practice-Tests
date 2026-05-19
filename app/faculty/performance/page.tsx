@@ -205,8 +205,8 @@ export default function FacultyPerformancePage() {
           <span className="app-eyebrow">Insights</span>
           <h2 className="app-title-lg mt-1">Student performance</h2>
           <p className="app-subtitle">
-            Real-time scores from <strong>{department || 'your department'}</strong> students on
-            exams you have published. Download a PDF per student or the whole list as CSV.
+            Scores from <strong>{department || 'your department'}</strong> students on all
+            admin-approved department exams. Download a PDF per student or export the list as CSV.
           </p>
         </div>
         <Button variant="outline" onClick={exportAllCsv} disabled={filtered.length === 0}>
@@ -255,7 +255,7 @@ export default function FacultyPerformancePage() {
             <div>
               <h3 className="app-section-title">Score distribution</h3>
               <p className="app-muted mt-0.5">
-                {summary.total_completed ?? 0} completed attempts across your exams
+                {summary.total_completed ?? 0} completed attempts across department exams
               </p>
             </div>
           </div>
@@ -386,7 +386,7 @@ export default function FacultyPerformancePage() {
           <div className="text-center py-12 rounded-xl border border-dashed border-slate-200 bg-slate-50/40">
             <p className="text-slate-700 font-medium">No attempts in this view</p>
             <p className="text-sm text-slate-500 mt-1">
-              Once students attempt your approved exams they appear here.
+              Once students in your department attempt approved exams they appear here.
             </p>
           </div>
         ) : (

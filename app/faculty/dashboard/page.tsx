@@ -220,7 +220,7 @@ export default function FacultyDashboardPage() {
             </p>
             <h3 className="text-xl font-bold mt-1">Student performance & reports</h3>
             <p className="text-sm text-white/85 mt-1 max-w-xl">
-              See how your approved exams are performing — scores, distribution, weak topics, and
+              See how department exams are performing — scores, distribution, weak topics, and
               downloadable PDF reports per student.
             </p>
           </div>

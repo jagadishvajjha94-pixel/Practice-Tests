@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { examMatchesDepartment } from '@/lib/faculty/department-match';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 
 export async function GET() {
@@ -39,9 +40,7 @@ export async function GET() {
   const exams = (requests ?? []).filter((r) => {
     const years = (r.target_years as string[]) ?? [];
     if (!years.includes(year)) return false;
-    if (r.department === department) return true;
-    const branches = (r.target_branches as string[]) ?? [];
-    return branches.includes(department);
+    return examMatchesDepartment(r, department);
   });
 
   return NextResponse.json({ exams, department, year });
