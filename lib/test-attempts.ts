@@ -135,6 +135,7 @@ function isUuid(value: string): boolean {
 
 function shouldOmitTestId(testId: string): boolean {
   if (!testId || testId.startsWith('fallback-')) return true;
+  if (testId === 'programming-assessment-v1') return true;
   return !isUuid(testId);
 }
 

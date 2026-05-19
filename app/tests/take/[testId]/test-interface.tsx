@@ -38,6 +38,10 @@ import {
 } from '@/lib/test-attempts';
 import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
 import { buildFeedEntry, pushDashboardFeedEntry } from '@/lib/dashboard-feed';
+import {
+  dashboardDisplayNameForTest,
+  isDepartmentExamTest,
+} from '@/lib/programming-dashboard';
 /** When `test_attempts` has no JSON `answers`, some DBs keep rows in `question_answers` or `test_answers`. */
 async function persistOptionalPerQuestionRows(
   supabase: SupabaseClient,
@@ -283,6 +287,12 @@ export default function TestInterface({ test, questions, fullAccess, examSection
       const nowIso = new Date().toISOString();
       const elapsedSec = test.duration * 60 - timeRemaining;
       const localAttemptId = `local-${Date.now()}`;
+      const dashboardTestName = dashboardDisplayNameForTest(test);
+      const examKind = isDepartmentExamTest(test)
+        ? 'department'
+        : test.id.startsWith('fallback-competitive')
+          ? 'competitive'
+          : 'practice';
 
       const localPayload = {
         attempt: {
@@ -311,7 +321,7 @@ export default function TestInterface({ test, questions, fullAccess, examSection
             id,
             userId: user.id,
             testId: test.id,
-            testName: test.name,
+            testName: dashboardTestName,
             scorePercent,
             elapsedSec,
             completedAtIso: nowIso,
@@ -334,12 +344,13 @@ export default function TestInterface({ test, questions, fullAccess, examSection
           },
           body: JSON.stringify({
             testId: test.id,
-            testName: test.name,
+            testName: dashboardTestName,
             scorePercent,
             rawNetScore,
             elapsedSec,
             startedAtIso: nowIso,
             completedAtIso: nowIso,
+            examKind,
           }),
         });
         if (apiRes.ok) {
@@ -370,7 +381,7 @@ export default function TestInterface({ test, questions, fullAccess, examSection
           const saved = await persistTestAttempt(supabase, {
             userId: user.id,
             testId: test.id,
-            testName: test.name,
+            testName: dashboardTestName,
             scorePercent,
             rawNetScore,
             answers,

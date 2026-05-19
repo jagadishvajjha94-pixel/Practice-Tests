@@ -25,6 +25,11 @@ import {
   secondsRemaining,
   startExamTimer,
 } from '@/lib/coding/programming-exam';
+import {
+  PROGRAMMING_DASHBOARD_TEST_ID,
+  PROGRAMMING_DASHBOARD_TEST_NAME,
+} from '@/lib/programming-dashboard';
+import { recordDashboardAttempt } from '@/lib/record-dashboard-attempt';
 import { cn } from '@/lib/utils';
 
 type ConsoleTab = 'input' | 'output';
@@ -88,23 +93,6 @@ export function ProgrammingExamWorkspace() {
     setCodeStore((prev) => ({ ...prev, [storageKey]: value }));
   };
 
-  const finishExam = useCallback(
-    (reason: 'timeout' | 'submit') => {
-      if (endedRef.current) return;
-      endedRef.current = true;
-      setLocked(true);
-      setPhase('ended');
-      clearExamTimer();
-      const msg =
-        reason === 'timeout'
-          ? 'Time is up. Your programming test session has ended.'
-          : 'You submitted the programming test.';
-      setOutput(msg);
-      setMeta('');
-    },
-    [],
-  );
-
   useEffect(() => {
     const existing = readExamEndAt();
     if (existing && existing > Date.now()) {
@@ -112,18 +100,6 @@ export function ProgrammingExamWorkspace() {
       setPhase('active');
     }
   }, []);
-
-  useEffect(() => {
-    if (phase !== 'active' || !endAt) return;
-    const tick = () => {
-      const left = secondsRemaining(endAt);
-      setTimeLeft(left);
-      if (left <= 0) finishExam('timeout');
-    };
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [phase, endAt, finishExam]);
 
   useEffect(() => {
     setCustomInput(problem.sampleInput);
@@ -192,20 +168,87 @@ export function ProgrammingExamWorkspace() {
     return { passed, total: p.testCases.length, details };
   };
 
-  const handleSubmitTest = async () => {
-    if (locked || submitting) return;
-    setSubmitting(true);
-    setConsoleTab('output');
+  const gradeAllProblems = useCallback(async () => {
+    let passed = 0;
+    let total = 0;
     const lines: string[] = [];
     for (const p of PROGRAMMING_SAMPLE_PROBLEMS) {
       const src = effectiveSourceCode(codeStore[codeStorageKey(p.id, language)], language);
       const result = await gradeProblem(p, src, language);
+      passed += result.passed;
+      total += result.total;
       lines.push(`${p.title}: ${result.passed}/${result.total} cases passed`);
     }
-    setOutput(lines.join('\n'));
-    setMeta('Final submission recorded.');
-    finishExam('submit');
-    setSubmitting(false);
+    const scorePercent = total > 0 ? (passed / total) * 100 : 0;
+    return { passed, total, scorePercent, lines };
+  }, [codeStore, language]);
+
+  const persistProgrammingResult = useCallback(
+    async (scorePercent: number, elapsedSec: number) => {
+      await recordDashboardAttempt({
+        testId: PROGRAMMING_DASHBOARD_TEST_ID,
+        testName: PROGRAMMING_DASHBOARD_TEST_NAME,
+        scorePercent,
+        rawNetScore: scorePercent,
+        elapsedSec,
+        examKind: 'programming',
+        test: {
+          id: PROGRAMMING_DASHBOARD_TEST_ID,
+          name: PROGRAMMING_DASHBOARD_TEST_NAME,
+          category_id: 'programming',
+          duration: PROGRAMMING_EXAM_DURATION_SECONDS / 60,
+          total_questions: PROGRAMMING_SAMPLE_PROBLEMS.length,
+        },
+      });
+    },
+    [],
+  );
+
+  const finishExam = useCallback(
+    (reason: 'timeout' | 'submit', summary?: { lines: string[]; scorePercent: number }) => {
+      if (endedRef.current) return;
+      endedRef.current = true;
+      setLocked(true);
+      setPhase('ended');
+      clearExamTimer();
+      const msg =
+        reason === 'timeout'
+          ? 'Time is up. Your programming test session has ended.'
+          : 'You submitted the programming test.';
+      if (summary?.lines.length) {
+        setOutput(summary.lines.join('\n'));
+      } else {
+        setOutput(msg);
+      }
+      setMeta('Final submission recorded.');
+      const elapsed = PROGRAMMING_EXAM_DURATION_SECONDS - timeLeft;
+      void persistProgrammingResult(summary?.scorePercent ?? 0, Math.max(0, elapsed));
+    },
+    [persistProgrammingResult, timeLeft],
+  );
+
+  useEffect(() => {
+    if (phase !== 'active' || !endAt) return;
+    const tick = () => {
+      const left = secondsRemaining(endAt);
+      setTimeLeft(left);
+      if (left <= 0) void gradeAllProblems().then((graded) => finishExam('timeout', graded));
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [phase, endAt, finishExam, gradeAllProblems]);
+
+  const handleSubmitTest = async () => {
+    if (locked || submitting) return;
+    setSubmitting(true);
+    setConsoleTab('output');
+    try {
+      const graded = await gradeAllProblems();
+      finishExam('submit', { lines: graded.lines, scorePercent: graded.scorePercent });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (phase === 'intro') {

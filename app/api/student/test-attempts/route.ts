@@ -59,10 +59,18 @@ export async function POST(request: Request) {
 
   const nowIso = new Date().toISOString();
   const userId = auth.ctx.user.id;
+  const examKind = typeof body.examKind === 'string' ? body.examKind : '';
+  let testName = typeof body.testName === 'string' ? body.testName : 'Practice test';
+  if (examKind === 'programming' && !testName.toLowerCase().includes('programming')) {
+    testName = `Programming · ${testName}`;
+  } else if (examKind === 'department' && !testName.startsWith('Department')) {
+    testName = `Department · ${testName}`;
+  }
+
   const input: PersistAttemptInput = {
     userId,
     testId: String(body.testId ?? ''),
-    testName: typeof body.testName === 'string' ? body.testName : undefined,
+    testName,
     scorePercent,
     rawNetScore: Number(body.rawNetScore) || 0,
     answers: {},
