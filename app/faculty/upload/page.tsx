@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { StatusAlert } from '@/components/ui/status-alert';
 import { ACADEMIC_YEARS, DEPARTMENTS } from '@/lib/college-brand';
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 
 const emptyQuestion = (): FacultyExamQuestion => ({
@@ -26,8 +28,10 @@ export default function FacultyUploadPage() {
   const [years, setYears] = useState<string[]>([]);
   const [questions, setQuestions] = useState<FacultyExamQuestion[]>([emptyQuestion()]);
   const [submitting, setSubmitting] = useState(false);
+  const [parsingPdf, setParsingPdf] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [pdfNote, setPdfNote] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -47,21 +51,77 @@ export default function FacultyUploadPage() {
     setQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, ...patch } : q)));
   };
 
+  const handlePdfImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setParsingPdf(true);
+    setError(null);
+    setPdfNote(null);
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = (await supabase?.auth.getSession()) ?? { data: { session: null } };
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers.Authorization = `Bearer ${session.access_token}`;
+      }
+
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/faculty/exams/parse-pdf', {
+        method: 'POST',
+        headers,
+        body: form,
+      });
+      const json = (await res.json()) as {
+        questions?: FacultyExamQuestion[];
+        count?: number;
+        warnings?: string[];
+        error?: string;
+      };
+
+      if (!res.ok) throw new Error(json.error ?? 'Could not read PDF');
+
+      const imported = json.questions ?? [];
+      if (imported.length === 0) {
+        throw new Error(
+          json.warnings?.[0] ??
+            'No questions found. Format: numbered questions, options A–D, and Answer: X.',
+        );
+      }
+
+      setQuestions(imported);
+      setPdfNote(
+        `Imported ${imported.length} question${imported.length === 1 ? '' : 's'} from PDF. Review and edit below before submitting.`,
+      );
+      if (json.warnings?.length) {
+        setPdfNote(`${json.warnings.join(' ')} ${imported.length} questions loaded.`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'PDF import failed');
+    } finally {
+      setParsingPdf(false);
+      e.target.value = '';
+    }
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setMessage(null);
 
     if (!department) {
-      setError('Set your department on the profile API or sign up with department.');
+      setError('Select your department before submitting.');
       return;
     }
     if (!title.trim()) {
-      setError('Exam title is required');
+      setError('Exam title is required.');
       return;
     }
     if (years.length === 0) {
-      setError('Select at least one target year (I–IV Year)');
+      setError('Select at least one target year.');
       return;
     }
 
@@ -87,7 +147,7 @@ export default function FacultyUploadPage() {
       const json = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(json.error ?? 'Submit failed');
 
-      setMessage('Exam submitted for admin approval. Students will see it after approval.');
+      setMessage('Exam submitted for approval. Students will see it once the examination cell approves it.');
       setTimeout(() => router.push('/faculty/dashboard'), 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submit failed');
@@ -99,27 +159,42 @@ export default function FacultyUploadPage() {
   return (
     <form onSubmit={onSubmit} className="space-y-6 max-w-3xl">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Upload department exam</h2>
-        <p className="text-slate-600 mt-1 text-sm">
-          Choose which years may take this exam. The examination cell must approve before it appears
-          for students.
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Department exam submission</h2>
+        <p className="text-slate-600 mt-1 text-sm leading-relaxed">
+          Upload a question paper PDF or enter MCQs manually. Submissions require examination-cell approval
+          before students can attempt the test.
         </p>
       </div>
 
-      {error ? (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
-      ) : null}
-      {message ? (
-        <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-          {message}
-        </p>
-      ) : null}
+      {error ? <StatusAlert variant="error">{error}</StatusAlert> : null}
+      {message ? <StatusAlert variant="success">{message}</StatusAlert> : null}
+      {pdfNote ? <StatusAlert variant="info">{pdfNote}</StatusAlert> : null}
+
+      <Card className="p-6 space-y-4 border-dashed border-slate-300 bg-slate-50/50">
+        <div>
+          <h3 className="font-semibold text-slate-900">Import from PDF</h3>
+          <p className="text-sm text-slate-600 mt-1">
+            Upload your department question paper (.pdf). Questions should be numbered with options A–D and an
+            answer key (e.g. <span className="font-mono text-xs">Answer: B</span>).
+          </p>
+        </div>
+        <Input
+          type="file"
+          accept=".pdf,application/pdf"
+          disabled={parsingPdf}
+          onChange={(e) => void handlePdfImport(e)}
+          className="bg-white"
+        />
+        {parsingPdf ? (
+          <p className="text-sm text-slate-500">Reading question paper…</p>
+        ) : null}
+      </Card>
 
       <Card className="p-6 space-y-4">
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
           <select
-            className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/30"
             value={department}
             onChange={(e) => setDepartment(e.target.value)}
             required
@@ -162,10 +237,10 @@ export default function FacultyUploadPage() {
                 key={y}
                 type="button"
                 onClick={() => toggleYear(y)}
-                className={`px-3 py-1.5 rounded-full text-sm border ${
+                className={`px-3 py-1.5 rounded-full text-sm border transition ${
                   years.includes(y)
                     ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
-                    : 'bg-white text-slate-700 border-slate-300'
+                    : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
                 }`}
               >
                 {y}
@@ -176,8 +251,11 @@ export default function FacultyUploadPage() {
       </Card>
 
       <Card className="p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-slate-900">MCQ questions</h3>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-slate-900">MCQ questions</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{questions.length} question(s) in this paper</p>
+          </div>
           <Button
             type="button"
             variant="outline"
@@ -188,8 +266,10 @@ export default function FacultyUploadPage() {
         </div>
 
         {questions.map((q, idx) => (
-          <div key={idx} className="border border-slate-200 rounded-lg p-4 space-y-2">
-            <p className="text-xs font-semibold text-slate-500">Question {idx + 1}</p>
+          <div key={idx} className="border border-slate-200 rounded-xl p-4 space-y-2 bg-white">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Question {idx + 1}
+            </p>
             <Input
               placeholder="Question text"
               value={q.question_text}
@@ -208,23 +288,25 @@ export default function FacultyUploadPage() {
               />
             ))}
             <select
-              className="border border-slate-300 rounded-md px-2 py-1 text-sm"
+              className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
               value={q.correct_answer}
               onChange={(e) =>
-                updateQuestion(idx, { correct_answer: e.target.value as FacultyExamQuestion['correct_answer'] })
+                updateQuestion(idx, {
+                  correct_answer: e.target.value as FacultyExamQuestion['correct_answer'],
+                })
               }
             >
-              <option value="A">Correct: A</option>
-              <option value="B">Correct: B</option>
-              <option value="C">Correct: C</option>
-              <option value="D">Correct: D</option>
+              <option value="A">Correct answer: A</option>
+              <option value="B">Correct answer: B</option>
+              <option value="C">Correct answer: C</option>
+              <option value="D">Correct answer: D</option>
             </select>
           </div>
         ))}
       </Card>
 
-      <Button type="submit" disabled={submitting} className="bg-[#1e3a5f] hover:bg-[#16304f]">
-        {submitting ? 'Submitting…' : 'Submit for admin approval'}
+      <Button type="submit" disabled={submitting} className="bg-[#1e3a5f] hover:bg-[#16304f] text-white">
+        {submitting ? 'Submitting…' : 'Submit for approval'}
       </Button>
     </form>
   );

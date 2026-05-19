@@ -4,6 +4,174 @@ import { formatSupabaseError } from '@/lib/utils';
 
 export const RESUME_MAX_CHARS = 12_000;
 
+export type ProfileSource = 'public.users' | 'user_metadata';
+
+export type ProfileApiResponse = {
+  profile: UserProfile | null;
+  source: ProfileSource | null;
+  tableMissing: boolean;
+  error: string | null;
+};
+
+export type ProfileSaveResponse = {
+  ok: boolean;
+  source: ProfileSource | null;
+  tableMissing: boolean;
+  error: string | null;
+  note: string | null;
+};
+
+async function authHeader(supabase: SupabaseClient | null): Promise<Record<string, string>> {
+  if (!supabase) return {};
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Load the signed-in student's profile via the server (service-role + metadata fallback). */
+export async function fetchProfileViaApi(
+  supabase: SupabaseClient | null,
+): Promise<ProfileApiResponse> {
+  try {
+    const headers = await authHeader(supabase);
+    const res = await fetch('/api/student/profile', {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      profile?: UserProfile;
+      source?: ProfileSource;
+      tableMissing?: boolean;
+      error?: string;
+    };
+    if (!res.ok) {
+      return {
+        profile: null,
+        source: null,
+        tableMissing: false,
+        error: body.error ?? `Profile request failed (${res.status})`,
+      };
+    }
+    return {
+      profile: body.profile ?? null,
+      source: body.source ?? null,
+      tableMissing: !!body.tableMissing,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      profile: null,
+      source: null,
+      tableMissing: false,
+      error: formatSupabaseError(error),
+    };
+  }
+}
+
+/** Save the signed-in student's profile via the server. */
+export async function saveProfileViaApi(
+  supabase: SupabaseClient | null,
+  fields: {
+    full_name?: string | null;
+    phone?: string | null;
+    college?: string | null;
+    branch?: string | null;
+    cgpa?: number | null;
+    resume_text?: string | null;
+    resume_file_name?: string | null;
+    resume_storage_path?: string | null;
+    resume_updated_at?: string | null;
+  },
+): Promise<ProfileSaveResponse> {
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(await authHeader(supabase)),
+    };
+    const res = await fetch('/api/student/profile', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(fields),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      source?: ProfileSource;
+      tableMissing?: boolean;
+      error?: string;
+      note?: string;
+    };
+    return {
+      ok: !!body.ok && res.ok,
+      source: body.source ?? null,
+      tableMissing: !!body.tableMissing,
+      error: body.error ?? (res.ok ? null : `Save failed (${res.status})`),
+      note: body.note ?? null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      source: null,
+      tableMissing: false,
+      error: formatSupabaseError(error),
+      note: null,
+    };
+  }
+}
+
+export type ResumeUploadResponse = {
+  ok: boolean;
+  storagePath: string | null;
+  fileName: string | null;
+  error: string | null;
+  hint: string | null;
+};
+
+/** Upload a resume file via the server (bucket auto-created with service role). */
+export async function uploadResumeViaApi(
+  supabase: SupabaseClient | null,
+  file: File,
+): Promise<ResumeUploadResponse> {
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const headers = await authHeader(supabase);
+    const res = await fetch('/api/student/profile/upload-resume', {
+      method: 'POST',
+      headers,
+      body: form,
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      storagePath?: string;
+      fileName?: string;
+      error?: string;
+      hint?: string;
+    };
+    return {
+      ok: !!body.ok && res.ok,
+      storagePath: body.storagePath ?? null,
+      fileName: body.fileName ?? null,
+      error: body.error ?? (res.ok ? null : `Upload failed (${res.status})`),
+      hint: body.hint ?? null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      storagePath: null,
+      fileName: null,
+      error: formatSupabaseError(error),
+      hint: null,
+    };
+  }
+}
+
 export function isUsersTableMissingError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; message?: string; status?: number; statusCode?: number };

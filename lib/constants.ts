@@ -54,6 +54,18 @@ export const TEST_CATEGORIES = [
 /** All student-facing practice modules shown on home + tests hub. */
 export const PRACTICE_HUB_ITEMS = [
   {
+    id: 'placement',
+    href: '/placement',
+    name: 'Evalora',
+    icon: '✨',
+    badge: '6 sections · 100 marks · 60 min',
+    description:
+      'AI-graded campus placement assessment — technical, speaking, psychometric, aptitude, logic, and IQ in one sitting. Department-aware questions and an instant employability scorecard.',
+    accent: 'evalora' as const,
+    cta: 'Launch Evalora →',
+    featured: true as const,
+  },
+  {
     id: 'psychometric',
     href: '/tests/psychometric',
     name: 'Psychometric Tests',

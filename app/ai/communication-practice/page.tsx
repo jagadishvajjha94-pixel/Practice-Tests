@@ -173,7 +173,7 @@ export default function CommunicationPracticePage() {
               </div>
               <div className="p-4 rounded-lg bg-blue-50">
                 <p className="text-sm text-gray-600">Grammar</p>
-                <p className="text-2xl font-bold text-[#1e3a5f]700">{analysis.grammar}/10</p>
+                <p className="text-2xl font-bold text-[#1e3a5f]">{analysis.grammar}/10</p>
               </div>
               <div className="p-4 rounded-lg bg-amber-50">
                 <p className="text-sm text-gray-600">Confidence</p>

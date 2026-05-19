@@ -220,6 +220,22 @@
     @apply border-b border-slate-200 bg-white py-10;
   }
 
+  .app-alert-success {
+    @apply rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800;
+  }
+
+  .app-alert-error {
+    @apply rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800;
+  }
+
+  .app-alert-info {
+    @apply rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900;
+  }
+
+  .app-stat-card {
+    @apply relative overflow-hidden rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm transition-shadow hover:shadow-md;
+  }
+
   .exam-mode {
     background: #ffffff !important;
     color: #111827 !important;

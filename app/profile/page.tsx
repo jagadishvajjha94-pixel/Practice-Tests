@@ -10,12 +10,13 @@ import type { UserProfile } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { formatSupabaseError } from '@/lib/utils';
+import { StatusAlert } from '@/components/ui/status-alert';
 import {
-  ensureUserProfile,
+  fetchProfileViaApi,
   RESUME_MAX_CHARS,
-  upsertUserProfileFields,
+  saveProfileViaApi,
+  uploadResumeViaApi,
 } from '@/lib/user-profile';
-import { UsersTableSetupBanner } from '@/components/users-table-setup-banner';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -33,7 +34,6 @@ export default function ProfilePage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [envMissing, setEnvMissing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [usersTableMissing, setUsersTableMissing] = useState(false);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -53,40 +53,31 @@ export default function ProfilePage() {
         return;
       }
 
-      const { profile, error, tableMissing: missing } = await ensureUserProfile(supabase, authUser);
-      setUsersTableMissing(missing);
-      if (missing) {
-        setUser({
-          id: authUser.id,
-          email: authUser.email ?? '',
-          full_name: (authUser.user_metadata?.full_name as string) || '',
-          phone: null,
-          subscription_status: 'free',
-          subscription_end_date: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-        setFormData({
-          full_name: (authUser.user_metadata?.full_name as string) || '',
-          phone: '',
-          college: '',
-          branch: '',
-          resume_text: '',
-        });
-        return;
-      }
-      if (error || !profile) {
-        setFetchError(error ?? 'Could not load profile');
+      const { profile, error } = await fetchProfileViaApi(supabase);
+
+      if (error && !profile) {
+        setFetchError(error);
         return;
       }
 
-      setUser({ ...profile, email: profile.email || authUser.email || '' });
+      const resolved = profile ?? {
+        id: authUser.id,
+        email: authUser.email ?? '',
+        full_name: (authUser.user_metadata?.full_name as string) || '',
+        phone: null,
+        subscription_status: 'free' as const,
+        subscription_end_date: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      setUser({ ...resolved, email: resolved.email || authUser.email || '' });
       setFormData({
-        full_name: profile.full_name || '',
-        phone: profile.phone || '',
-        college: profile.college || '',
-        branch: profile.branch || '',
-        resume_text: profile.resume_text || '',
+        full_name: resolved.full_name || '',
+        phone: resolved.phone || '',
+        college: resolved.college || '',
+        branch: resolved.branch || '',
+        resume_text: resolved.resume_text || '',
       });
     } catch (error) {
       setFetchError(formatSupabaseError(error));
@@ -120,30 +111,23 @@ export default function ProfilePage() {
         setMessage({ type: 'error', text: SUPABASE_PUBLIC_ENV_MESSAGE });
         return;
       }
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      if (!authUser) {
-        setMessage({ type: 'error', text: 'Sign in to save your profile.' });
-        return;
-      }
       const resume_text = formData.resume_text.trim().slice(0, RESUME_MAX_CHARS) || null;
-      const { ok, error, tableMissing } = await upsertUserProfileFields(supabase, authUser, {
+      const { ok, error } = await saveProfileViaApi(supabase, {
         full_name: formData.full_name.trim(),
         phone: formData.phone.trim() || null,
         college: formData.college.trim() || null,
         branch: formData.branch.trim() || null,
         resume_text,
-        resume_updated_at: resume_text ? new Date().toISOString() : user.resume_updated_at ?? null,
+        resume_updated_at: resume_text
+          ? new Date().toISOString()
+          : (user.resume_updated_at ?? null),
       });
 
-      if (tableMissing) {
-        setUsersTableMissing(true);
-        throw new Error('Profile table missing. Click “Create profile table” above.');
+      if (!ok) {
+        throw new Error(error ?? 'Could not save profile');
       }
-      if (!ok || error) throw new Error(error ?? 'Could not save profile');
 
-      setMessage({ type: 'success', text: 'Profile saved. Your resume is ready for AI Interview.' });
+      setMessage({ type: 'success', text: 'Profile saved' });
       setUser({
         ...user,
         ...formData,
@@ -175,32 +159,25 @@ export default function ProfilePage() {
 
       const ext = file.name.split('.').pop()?.toLowerCase() ?? 'dat';
       let resumeText = formData.resume_text;
-
       if (ext === 'txt' || ext === 'md' || file.type.startsWith('text/')) {
         resumeText = (await file.text()).slice(0, RESUME_MAX_CHARS);
       }
 
-      const storagePath = `${user.id}/resume-${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from('student-resumes')
-        .upload(storagePath, file, { upsert: true, contentType: file.type || undefined });
+      const upload = await uploadResumeViaApi(supabase, file);
 
-      if (uploadError && !/bucket/i.test(uploadError.message)) {
-        throw uploadError;
+      const nextResumeText = resumeText.trim() || formData.resume_text.trim() || null;
+      const nowIso = new Date().toISOString();
+
+      const save = await saveProfileViaApi(supabase, {
+        resume_file_name: upload.fileName ?? file.name,
+        resume_storage_path: upload.storagePath,
+        resume_text: nextResumeText,
+        resume_updated_at: nowIso,
+      });
+
+      if (!save.ok) {
+        throw new Error(save.error ?? 'Could not save resume to your profile');
       }
-
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
-          resume_file_name: file.name,
-          resume_storage_path: uploadError ? null : storagePath,
-          resume_text: resumeText.trim() || formData.resume_text.trim() || null,
-          resume_updated_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
 
       setFormData((prev) => ({
         ...prev,
@@ -210,21 +187,25 @@ export default function ProfilePage() {
         prev
           ? {
               ...prev,
-              resume_file_name: file.name,
-              resume_storage_path: uploadError ? null : storagePath,
+              resume_file_name: upload.fileName ?? file.name,
+              resume_storage_path: upload.storagePath,
               resume_text: resumeText || prev.resume_text,
+              resume_updated_at: nowIso,
             }
           : prev,
       );
 
-      if (ext !== 'txt' && ext !== 'md' && !file.type.startsWith('text/')) {
-        setMessage({
-          type: 'success',
-          text: 'File uploaded. Add or edit resume text below for best AI interview questions (PDF text is not auto-extracted yet).',
-        });
+      let successText: string;
+      if (!upload.ok) {
+        successText =
+          'Resume text saved. File could not be uploaded to storage, but your interview questions will still use the pasted text.';
+      } else if (ext !== 'txt' && ext !== 'md' && !file.type.startsWith('text/')) {
+        successText =
+          'File uploaded. Add or edit resume text below for best AI interview questions (PDF text is not auto-extracted yet).';
       } else {
-        setMessage({ type: 'success', text: 'Resume file loaded into your profile.' });
+        successText = 'Resume file loaded into your profile.';
       }
+      setMessage({ type: 'success', text: successText });
     } catch (error) {
       setMessage({ type: 'error', text: formatSupabaseError(error) });
     } finally {
@@ -256,31 +237,21 @@ export default function ProfilePage() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         <Card className="p-8 lux-surface shadow-xl">
           <h1 className="text-3xl font-bold mb-2 lux-heading">My Profile</h1>
-          <p className="text-sm text-muted-foreground mb-6">
-            Update your details and resume here. AI Mock Interview uses your saved resume when you start.
+          <p className="text-sm text-slate-600 mb-6">
+            Keep your details and resume up to date for placement tests and the AI interview module.
           </p>
 
-          {usersTableMissing ? (
-            <div className="mb-4">
-              <UsersTableSetupBanner onReady={() => void loadProfile()} />
-            </div>
-          ) : null}
-
           {fetchError ? (
-            <p className="mb-4 text-sm text-red-600">{fetchError}</p>
+            <StatusAlert variant="error" className="mb-4">
+              {fetchError}
+            </StatusAlert>
           ) : null}
 
-          {message && (
-            <div
-              className={`mb-6 p-4 rounded-lg border text-sm ${
-                message.type === 'success'
-                  ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-100'
-                  : 'border-red-400/50 bg-red-500/15 text-red-100'
-              }`}
-            >
+          {message ? (
+            <StatusAlert variant={message.type === 'success' ? 'success' : 'error'} className="mb-6">
               {message.text}
-            </div>
-          )}
+            </StatusAlert>
+          ) : null}
 
           <form onSubmit={(e) => void handleSubmit(e)} className="space-y-6">
             <div>

@@ -18,10 +18,11 @@ export function UsersTableSetupBanner({ onReady }: { onReady?: () => void }) {
   };
 
   return (
-    <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-4 py-3 space-y-3">
-      <p className="text-sm text-amber-100">
-        Your profile database table (<code className="text-amber-50">public.users</code>) is not set up yet.
-        That causes 404 errors when saving resume or profile data.
+    <div className="rounded-lg border border-sky-400/40 bg-sky-500/10 px-4 py-3 space-y-3">
+      <p className="text-sm text-sky-100">
+        Your profile is being saved to your auth account because the database table
+        (<code className="text-sky-50">public.users</code>) has not been created yet. Edits work fine —
+        run the one-time setup below to unlock dashboard analytics and admin features.
       </p>
       <div className="flex flex-wrap gap-2 items-center">
         <Button type="button" size="sm" disabled={busy} onClick={() => void runSetup()}>
@@ -31,7 +32,7 @@ export function UsersTableSetupBanner({ onReady }: { onReady?: () => void }) {
           Or run <code>supabase/migrations/001_users_resume.sql</code> in Supabase → SQL Editor
         </span>
       </div>
-      {note ? <p className="text-xs text-amber-100/90">{note}</p> : null}
+      {note ? <p className="text-xs text-sky-100/90">{note}</p> : null}
     </div>
   );
 }

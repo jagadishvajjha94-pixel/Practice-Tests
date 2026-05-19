@@ -460,7 +460,7 @@ export default function UsersManagementPage() {
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => downloadExcelCsv(selectedReport)}>
-                  Download Excel (CSV)
+                  Export CSV
                 </Button>
                 <Button onClick={() => downloadPdf(selectedReport)} className="bg-blue-600 hover:bg-blue-700 text-white">
                   Download PDF

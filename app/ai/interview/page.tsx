@@ -12,11 +12,11 @@ import { InterviewErrorBoundary } from '@/components/interview-error-boundary';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import {
   buildInterviewPlanFromResume,
-  ensureUserProfile,
+  fetchProfileViaApi,
   RESUME_MAX_CHARS,
-  upsertUserProfileFields,
+  saveProfileViaApi,
 } from '@/lib/user-profile';
-import { UsersTableSetupBanner } from '@/components/users-table-setup-banner';
+import { StatusAlert } from '@/components/ui/status-alert';
 import { analyzeResumeText } from '@/lib/ai-interview/resume-analyzer';
 import { DEFAULT_INTERVIEW_QUESTIONS } from '@/lib/ai-interview/default-questions';
 import { useVoiceInterview } from '@/lib/ai-interview/use-voice-interview';
@@ -48,8 +48,6 @@ export default function AiInterviewPage() {
   const [processing, setProcessing] = useState(false);
   const [score, setScore] = useState(0);
   const [authChecked, setAuthChecked] = useState(false);
-  const [usersTableMissing, setUsersTableMissing] = useState(false);
-
   const bankRef = useRef(questionBank);
   const indexRef = useRef(0);
 
@@ -80,8 +78,7 @@ export default function AiInterviewPage() {
         router.replace('/auth/login?redirect=/ai/interview');
         return;
       }
-      const { profile, tableMissing } = await ensureUserProfile(supabase, user);
-      setUsersTableMissing(tableMissing);
+      const { profile } = await fetchProfileViaApi(supabase);
       if (profile?.resume_text) setResumeText(profile.resume_text);
     } catch {
       /* show setup UI even if profile load fails */
@@ -97,19 +94,14 @@ export default function AiInterviewPage() {
   const saveResumeToProfile = async (text: string) => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
     setSavingResume(true);
     try {
       const trimmed = text.trim().slice(0, RESUME_MAX_CHARS) || null;
-      const { ok, tableMissing, error } = await upsertUserProfileFields(supabase, user, {
+      const { ok, error } = await saveProfileViaApi(supabase, {
         resume_text: trimmed,
         resume_updated_at: trimmed ? new Date().toISOString() : null,
       });
-      setUsersTableMissing(tableMissing);
-      if (!ok && error && !tableMissing) {
+      if (!ok && error) {
         setStatusNote(error);
       }
     } catch {
@@ -262,14 +254,8 @@ export default function AiInterviewPage() {
               </p>
             </div>
 
-            {usersTableMissing ? (
-              <UsersTableSetupBanner onReady={() => void loadProfile()} />
-            ) : null}
-
             {statusNote ? (
-              <p className="text-sm rounded-lg border border-amber-400/40 bg-amber-500/10 text-amber-100 px-4 py-3">
-                {statusNote}
-              </p>
+              <StatusAlert variant="info">{statusNote}</StatusAlert>
             ) : null}
 
             <Textarea

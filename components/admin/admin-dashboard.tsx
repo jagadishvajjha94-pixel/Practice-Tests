@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { cn } from '@/lib/utils';
+import { StatCard } from '@/components/ui/stat-card';
 
 type DashboardStudent = {
   id: string;
@@ -399,7 +400,7 @@ export function AdminDashboard() {
     lines.push('Attempt ID,Student Name,Student Email,Test Name,Category,Score,Status,Created At,Completed At,Time Taken (min)');
     const userById = new Map(filteredStudents.map((s) => [s.id, s]));
     const categoryById = new Map(categories.map((c) => [c.id, c]));
-    for (const attempt of allAttempts) {
+    for (const attempt of filteredAttempts) {
       const userId = String(attempt.user_id ?? '');
       const student = userById.get(userId);
       if (!student) continue;
@@ -443,38 +444,19 @@ export function AdminDashboard() {
       </div>
       <div>
         <div className="grid sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
-          <Card className="p-5 sm:col-span-2">
-            <p className="text-gray-600 text-sm font-medium mb-2">Registered users</p>
-            <p className="text-4xl font-bold text-slate-800">{stats.totalRegisteredUsers}</p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">Students with attempts</p>
-            <p className="text-3xl font-bold text-blue-600">{stats.totalStudentsAttended}</p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">Tests submitted</p>
-            <p className="text-3xl font-bold text-[#1e3a5f]">{stats.totalTestsSubmitted}</p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">Avg tests / student</p>
-            <p className="text-3xl font-bold text-green-600">{stats.avgTestsPerStudent}</p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">Tests (7 days)</p>
-            <p className="text-3xl font-bold text-cyan-600">{stats.testsLast7Days}</p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">Need attention</p>
-            <p className="text-3xl font-bold text-red-600">{stats.lowPerformers}</p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">Psychometric</p>
-            <p className="text-3xl font-bold text-indigo-600">{stats.psychometricSubmitted}</p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">SWARX</p>
-            <p className="text-3xl font-bold text-emerald-600">{stats.swarxSubmitted}</p>
-          </Card>
+          <StatCard
+            className="sm:col-span-2"
+            label="Registered users"
+            value={stats.totalRegisteredUsers}
+            accent="navy"
+          />
+          <StatCard label="Students with attempts" value={stats.totalStudentsAttended} accent="blue" />
+          <StatCard label="Tests submitted" value={stats.totalTestsSubmitted} accent="navy" />
+          <StatCard label="Avg tests / student" value={stats.avgTestsPerStudent} accent="emerald" />
+          <StatCard label="Tests (7 days)" value={stats.testsLast7Days} accent="cyan" />
+          <StatCard label="Need attention" value={stats.lowPerformers} accent="red" />
+          <StatCard label="Psychometric" value={stats.psychometricSubmitted} accent="indigo" />
+          <StatCard label="SWARX" value={stats.swarxSubmitted} accent="emerald" />
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6 mb-8">
@@ -556,30 +538,30 @@ export function AdminDashboard() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">Attendance rate</p>
-            <p className="text-3xl font-bold text-blue-700">{attendanceRate}%</p>
-            <p className="text-xs text-gray-500 mt-1">
-              {stats.totalStudentsAttended}/{stats.totalRegisteredUsers} students attempted
-            </p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">Overall average score</p>
-            <p className="text-3xl font-bold text-[#1e3a5f]700">{overallAverageScore}%</p>
-            <p className="text-xs text-gray-500 mt-1">Across {filteredAttempts.length} filtered attempts</p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">Pass rate (≥ 40%)</p>
-            <p className="text-3xl font-bold text-emerald-700">{passRate}%</p>
-            <p className="text-xs text-gray-500 mt-1">
-              {passedCount}/{filteredAttempts.length} attempts passed
-            </p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-gray-600 text-sm font-medium mb-2">Inactive students</p>
-            <p className="text-3xl font-bold text-amber-700">{inactiveStudents}</p>
-            <p className="text-xs text-gray-500 mt-1">No tests attempted yet</p>
-          </Card>
+          <StatCard
+            label="Attendance rate"
+            value={`${attendanceRate}%`}
+            hint={`${stats.totalStudentsAttended} of ${stats.totalRegisteredUsers} students have attempted at least one test`}
+            accent="blue"
+          />
+          <StatCard
+            label="Overall average score"
+            value={`${overallAverageScore}%`}
+            hint={`Across ${filteredAttempts.length} attempts in the current filter`}
+            accent="navy"
+          />
+          <StatCard
+            label="Pass rate (≥ 40%)"
+            value={`${passRate}%`}
+            hint={`${passedCount} of ${filteredAttempts.length} attempts met the pass threshold`}
+            accent="emerald"
+          />
+          <StatCard
+            label="Inactive students"
+            value={inactiveStudents}
+            hint="Registered but no test attempts yet"
+            accent="amber"
+          />
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6 mb-8">
@@ -599,8 +581,11 @@ export function AdminDashboard() {
                         {band.count} student{band.count === 1 ? '' : 's'}
                       </p>
                     </div>
-                    <div className="h-2 w-full rounded-full bg-gray-200">
-                      <div className="h-2 rounded-full bg-gray-800" style={{ width: `${percent}%` }} />
+                    <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-[#1e3a5f] to-[#3b6ea8]"
+                        style={{ width: `${Math.max(percent, 2)}%` }}
+                      />
                     </div>
                   </div>
                 );
