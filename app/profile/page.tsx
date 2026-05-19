@@ -233,13 +233,21 @@ export default function ProfilePage() {
   const authEmail = user?.email ?? '';
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <Card className="p-8 lux-surface shadow-xl">
-          <h1 className="text-3xl font-bold mb-2 lux-heading">My Profile</h1>
-          <p className="text-sm text-slate-600 mb-6">
+    <div className="app-page">
+      <header className="app-page-header">
+        <div className="max-w-3xl mx-auto px-4 space-y-2">
+          <span className="app-eyebrow">Account</span>
+          <h1 className="app-title-lg">My profile</h1>
+          <p className="app-subtitle">
             Keep your details and resume up to date for placement tests and the AI interview module.
           </p>
+        </div>
+      </header>
+
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <Card className="p-6 sm:p-8">
+          <h2 className="app-section-title mb-1">Personal details</h2>
+          <p className="app-muted mb-6">Email is locked to your portal sign-in.</p>
 
           {fetchError ? (
             <StatusAlert variant="error" className="mb-4">
@@ -321,11 +329,11 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div className="rounded-xl border border-primary/35 bg-primary/10 p-4 space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-5 space-y-4">
               <div>
-                <h2 className="font-semibold text-foreground">Resume (for AI interview)</h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Upload a .txt/.md file or paste text. Used when you start AI Interview.
+                <h2 className="font-semibold text-[#0c2340]">Resume</h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Upload a .txt/.md file or paste text. Used when you start the AI interview.
                 </p>
               </div>
               {user?.resume_file_name ? (

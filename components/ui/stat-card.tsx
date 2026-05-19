@@ -4,39 +4,101 @@ type StatCardProps = {
   label: string;
   value: string | number;
   hint?: string;
+  icon?: React.ReactNode;
+  trend?: { value: string; tone?: 'positive' | 'negative' | 'neutral' };
   accent?: 'navy' | 'blue' | 'emerald' | 'cyan' | 'amber' | 'red' | 'indigo';
   className?: string;
 };
 
-const accentBar = {
-  navy: 'bg-[#1e3a5f]',
-  blue: 'bg-blue-600',
-  emerald: 'bg-emerald-600',
-  cyan: 'bg-cyan-600',
-  amber: 'bg-amber-500',
-  red: 'bg-red-500',
-  indigo: 'bg-indigo-600',
+const accentGradient = {
+  navy: 'from-[#1e3a5f] to-[#0c2340]',
+  blue: 'from-blue-500 to-blue-700',
+  emerald: 'from-emerald-500 to-emerald-700',
+  cyan: 'from-cyan-500 to-cyan-700',
+  amber: 'from-amber-400 to-amber-600',
+  red: 'from-red-500 to-red-700',
+  indigo: 'from-indigo-500 to-indigo-700',
+} as const;
+
+const accentSoft = {
+  navy: 'bg-[#1e3a5f]/8 text-[#1e3a5f]',
+  blue: 'bg-blue-50 text-blue-700',
+  emerald: 'bg-emerald-50 text-emerald-700',
+  cyan: 'bg-cyan-50 text-cyan-700',
+  amber: 'bg-amber-50 text-amber-700',
+  red: 'bg-red-50 text-red-700',
+  indigo: 'bg-indigo-50 text-indigo-700',
 } as const;
 
 const valueTone = {
-  navy: 'text-[#1e3a5f]',
+  navy: 'text-[#0c2340]',
   blue: 'text-blue-700',
   emerald: 'text-emerald-700',
   cyan: 'text-cyan-700',
   amber: 'text-amber-700',
-  red: 'text-red-600',
+  red: 'text-red-700',
   indigo: 'text-indigo-700',
 } as const;
 
-export function StatCard({ label, value, hint, accent = 'navy', className }: StatCardProps) {
+const trendTone = {
+  positive: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  negative: 'text-red-700 bg-red-50 border-red-200',
+  neutral: 'text-slate-700 bg-slate-50 border-slate-200',
+} as const;
+
+export function StatCard({
+  label,
+  value,
+  hint,
+  icon,
+  trend,
+  accent = 'navy',
+  className,
+}: StatCardProps) {
   return (
     <div className={cn('app-stat-card', className)}>
-      <div className={cn('absolute left-0 top-0 h-full w-1 rounded-l-xl', accentBar[accent])} />
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 pl-2">
-        {label}
+      <div
+        className={cn(
+          'absolute inset-x-0 top-0 h-1 bg-gradient-to-r',
+          accentGradient[accent],
+        )}
+        aria-hidden
+      />
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          {label}
+        </p>
+        {icon ? (
+          <span
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-lg text-base',
+              accentSoft[accent],
+            )}
+          >
+            {icon}
+          </span>
+        ) : null}
+      </div>
+      <p className={cn('text-3xl font-bold tabular-nums tracking-tight', valueTone[accent])}>
+        {value}
       </p>
-      <p className={cn('text-3xl font-bold tabular-nums pl-2', valueTone[accent])}>{value}</p>
-      {hint ? <p className="text-xs text-slate-500 mt-2 pl-2 leading-relaxed">{hint}</p> : null}
+      {(hint || trend) && (
+        <div className="mt-2 flex items-center gap-2">
+          {trend ? (
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                trendTone[trend.tone ?? 'neutral'],
+              )}
+            >
+              {trend.value}
+            </span>
+          ) : null}
+          {hint ? (
+            <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { User, TestAttempt, Test } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
-import { buildUserFromAuth, formatSupabaseError } from '@/lib/utils';
+import { buildUserFromAuth, cn, formatSupabaseError } from '@/lib/utils';
 import { getLastSubmitEntry, toDashboardAttemptFromFeed } from '@/lib/dashboard-feed';
 import { formatScorePercent, averageScorePercent } from '@/lib/format-score';
 import {
@@ -16,6 +16,9 @@ import {
   getClientDashboardAttempts,
   mergeAttempts,
 } from '@/lib/test-attempts';
+import { StatCard } from '@/components/ui/stat-card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type DashboardAttempt = TestAttempt & { test: Test };
 
@@ -162,8 +165,24 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading dashboard...</p>
+      <div className="app-page">
+        <div className="app-page-header">
+          <div className="max-w-6xl mx-auto px-4">
+            <Skeleton className="h-6 w-32 mb-3" />
+            <Skeleton className="h-9 w-56 mb-2" />
+            <Skeleton className="h-5 w-72" />
+          </div>
+        </div>
+        <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+          <div className="grid md:grid-cols-4 gap-4">
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+          </div>
+          <Skeleton className="h-48" />
+          <Skeleton className="h-64" />
+        </div>
       </div>
     );
   }
@@ -192,90 +211,77 @@ export default function DashboardPage() {
     );
   }
 
+  const completedAttempts = attempts.filter((a) => a.status === 'completed');
+  const averageScore =
+    attempts.length > 0
+      ? formatScorePercent(averageScorePercent(attempts.map((a) => Number(a.score) || 0)))
+      : '0.00';
+  const bestScore =
+    attempts.length > 0
+      ? formatScorePercent(Math.max(...attempts.map((a) => Number(a.score) || 0)))
+      : '0.00';
+
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <div className="app-page-header">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-              <p className="text-muted-foreground mt-1">Welcome back, {user.full_name || user.email}</p>
-            </div>
-            {isAdminUser ? (
-              <Link href="/admin">
-                <Button variant="outline">Open Admin Panel</Button>
-              </Link>
-            ) : null}
+    <div className="app-page">
+      <header className="app-page-header">
+        <div className="mx-auto max-w-6xl px-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-2 min-w-0">
+            <span className="app-eyebrow">Student dashboard</span>
+            <h1 className="app-title-xl">Welcome back, {user.full_name || user.email}</h1>
+            <p className="app-subtitle">
+              Track your progress, review past attempts, and prepare for upcoming assessments.
+            </p>
           </div>
+          {isAdminUser ? (
+            <Link href="/admin">
+              <Button variant="outline">Open admin panel</Button>
+            </Link>
+          ) : null}
         </div>
-      </div>
+      </header>
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Stats Cards */}
-        <div className="grid md:grid-cols-4 gap-4 mb-8">
-          <Card className="p-6">
-            <div className="text-muted-foreground text-sm font-medium mb-2">Tests Attempted</div>
-            <div className="text-3xl font-bold text-primary">{attempts.length}</div>
-          </Card>
-          <Card className="p-6">
-            <div className="text-muted-foreground text-sm font-medium mb-2">Completed Tests</div>
-            <div className="text-3xl font-bold text-primary">
-              {attempts.filter((a) => a.status === 'completed').length}
-            </div>
-          </Card>
-          <Card className="p-6">
-            <div className="text-muted-foreground text-sm font-medium mb-2">Average Score</div>
-            <div className="text-3xl font-bold text-emerald-600">
-              {attempts.length > 0
-                ? formatScorePercent(
-                    averageScorePercent(attempts.map((a) => Number(a.score) || 0)),
-                  )
-                : '0.00'}
-              %
-            </div>
-          </Card>
-          <Card className="p-6">
-            <div className="text-muted-foreground text-sm font-medium mb-2">Best Score</div>
-            <div className="text-3xl font-bold text-accent">
-              {attempts.length > 0
-                ? formatScorePercent(Math.max(...attempts.map((a) => Number(a.score) || 0)))
-                : '0.00'}
-              %
-            </div>
-          </Card>
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <StatCard label="Tests attempted" value={attempts.length} accent="navy" />
+          <StatCard label="Completed" value={completedAttempts.length} accent="blue" />
+          <StatCard label="Average score" value={`${averageScore}%`} accent="emerald" />
+          <StatCard label="Best score" value={`${bestScore}%`} accent="indigo" />
         </div>
 
-        {/* Profile Section */}
         <Card className="p-6 mb-8">
-          <h2 className="text-xl font-semibold text-foreground mb-4">Profile Information</h2>
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="flex items-start justify-between gap-3 mb-5">
             <div>
-              <p className="text-sm text-muted-foreground mb-1">Email</p>
-              <p className="font-semibold text-foreground">{user.email}</p>
+              <h2 className="app-section-title">Profile information</h2>
+              <p className="app-muted mt-1">Used for placement tests and the AI interview studio.</p>
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Email</p>
+              <p className="font-medium text-slate-900 truncate">{user.email}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground mb-1">Full Name</p>
-              <p className="font-semibold text-foreground">{user.full_name || 'Not set'}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Full name</p>
+              <p className="font-medium text-slate-900">{user.full_name || 'Not set'}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground mb-1">Phone</p>
-              <p className="font-semibold text-foreground">{user.phone || 'Not set'}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Phone</p>
+              <p className="font-medium text-slate-900">{user.phone || 'Not set'}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground mb-1">Joined</p>
-              <p className="font-semibold text-foreground">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Member since</p>
+              <p className="font-medium text-slate-900">
                 {new Date(user.created_at).toLocaleDateString()}
               </p>
             </div>
           </div>
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="lux-divider mt-6 mb-5" />
+          <div className="flex flex-wrap gap-2">
             <Link href="/profile">
-              <Button variant="outline">Edit Profile</Button>
+              <Button variant="outline">Edit profile</Button>
             </Link>
             <Link href="/dashboard/analytics">
-              <Button variant="outline">Performance Analytics</Button>
+              <Button variant="outline">Performance analytics</Button>
             </Link>
             <Link href="/ai/interview">
               <Button>AI Interview Studio</Button>
@@ -283,66 +289,96 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        {/* Test History */}
         <Card className="p-6">
-          <h2 className="text-xl font-semibold text-foreground mb-4">Recent Test Attempts</h2>
+          <div className="flex items-start justify-between gap-3 mb-5">
+            <div>
+              <h2 className="app-section-title">Recent test attempts</h2>
+              <p className="app-muted mt-1">
+                {attempts.length === 0
+                  ? 'No attempts yet — start with any module to see results here.'
+                  : `${attempts.length} attempt${attempts.length === 1 ? '' : 's'} on record`}
+              </p>
+            </div>
+            {attempts.length > 0 ? (
+              <Link href="/tests">
+                <Button variant="outline" size="sm">
+                  Browse tests
+                </Button>
+              </Link>
+            ) : null}
+          </div>
 
           {attempts.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">You haven&apos;t taken any tests yet.</p>
+            <div className="text-center py-10 rounded-xl border border-dashed border-slate-200 bg-slate-50/40">
+              <p className="text-slate-600 mb-4">You haven&apos;t taken any tests yet.</p>
               {!isAdminUser ? (
                 <Link href="/tests">
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                    Start Your First Test
-                  </Button>
+                  <Button>Start your first test</Button>
                 </Link>
               ) : (
                 <Link href="/admin/tests">
-                  <Button variant="outline">
-                    View Student Test Monitoring
-                  </Button>
+                  <Button variant="outline">View student test monitoring</Button>
                 </Link>
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <table className="app-table">
                 <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Test Name</th>
-                    <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Score</th>
-                    <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Status</th>
-                    <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Date</th>
-                    <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Action</th>
+                  <tr>
+                    <th>Test</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th aria-label="actions" />
                   </tr>
                 </thead>
                 <tbody>
-                  {attempts.map((attempt) => (
-                    <tr key={attempt.id} className="border-b border-border/80 hover:bg-muted/40">
-                      <td className="py-3 px-4 text-foreground">{attempt.test?.name}</td>
-                      <td className="py-3 px-4">
-                        <span className={`font-semibold ${attempt.score! >= 40 ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {formatScorePercent(attempt.score)}%
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="px-3 py-1 bg-slate-100 text-foreground text-sm font-medium rounded capitalize">
-                          {attempt.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-muted-foreground">
-                        {new Date(attempt.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Link
-                          href={`/tests/result/${encodeURIComponent(String(attempt.id))}`}
-                          className="text-[#1e3a5f] hover:text-[#16304f] font-medium"
-                        >
-                          View
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                  {attempts.map((attempt) => {
+                    const score = Number(attempt.score) || 0;
+                    const passed = score >= 40;
+                    const statusLabel = String(attempt.status ?? '').toLowerCase();
+                    return (
+                      <tr key={attempt.id}>
+                        <td className="font-medium text-[#0c2340]">{attempt.test?.name}</td>
+                        <td>
+                          <span
+                            className={cn(
+                              'font-semibold tabular-nums',
+                              passed ? 'text-emerald-700' : 'text-red-600',
+                            )}
+                          >
+                            {formatScorePercent(attempt.score)}%
+                          </span>
+                        </td>
+                        <td>
+                          <Badge
+                            tone={
+                              statusLabel === 'completed'
+                                ? 'success'
+                                : statusLabel === 'in_progress'
+                                  ? 'warning'
+                                  : 'neutral'
+                            }
+                            className="capitalize"
+                          >
+                            {statusLabel.replace('_', ' ') || 'pending'}
+                          </Badge>
+                        </td>
+                        <td className="text-slate-500 whitespace-nowrap">
+                          {new Date(attempt.created_at).toLocaleDateString()}
+                        </td>
+                        <td>
+                          <Link
+                            href={`/tests/result/${encodeURIComponent(String(attempt.id))}`}
+                            className="text-[#1e3a5f] hover:underline font-semibold"
+                          >
+                            View →
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -350,15 +386,21 @@ export default function DashboardPage() {
         </Card>
 
         {!isAdminUser ? (
-          <Card className="p-6 mt-8">
+          <Card className="p-6 mt-8 bg-gradient-to-br from-[#0c2340] to-[#1e3a5f] text-white border-0">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-foreground">Ready for your next test?</h3>
-                <p className="text-sm text-muted-foreground">Start a new attempt from the practice tests page.</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-200">
+                  Ready for your next test?
+                </p>
+                <h3 className="text-xl font-bold mt-1">Continue your placement preparation</h3>
+                <p className="text-sm text-white/85 mt-1 max-w-xl">
+                  Choose from psychometric, aptitude, programming, or the AI-graded Evalora placement
+                  assessment.
+                </p>
               </div>
               <Link href="/tests">
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                  Take a Test
+                <Button className="bg-white text-[#0c2340] hover:bg-slate-100 shadow-md">
+                  Browse practice tests
                 </Button>
               </Link>
             </div>

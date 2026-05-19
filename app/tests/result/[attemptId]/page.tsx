@@ -181,43 +181,75 @@ export default function TestResultPage({
   return (
     <div className="exam-mode min-h-screen bg-white text-gray-900 py-12">
       <div className="max-w-4xl mx-auto px-4">
-        {/* Result Header */}
-        <div className="text-center mb-8">
-          <div className={`text-6xl font-bold mb-4 ${isPassed ? 'text-green-600' : 'text-red-600'}`}>
+        <div className="relative mb-10 overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-white p-8 sm:p-10 text-center shadow-sm">
+          <div
+            aria-hidden
+            className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${
+              isPassed
+                ? 'from-emerald-400 via-emerald-500 to-emerald-600'
+                : 'from-red-400 via-red-500 to-red-600'
+            }`}
+          />
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] mb-4 ${
+              isPassed
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-red-200 bg-red-50 text-red-700'
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                isPassed ? 'bg-emerald-500' : 'bg-red-500'
+              }`}
+            />
+            {isPassed ? 'Passed' : 'Keep practicing'}
+          </span>
+          <div
+            className={`text-6xl sm:text-7xl font-extrabold tabular-nums mb-3 ${
+              isPassed ? 'text-emerald-600' : 'text-red-600'
+            }`}
+          >
             {displayPercentage}%
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {isPassed ? '🎉 Congratulations!' : 'Result'}
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#0c2340] mb-1 tracking-tight">
+            {isPassed ? 'Excellent work!' : 'Your result'}
           </h1>
-          <p className="text-lg text-gray-800 font-medium">{test.name}</p>
-          <p className="text-gray-700 mt-2">
-            {isPassed ? 'You passed the test!' : 'Keep practicing to improve your score'}
+          <p className="text-base text-slate-700 font-medium">{test.name}</p>
+          <p className="text-slate-600 mt-2 text-sm">
+            {isPassed ? 'You passed the test!' : 'Review and try again to improve your score.'}
           </p>
           {derivedFromAggregateOnly ? (
-            <p className="text-sm text-gray-500 mt-3 max-w-xl mx-auto">
-              Your percentage and counts come from this attempt. Per-question responses are not stored in this
-              database layout.
+            <p className="text-xs text-slate-500 mt-3 max-w-xl mx-auto">
+              Your percentage and counts come from this attempt. Per-question responses are not
+              stored in this database layout.
             </p>
           ) : null}
         </div>
 
-        {/* Score Cards */}
-        <div className="grid md:grid-cols-4 gap-4 mb-8">
-          <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
-            <div className="text-2xl font-bold text-blue-600 mb-2">{correctCount}</div>
-            <p className="text-gray-700 text-sm">Correct Answers</p>
+        <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <Card className="p-5 text-center bg-white">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+              Correct
+            </p>
+            <div className="text-3xl font-bold text-emerald-600 tabular-nums">{correctCount}</div>
           </Card>
-          <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
-            <div className="text-2xl font-bold text-orange-600 mb-2">{incorrectCount}</div>
-            <p className="text-gray-700 text-sm">Incorrect Answers</p>
+          <Card className="p-5 text-center bg-white">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+              Incorrect
+            </p>
+            <div className="text-3xl font-bold text-red-600 tabular-nums">{incorrectCount}</div>
           </Card>
-          <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
-            <div className="text-2xl font-bold text-[#1e3a5f] mb-2">{unansweredCount}</div>
-            <p className="text-gray-700 text-sm">Unanswered</p>
+          <Card className="p-5 text-center bg-white">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+              Unanswered
+            </p>
+            <div className="text-3xl font-bold text-amber-600 tabular-nums">{unansweredCount}</div>
           </Card>
-          <Card className="p-6 text-center bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
-            <div className="text-2xl font-bold text-green-600 mb-2">{timeLabel}</div>
-            <p className="text-gray-700 text-sm">Time Taken</p>
+          <Card className="p-5 text-center bg-white">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+              Time taken
+            </p>
+            <div className="text-3xl font-bold text-[#1e3a5f] tabular-nums">{timeLabel}</div>
           </Card>
         </div>
 

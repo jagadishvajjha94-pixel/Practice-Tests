@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { COLLEGE } from '@/lib/college-brand';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/faculty/dashboard', label: 'Overview' },
@@ -70,39 +69,49 @@ export function FacultyShell({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">
-        Loading faculty portal…
+        <div className="flex items-center gap-3">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#1e3a5f] animate-pulse" />
+          <span>Loading faculty portal…</span>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-[#0c2340] text-white border-b border-[#1e3a5f]">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-slate-300">{COLLEGE.rce} Faculty</p>
-            <h1 className="text-base sm:text-lg font-bold text-white leading-snug">{COLLEGE.name}</h1>
-            <p className="text-sm text-slate-200 mt-0.5">{COLLEGE.departmentTitle}</p>
-            {department ? <p className="text-sm text-slate-300 mt-1">{department}</p> : null}
+      <header className="app-portal-header">
+        <div className="max-w-6xl mx-auto px-4 py-5 flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-cyan-200/90 font-bold">
+              {COLLEGE.rce} · Faculty
+            </p>
+            <h1 className="text-lg sm:text-xl font-bold text-white mt-1 leading-tight">
+              {COLLEGE.name}
+            </h1>
+            <p className="text-sm text-slate-200/90">{COLLEGE.departmentTitle}</p>
+            {department ? (
+              <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-white/10 backdrop-blur px-2.5 py-0.5 text-xs font-semibold text-white">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                {department}
+              </p>
+            ) : null}
           </div>
           <Button
             type="button"
             variant="ghost"
-            className="shrink-0 border border-white/50 bg-white/10 !text-white hover:bg-white/20 hover:!text-white shadow-none"
+            className="shrink-0 border border-white/30 bg-white/10 !text-white hover:bg-white/20 hover:!text-white backdrop-blur"
             onClick={signOut}
           >
             Sign out
           </Button>
         </div>
-        <nav className="max-w-6xl mx-auto px-4 pb-3 flex flex-wrap gap-2">
+        <nav className="max-w-6xl mx-auto px-4 pb-4 flex flex-wrap gap-1.5">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={cn(
-                'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                pathname === item.href ? 'bg-white text-[#0c2340]' : 'text-slate-200 hover:bg-white/10',
-              )}
+              className="app-portal-nav-link"
+              data-active={pathname === item.href}
             >
               {item.label}
             </Link>

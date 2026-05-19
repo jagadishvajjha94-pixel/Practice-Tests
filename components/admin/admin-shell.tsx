@@ -7,7 +7,6 @@ import { COLLEGE } from '@/lib/college-brand';
 import { ADMIN_NAV_ITEMS } from '@/lib/admin-nav';
 import { useAdminGate } from '@/lib/use-admin-gate';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { cn } from '@/lib/utils';
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -22,8 +21,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-600">
-        Loading admin panel…
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-600">
+        <div className="flex items-center gap-3">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#1e3a5f] animate-pulse" />
+          <span>Loading admin panel…</span>
+        </div>
       </div>
     );
   }
@@ -35,20 +37,22 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const isOverviewActive = pathname === '/admin' || pathname === '/admin/dashboard';
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-[#0c2340] text-white border-b border-[#1e3a5f] sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-slate-300">{COLLEGE.rce} Admin</p>
-              <h1 className="text-lg font-bold text-white">{COLLEGE.shortName}</h1>
-              <p className="text-sm text-slate-300">{COLLEGE.departmentTitle}</p>
+    <div className="min-h-screen bg-slate-50">
+      <header className="app-portal-header">
+        <div className="max-w-6xl mx-auto px-4 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-cyan-200/90 font-bold">
+                {COLLEGE.rce} · Administration
+              </p>
+              <h1 className="text-xl font-bold text-white mt-1">{COLLEGE.shortName}</h1>
+              <p className="text-sm text-slate-200/90">{COLLEGE.departmentTitle}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
               <Link href="/auth/role">
                 <Button
                   variant="ghost"
-                  className="border border-white/50 bg-white/10 !text-white hover:bg-white/20 hover:!text-white"
+                  className="border border-white/30 bg-white/10 !text-white hover:bg-white/20 hover:!text-white backdrop-blur"
                 >
                   Portal home
                 </Button>
@@ -56,29 +60,28 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <Button
                 type="button"
                 variant="ghost"
-                className="border border-white/50 bg-white/10 !text-white hover:bg-white/20 hover:!text-white"
+                className="border border-white/30 bg-white/10 !text-white hover:bg-white/20 hover:!text-white backdrop-blur"
                 onClick={signOut}
               >
                 Sign out
               </Button>
             </div>
           </div>
-          <nav className="mt-4 flex flex-wrap gap-2">
+          <nav className="mt-5 flex flex-wrap gap-1.5">
             {ADMIN_NAV_ITEMS.map((item) => {
               const active =
                 item.href === '/admin/dashboard'
                   ? isOverviewActive
                   : pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
-                <Link key={item.href} href={item.href} title={item.description}>
-                  <span
-                    className={cn(
-                      'inline-flex rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                      active ? 'bg-white text-[#0c2340]' : 'text-slate-200 hover:bg-white/10',
-                    )}
-                  >
-                    {item.label}
-                  </span>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={item.description}
+                  className="app-portal-nav-link"
+                  data-active={active}
+                >
+                  {item.label}
                 </Link>
               );
             })}

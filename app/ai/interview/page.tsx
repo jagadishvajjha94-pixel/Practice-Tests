@@ -226,20 +226,34 @@ export default function AiInterviewPage() {
 
   if (!authChecked) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-foreground">Loading AI Interview…</p>
+      <div className="app-page">
+        <div className="app-page-header">
+          <div className="max-w-4xl mx-auto px-4 space-y-2">
+            <div className="app-skeleton h-5 w-32" />
+            <div className="app-skeleton h-9 w-72" />
+            <div className="app-skeleton h-5 w-96" />
+          </div>
+        </div>
+        <div className="max-w-4xl mx-auto px-4 py-8 space-y-5">
+          <div className="app-skeleton h-64" />
+          <div className="app-skeleton h-32" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="app-page">
       <header className="app-page-header">
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <p className="text-sm uppercase tracking-wider text-[#1e4a7a] mb-2">PrepIndia · AI</p>
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground">AI Interview Studio</h1>
-          <p className="text-muted-foreground mt-2 max-w-2xl">
-            Resume review and voice interview in one place — separate from SWARX communication drills.
+        <div className="max-w-4xl mx-auto px-4 space-y-2">
+          <span className="app-eyebrow">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            AI · Voice
+          </span>
+          <h1 className="app-title-lg">AI Interview Studio</h1>
+          <p className="app-subtitle">
+            Resume review and voice interview in one place — separate from SWARX communication
+            drills.
           </p>
         </div>
       </header>

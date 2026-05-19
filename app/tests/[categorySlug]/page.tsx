@@ -218,8 +218,19 @@ export default function CategoryTestsPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading tests...</p>
+      <div className="app-page">
+        <div className="app-page-header">
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="app-skeleton h-6 w-32 mb-3" />
+            <div className="app-skeleton h-9 w-72 mb-2" />
+            <div className="app-skeleton h-5 w-96" />
+          </div>
+        </div>
+        <div className="max-w-6xl mx-auto px-4 py-10 grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="app-skeleton h-56" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -245,69 +256,74 @@ export default function CategoryTestsPage({
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="app-page">
       {loadError ? (
-        <div className="max-w-6xl mx-auto px-4 pt-8">
-          <p className="text-sm text-red-100 rounded-md border border-red-300/40 bg-red-500/15 px-4 py-3">
-            {loadError}
-          </p>
+        <div className="max-w-6xl mx-auto px-4 pt-6">
+          <div className="app-alert-error">{loadError}</div>
         </div>
       ) : null}
-      {/* Header */}
-      <div className="py-12 border-b border-border bg-white">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex items-center gap-4 mb-4">
-            <span className="text-4xl">{category.icon}</span>
+
+      <header className="app-page-header">
+        <div className="max-w-6xl mx-auto px-4 space-y-3">
+          <Link
+            href="/tests"
+            className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[#1e3a5f] hover:underline"
+          >
+            ← All categories
+          </Link>
+          <div className="flex items-center gap-4">
+            <span className="text-4xl drop-shadow-sm" aria-hidden>
+              {category.icon}
+            </span>
             <div>
-              <h1 className="text-4xl font-bold lux-heading">{category.name}</h1>
+              <h1 className="app-title-xl">{category.name}</h1>
+              <p className="app-subtitle">{category.description}</p>
             </div>
           </div>
-          <p className="text-muted-foreground text-lg">{category.description}</p>
         </div>
-      </div>
+      </header>
 
-      {/* Tests List */}
-      <div className="max-w-6xl mx-auto px-4 py-12">
+      <div className="max-w-6xl mx-auto px-4 py-10">
         {tests.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground mb-4">No tests available in this category yet.</p>
-            <Link href="/tests" className="text-[#1e3a5f] hover:text-[#16304f]">
-              Back to categories
+          <div className="text-center py-16 rounded-2xl border border-dashed border-slate-200 bg-slate-50/40">
+            <p className="text-slate-600 mb-4">No tests available in this category yet.</p>
+            <Link href="/tests" className="text-[#1e3a5f] hover:underline font-semibold">
+              ← Back to categories
             </Link>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {tests.map((test) => (
-              <Card key={test.id} className="p-6 hover:-translate-y-1 hover:border-slate-300 transition-all duration-300">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h2 className="text-xl font-semibold text-foreground">{test.name}</h2>
-                    <p className="text-sm text-muted-foreground mt-1">{test.description}</p>
-                  </div>
+              <Card key={test.id} interactive className="p-6">
+                <div className="mb-4 min-h-[3.5rem]">
+                  <h2 className="text-lg font-bold text-[#0c2340] tracking-tight">{test.name}</h2>
+                  {test.description ? (
+                    <p className="text-sm text-slate-600 mt-1 line-clamp-2">{test.description}</p>
+                  ) : null}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-6 py-4 border-y border-slate-200">
+                <div className="grid grid-cols-2 gap-3 mb-5 py-3 border-y border-slate-100">
                   <div>
-                    <p className="text-sm text-muted-foreground">Questions</p>
-                    <p className="text-lg font-semibold text-foreground">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Questions
+                    </p>
+                    <p className="text-base font-bold text-[#0c2340] tabular-nums">
                       {listedQuestions == null ? '—' : listedQuestions}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Duration</p>
-                    <p className="text-lg font-semibold text-foreground">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Duration
+                    </p>
+                    <p className="text-base font-bold text-[#0c2340] tabular-nums">
                       {listedMinutes == null ? '—' : `${listedMinutes} min`}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <Link href={`/tests/take/${test.id}`} className="flex-1">
-                    <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                      Start Test
-                    </Button>
-                  </Link>
-                </div>
+                <Link href={`/tests/take/${test.id}`} className="block">
+                  <Button className="w-full">Start test →</Button>
+                </Link>
               </Card>
             ))}
           </div>

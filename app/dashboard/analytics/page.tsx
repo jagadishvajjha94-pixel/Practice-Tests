@@ -16,6 +16,8 @@ import {
 } from 'recharts';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { StatCard } from '@/components/ui/stat-card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { downloadStudentReportPdf } from '@/lib/reports/student-pdf';
 import { fetchStudentDashboardAttempts } from '@/lib/test-attempts';
@@ -80,78 +82,133 @@ export default function StudentAnalyticsPage() {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading analytics…</div>;
+    return (
+      <div className="app-page">
+        <div className="app-page-header">
+          <div className="max-w-5xl mx-auto px-4 space-y-2">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-9 w-72" />
+            <Skeleton className="h-5 w-96" />
+          </div>
+        </div>
+        <div className="max-w-5xl mx-auto px-4 py-8 space-y-5">
+          <div className="grid sm:grid-cols-3 gap-4">
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+          </div>
+          <Skeleton className="h-72" />
+          <Skeleton className="h-72" />
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen max-w-5xl mx-auto px-4 py-8 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Performance analytics</h1>
-          <p className="text-sm text-muted-foreground">Scores, trends, and downloadable PDF report.</p>
+    <div className="app-page">
+      <header className="app-page-header">
+        <div className="max-w-5xl mx-auto px-4 flex flex-wrap items-end justify-between gap-3">
+          <div className="space-y-2 min-w-0">
+            <span className="app-eyebrow">Insights</span>
+            <h1 className="app-title-lg">Performance analytics</h1>
+            <p className="app-subtitle">
+              Score trends, weak topics, and a downloadable PDF report for {name}.
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" asChild>
+              <Link href="/dashboard">← Dashboard</Link>
+            </Button>
+            <Button onClick={downloadPdf}>Download PDF</Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={downloadPdf}>Download PDF report</Button>
-          <Button variant="outline" asChild>
-            <Link href="/dashboard">← Dashboard</Link>
-          </Button>
+      </header>
+
+      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+        <div className="grid sm:grid-cols-3 gap-4">
+          <StatCard label="Average score" value={`${avgScore.toFixed(0)}%`} accent="emerald" />
+          <StatCard label="Attempts" value={attempts.length} accent="navy" />
+          <StatCard
+            label="Weak areas"
+            value={weakTopics.length || 0}
+            hint={weakTopics.length ? weakTopics.slice(0, 3).join(', ') : 'None flagged'}
+            accent={weakTopics.length ? 'amber' : 'cyan'}
+          />
         </div>
-      </div>
 
-      <div className="grid sm:grid-cols-3 gap-4">
-        <Card className="p-4 lux-surface">
-          <p className="text-xs text-muted-foreground">Average score</p>
-          <p className="text-3xl font-bold text-primary">{avgScore.toFixed(0)}%</p>
-        </Card>
-        <Card className="p-4 lux-surface">
-          <p className="text-xs text-muted-foreground">Attempts</p>
-          <p className="text-3xl font-bold text-foreground">{attempts.length}</p>
-        </Card>
-        <Card className="p-4 lux-surface">
-          <p className="text-xs text-muted-foreground">Weak areas</p>
-          <p className="text-sm text-foreground mt-2">{weakTopics.length ? weakTopics.join(', ') : 'None flagged'}</p>
-        </Card>
-      </div>
-
-      {attempts.length === 0 ? (
-        <Card className="p-8 lux-surface text-center">
-          <p className="text-slate-800 font-medium">No test attempts yet</p>
-          <p className="text-sm text-slate-600 mt-2">
-            Complete a practice test to see your score trend and analytics here.
-          </p>
-          <Button className="mt-4" asChild>
-            <Link href="/tests">Browse practice tests</Link>
-          </Button>
-        </Card>
-      ) : (
-        <>
-          <Card className="p-4 lux-surface h-72">
-            <h2 className="text-sm font-medium mb-4">Score trend</h2>
-            <ResponsiveContainer width="100%" height="85%">
-              <LineChart data={attempts}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+        {attempts.length === 0 ? (
+          <Card className="p-10 text-center">
+            <p className="text-slate-800 font-medium">No test attempts yet</p>
+            <p className="text-sm text-slate-600 mt-2">
+              Complete a practice test to see your score trend and analytics here.
+            </p>
+            <Button className="mt-5" asChild>
+              <Link href="/tests">Browse practice tests</Link>
+            </Button>
           </Card>
+        ) : (
+          <>
+            <Card className="p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h2 className="app-section-title">Score trend</h2>
+                  <p className="app-muted mt-0.5">Across recent {attempts.length} attempts</p>
+                </div>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={attempts}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: 8,
+                        border: '1px solid #e2e8f0',
+                        fontSize: 12,
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="#1e3a5f"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: '#1e3a5f' }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
 
-          <Card className="p-4 lux-surface h-72">
-            <h2 className="text-sm font-medium mb-4">Recent tests</h2>
-            <ResponsiveContainer width="100%" height="85%">
-              <BarChart data={attempts}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis domain={[0, 100]} />
-                <Tooltip />
-                <Bar dataKey="score" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        </>
-      )}
+            <Card className="p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h2 className="app-section-title">Recent tests</h2>
+                  <p className="app-muted mt-0.5">Score breakdown per attempt</p>
+                </div>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={attempts}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} stroke="#cbd5e1" />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} stroke="#cbd5e1" />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: 8,
+                        border: '1px solid #e2e8f0',
+                        fontSize: 12,
+                      }}
+                    />
+                    <Bar dataKey="score" fill="#1e3a5f" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </>
+        )}
+      </div>
     </div>
   );
 }

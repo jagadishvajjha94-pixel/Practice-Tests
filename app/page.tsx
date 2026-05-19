@@ -12,40 +12,62 @@ export default function Home() {
   return (
     <main className="landing-page relative min-h-dvh flex flex-col items-center justify-center px-4 py-12 sm:py-16">
       <div className="relative w-full max-w-2xl">
-        <div className="rounded-2xl border border-slate-200/90 bg-white px-8 py-10 sm:px-12 sm:py-12 text-center shadow-[0_20px_50px_-12px_rgba(15,23,42,0.15)]">
-          <div className="mx-auto mb-6 flex h-[104px] w-[104px] items-center justify-center rounded-full bg-[#1e3a5f]/[0.06] ring-1 ring-[#1e3a5f]/15">
+        <div
+          className="rounded-3xl border border-slate-200/80 bg-white px-8 py-10 sm:px-12 sm:py-14 text-center"
+          style={{
+            boxShadow:
+              '0 1px 1px rgba(15, 23, 42, 0.04), 0 24px 60px -16px rgba(15, 23, 42, 0.18)',
+          }}
+        >
+          <div className="mx-auto mb-6 flex h-[108px] w-[108px] items-center justify-center rounded-full bg-gradient-to-br from-white to-[#1e3a5f]/[0.06] ring-1 ring-[#1e3a5f]/15 shadow-inner">
             <CollegeLogo size={88} />
           </div>
 
-          <p className="inline-flex items-center justify-center rounded-full border border-[#1e3a5f]/25 bg-[#1e3a5f]/[0.08] px-4 py-1 text-sm font-bold tracking-[0.2em] text-[#1e3a5f]">
-            {COLLEGE.rce}
-          </p>
+          <span className="app-eyebrow">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            {COLLEGE.rce} · Training & Placement
+          </span>
 
-          <h1 className="mt-5 text-2xl sm:text-3xl md:text-[2.35rem] font-extrabold uppercase tracking-wide text-[#0c2340] leading-[1.15]">
+          <h1 className="mt-5 text-2xl sm:text-3xl md:text-[2.5rem] font-extrabold uppercase tracking-tight text-[#0c2340] leading-[1.1]">
             {COLLEGE.name}
           </h1>
 
-          <div className="mx-auto mt-5 h-px w-16 bg-[#1e3a5f]/30" aria-hidden />
+          <div className="mx-auto mt-5 h-px w-16 bg-gradient-to-r from-transparent via-[#1e3a5f]/40 to-transparent" aria-hidden />
 
           <p className="mt-5 text-lg sm:text-xl font-bold text-[#1e3a5f]">
             {COLLEGE.departmentTitle}
           </p>
 
-          <p className="mt-4 text-base sm:text-[1.05rem] text-slate-700 max-w-md mx-auto leading-relaxed font-medium">
+          <p className="mt-4 text-base sm:text-[1.05rem] text-slate-600 max-w-md mx-auto leading-relaxed">
             {COLLEGE.portalSubtitle}
           </p>
 
-          <div className="mt-10">
+          <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Button
               asChild
               size="lg"
-              className="min-w-[180px] h-12 px-10 text-base font-semibold rounded-lg bg-[#1e3a5f] hover:bg-[#16304f] text-white shadow-md shadow-[#1e3a5f]/20 transition-colors"
+              className="min-w-[180px] h-12 px-10 text-base font-semibold rounded-xl bg-[#1e3a5f] hover:bg-[#16304f] text-white shadow-lg shadow-[#1e3a5f]/25 transition-all hover:shadow-xl hover:-translate-y-0.5"
             >
-              <Link href="/auth/role">Login</Link>
+              <Link href="/auth/role">Sign in to portal</Link>
             </Button>
           </div>
 
-          <p className="mt-8 text-sm text-slate-600 font-medium">
+          <div className="mt-10 grid grid-cols-3 gap-2 text-[11px] sm:text-xs text-slate-500 font-medium">
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[#1e3a5f] text-base font-bold">100+</span>
+              <span>Practice papers</span>
+            </div>
+            <div className="flex flex-col items-center gap-1 border-x border-slate-200/80">
+              <span className="text-[#1e3a5f] text-base font-bold">AI</span>
+              <span>Scored interviews</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[#1e3a5f] text-base font-bold">6</span>
+              <span>Placement sections</span>
+            </div>
+          </div>
+
+          <p className="mt-8 text-xs text-slate-500">
             Authorized access only · Internal examination system
           </p>
         </div>
