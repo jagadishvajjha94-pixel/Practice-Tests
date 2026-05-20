@@ -5,6 +5,12 @@ import {
   CURATED_BANK_MARKER,
   getCuratedMcqsForSlug,
 } from '@/lib/question-bank/curated-mcqs';
+import { ensureQuestionBankPoolTestId } from '@/lib/question-bank/ensure-bank-test';
+import {
+  applyQuestionBankSchemaMigrations,
+  questionBankSchemaMissingMessage,
+  waitForQuestionsTable,
+} from '@/lib/question-bank/apply-bank-schema';
 
 export type SeedCuratedBankResult = {
   tagsEnsured: number;
@@ -17,13 +23,19 @@ export type SeedCuratedBankResult = {
 const INSERT_BATCH = 40;
 
 async function ensureTables(admin: SupabaseClient): Promise<string | null> {
-  const { error } = await admin.from('questions').select('id').limit(1);
-  if (error?.message?.includes('schema cache') || error?.message?.includes('does not exist')) {
-    return (
-      'Table public.questions is missing. Run migration 020_ensure_questions_table.sql in Supabase SQL editor, then retry "Load topic bank".'
-    );
+  let err = await waitForQuestionsTable(admin, 1);
+  if (!err) return null;
+
+  if (err.includes('schema cache') || err.includes('does not exist')) {
+    const applied = await applyQuestionBankSchemaMigrations();
+    if (applied.ok) {
+      err = await waitForQuestionsTable(admin);
+      if (!err) return null;
+    }
+    return questionBankSchemaMissingMessage(applied);
   }
-  return null;
+
+  return err;
 }
 
 async function upsertTag(
@@ -67,6 +79,7 @@ function rowFromMcq(
   q: FacultyExamQuestion,
   tagSlug: string,
   tagId: string,
+  poolTestId: string | number | null,
 ): Record<string, unknown> {
   return {
     question_text: q.question_text,
@@ -81,6 +94,7 @@ function rowFromMcq(
     difficulty: 'medium',
     tags: [tagSlug, tagId, CURATED_BANK_MARKER],
     marks: 1,
+    ...(poolTestId != null ? { test_id: poolTestId } : {}),
   };
 }
 
@@ -95,6 +109,13 @@ export async function seedCuratedQuestionBank(
   const tableErr = await ensureTables(admin);
   if (tableErr) {
     throw new Error(tableErr);
+  }
+
+  const poolTestId = await ensureQuestionBankPoolTestId(admin);
+  if (poolTestId == null) {
+    throw new Error(
+      'Could not create Question Bank Pool test (questions.test_id is required on this database). Ensure test_categories/tests exist, or run migration 021_questions_test_id_nullable.sql in Supabase SQL editor.',
+    );
   }
 
   if (options?.replaceExisting !== false) {
@@ -118,7 +139,9 @@ export async function seedCuratedQuestionBank(
     let topicInserted = 0;
 
     for (let i = 0; i < mcqs.length; i += INSERT_BATCH) {
-      const batch = mcqs.slice(i, i + INSERT_BATCH).map((q) => rowFromMcq(q, tag.slug, tag.id));
+      const batch = mcqs
+        .slice(i, i + INSERT_BATCH)
+        .map((q) => rowFromMcq(q, tag.slug, tag.id, poolTestId));
       const { data, error } = await admin.from('questions').insert(batch).select('id');
       if (error) {
         warnings.push(`${def.slug}: insert failed — ${error.message}`);

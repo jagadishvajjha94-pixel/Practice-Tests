@@ -6,6 +6,7 @@ import {
   parseMcqCsv,
   parseMcqPlainText,
 } from '@/lib/question-bank/parse-upload-content';
+import { attachPoolTestIdToRows } from '@/lib/question-bank/ensure-bank-test';
 
 export const runtime = 'nodejs';
 
@@ -122,7 +123,13 @@ export async function POST(request: NextRequest) {
   const insertedIds: string[] = [];
   try {
     for (const batch of chunks(rows, 50)) {
-      const { data, error } = await admin.from('questions').insert(batch).select('id');
+      const { rows: withTestId, poolTestId } = await attachPoolTestIdToRows(admin, batch);
+      if (poolTestId == null && batch.length > 0) {
+        throw new Error(
+          'questions.test_id is required but Question Bank Pool test could not be created. Run migration 021_questions_test_id_nullable.sql in Supabase.',
+        );
+      }
+      const { data, error } = await admin.from('questions').insert(withTestId).select('id');
       if (error) throw new Error(error.message);
       for (const row of data ?? []) {
         if (row.id) insertedIds.push(row.id as string);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { seedCuratedQuestionBank } from '@/lib/question-bank/seed-curated-bank';
+import { supabaseSqlEditorUrl } from '@/lib/postgres-url';
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(['admin', 'faculty'], request);
@@ -36,6 +37,15 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Could not seed question bank';
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: message,
+        sqlEditorUrl: supabaseSqlEditorUrl(),
+        hint: message.includes('public.questions')
+          ? 'Add SUPABASE_DB_PASSWORD to .env.local and retry, or run migrations 020 + 021 in Supabase SQL editor.'
+          : undefined,
+      },
+      { status: 400 },
+    );
   }
 }

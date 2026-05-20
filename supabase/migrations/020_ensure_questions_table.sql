@@ -241,4 +241,9 @@ GRANT INSERT, UPDATE, DELETE ON public.questions TO authenticated;
 GRANT SELECT ON public.question_tags TO anon, authenticated;
 GRANT SELECT ON public.question_tag_links TO anon, authenticated;
 
+GRANT ALL ON public.questions TO service_role;
+GRANT ALL ON public.question_tags TO service_role;
+GRANT ALL ON public.question_tag_links TO service_role;
+GRANT ALL ON public.exam_builder_draws TO service_role;
+
 NOTIFY pgrst, 'reload schema';

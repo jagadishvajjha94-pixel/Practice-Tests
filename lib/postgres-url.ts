@@ -24,3 +24,9 @@ export function postgresUrlSetupHint(): string {
     'or set SUPABASE_DB_PASSWORD to your database password (same settings page).'
   );
 }
+
+/** Supabase dashboard → SQL editor for this project. */
+export function supabaseSqlEditorUrl(): string | null {
+  const ref = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/https:\/\/([^.]+)\.supabase\.co/i)?.[1];
+  return ref ? `https://supabase.com/dashboard/project/${ref}/sql/new` : null;
+}

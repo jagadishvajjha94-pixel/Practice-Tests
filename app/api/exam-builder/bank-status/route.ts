@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { supabaseSqlEditorUrl } from '@/lib/postgres-url';
 
 export async function GET() {
   const auth = await requireAuth(['admin', 'faculty']);
@@ -38,9 +39,10 @@ export async function GET() {
     tags: tags ?? [],
     errors: [qErr?.message, tErr?.message].filter(Boolean),
     hint: tableMissing
-      ? 'Run supabase/migrations/020_ensure_questions_table.sql then click Load topic bank.'
+      ? 'Click "Setup question bank tables" below, or run migrations 020 + 021 in Supabase SQL editor.'
       : curatedCount === 0
         ? 'Click "Load topic question bank" to populate MCQs, then Draw from bank.'
         : null,
+    sqlEditorUrl: tableMissing ? supabaseSqlEditorUrl() : null,
   });
 }

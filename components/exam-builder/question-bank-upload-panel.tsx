@@ -17,6 +17,7 @@ type BankStatus = {
   curatedBankCount?: number;
   tagCount?: number;
   hint?: string | null;
+  sqlEditorUrl?: string | null;
 };
 
 type QuestionBankUploadPanelProps = {
@@ -35,6 +36,7 @@ export function QuestionBankUploadPanel({
 }: QuestionBankUploadPanelProps) {
   const [uploading, setUploading] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [settingUp, setSettingUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showSample, setShowSample] = useState(false);
@@ -61,6 +63,35 @@ export function QuestionBankUploadPanel({
     return headers;
   };
 
+  const setupSchema = async () => {
+    setError(null);
+    setInfo(null);
+    setSettingUp(true);
+    try {
+      const res = await fetch('/api/exam-builder/ensure-schema', {
+        method: 'POST',
+        headers: await authHeaders(),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        message?: string;
+        error?: string;
+        hint?: string;
+        sqlEditorUrl?: string;
+      };
+      if (!res.ok) {
+        const parts = [json.error, json.hint].filter(Boolean).join(' ');
+        throw new Error(parts || 'Could not set up question bank tables');
+      }
+      setInfo(json.message ?? 'Tables ready.');
+      await loadStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Setup failed');
+    } finally {
+      setSettingUp(false);
+    }
+  };
+
   const seedTopicBank = async () => {
     setError(null);
     setInfo(null);
@@ -76,9 +107,14 @@ export function QuestionBankUploadPanel({
         message?: string;
         questionsInserted?: number;
         error?: string;
+        hint?: string;
+        sqlEditorUrl?: string;
         warnings?: string[];
       };
-      if (!res.ok) throw new Error(json.error ?? 'Could not load topic bank');
+      if (!res.ok) {
+        const parts = [json.error, json.hint].filter(Boolean).join(' ');
+        throw new Error(parts || 'Could not load topic bank');
+      }
       setInfo(
         `${json.message ?? `Loaded ${json.questionsInserted ?? 0} MCQs.`} ${(json.warnings ?? []).join(' ')}`.trim(),
       );
@@ -92,7 +128,7 @@ export function QuestionBankUploadPanel({
   };
 
   const canUpload = !syllabusRequired || tagIds.length > 0;
-  const busy = uploading || seeding;
+  const busy = uploading || seeding || settingUp;
 
   const runUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -151,7 +187,22 @@ export function QuestionBankUploadPanel({
           <strong>{bankStatus.tagCount ?? 0}</strong> syllabus tags
           {bankStatus.tableMissing ? (
             <span className="block text-amber-900 mt-1">
-              Database table missing — run migration 020 in Supabase SQL, then load the bank below.
+              Database tables missing — click <strong>Setup question bank tables</strong> below (needs{' '}
+              <code className="text-[10px]">SUPABASE_DB_PASSWORD</code> in .env.local), or run migrations 020 + 021 in
+              Supabase SQL.
+              {bankStatus.sqlEditorUrl ? (
+                <>
+                  {' '}
+                  <a
+                    href={bankStatus.sqlEditorUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline font-medium"
+                  >
+                    Open SQL editor
+                  </a>
+                </>
+              ) : null}
             </span>
           ) : null}
           {bankStatus.hint && !bankStatus.tableMissing ? (
@@ -161,6 +212,18 @@ export function QuestionBankUploadPanel({
       ) : null}
 
       <div className="flex flex-wrap gap-2 items-center">
+        {bankStatus?.tableMissing ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => void setupSchema()}
+            className="border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100"
+          >
+            {settingUp ? 'Setting up…' : 'Setup question bank tables'}
+          </Button>
+        ) : null}
+
         <Button
           type="button"
           disabled={busy}

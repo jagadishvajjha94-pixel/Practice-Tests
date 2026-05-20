@@ -32,7 +32,8 @@ supabase db push
 Or in the **Supabase SQL editor** (Dashboard → SQL):
 
 1. Paste and run **`supabase/migrations/020_ensure_questions_table.sql`**
-2. Paste and run **`supabase/migrations/019_demo_question_bank_seed.sql`**
+2. Paste and run **`supabase/migrations/021_questions_test_id_nullable.sql`** (legacy DBs with `questions.test_id NOT NULL`)
+3. Paste and run **`supabase/migrations/019_demo_question_bank_seed.sql`** (optional large SQL seed)
 
 Wait ~30 seconds after step 1 so the API schema cache reloads (migration ends with `NOTIFY pgrst, 'reload schema'`).
 

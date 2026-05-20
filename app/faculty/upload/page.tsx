@@ -18,10 +18,18 @@ import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
 
 type Step = 'details' | 'questions' | 'review';
 
-const STEPS: Array<{ id: Step; label: string; hint: string }> = [
+const MANUAL_STEPS: Array<{ id: Step; label: string; hint: string }> = [
   { id: 'details', label: 'Exam details', hint: 'Topic · Branches · Years · Duration' },
   { id: 'questions', label: 'Questions', hint: 'Upload PDF or enter manually' },
   { id: 'review', label: 'Review & submit', hint: 'Summary then send for approval' },
+];
+
+const SYLLABUS_STEPS: Array<{ id: Step; label: string; hint: string }> = [
+  {
+    id: 'details',
+    label: 'Create exam',
+    hint: 'Details · syllabus · draw from bank → sent for admin approval',
+  },
 ];
 
 const emptyQuestion = (): FacultyExamQuestion => ({
@@ -114,6 +122,13 @@ export default function FacultyUploadPage() {
 
   const testDef = getExamBuilderTestType(testType);
   const isManualExam = testType === 'department-manual';
+  const steps = isManualExam ? MANUAL_STEPS : SYLLABUS_STEPS;
+
+  useEffect(() => {
+    if (!isManualExam && (step === 'questions' || step === 'review')) {
+      setStep('details');
+    }
+  }, [isManualExam, step]);
 
   const needsSyllabus = Boolean(testDef?.requiresSyllabus);
   const detailsValid =
@@ -174,7 +189,7 @@ export default function FacultyUploadPage() {
     }
   };
 
-  const submitExam = async () => {
+  const submitExam = async (overrideQuestions?: FacultyExamQuestion[]) => {
     setError(null);
     setMessage(null);
     if (!detailsValid) {
@@ -182,10 +197,14 @@ export default function FacultyUploadPage() {
       setStep('details');
       return;
     }
-    const cleanQuestions = questions.filter(questionIsValid);
+    const cleanQuestions = (overrideQuestions ?? questions).filter(questionIsValid);
     if (cleanQuestions.length === 0) {
-      setError('Add at least one complete MCQ (question + 4 options).');
-      setStep('questions');
+      setError(
+        isManualExam
+          ? 'Add at least one complete MCQ (question + 4 options).'
+          : 'Draw or generate a question paper from the bank first.',
+      );
+      if (isManualExam) setStep('questions');
       return;
     }
 
@@ -229,18 +248,47 @@ export default function FacultyUploadPage() {
     }
   };
 
+  const handleBankQuestionsReady = (qs: FacultyExamQuestion[], warnings: string[]) => {
+    setPaperWarnings(warnings);
+    if (!qs.length) {
+      setQuestions([emptyQuestion()]);
+      return;
+    }
+    setQuestions(qs);
+
+    if (isManualExam) {
+      setStep('questions');
+      return;
+    }
+
+    if (!detailsValid) {
+      setError('Complete exam details below (title, branch, years), then draw from the bank again.');
+      return;
+    }
+
+    void submitExam(qs);
+  };
+
+  const stepperCanEnter: Record<Step, boolean> = isManualExam
+    ? { details: true, questions: detailsValid, review: detailsValid && canProceedFromQuestions }
+    : { details: true, questions: false, review: false };
+
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
         <h2 className="app-title-lg">Create an exam</h2>
         <p className="app-subtitle">
           Choose the test type from the dropdown — Aptitude opens a syllabus popup for topic selection.
-          Pick a department group so the right students receive the exam and faculty in those branches see
-          progress. Questions stay non-repetitive across slots.
+          Pick a department group so the right students receive the exam. Draw from the question bank to
+          send the paper straight to admin for approval — no manual question editing step.
         </p>
       </div>
 
-      <Stepper current={step} onSelect={setStep} canEnter={{ details: true, questions: detailsValid, review: detailsValid && canProceedFromQuestions }} />
+      <Stepper steps={steps} current={step} onSelect={setStep} canEnter={stepperCanEnter} />
+
+      {submitting && !isManualExam ? (
+        <StatusAlert variant="info">Submitting exam for admin approval…</StatusAlert>
+      ) : null}
 
       {error ? <StatusAlert variant="error">{error}</StatusAlert> : null}
       {message ? <StatusAlert variant="success">{message}</StatusAlert> : null}
@@ -262,11 +310,7 @@ export default function FacultyUploadPage() {
             onSelectedTopicIdsChange={setSyllabusTopicIds}
             questionsPerTopic={questionsPerTopic}
             onQuestionsPerTopicChange={setQuestionsPerTopic}
-            onQuestionsGenerated={(qs, warnings) => {
-              setQuestions(qs.length ? qs : [emptyQuestion()]);
-              setPaperWarnings(warnings);
-              if (qs.length) setStep('questions');
-            }}
+            onQuestionsGenerated={handleBankQuestionsReady}
             catalogRefreshToken={catalogRefresh}
           />
 
@@ -392,71 +436,51 @@ export default function FacultyUploadPage() {
             </Field>
           </div>
 
-          <div className="flex justify-end pt-2">
-            <Button
-              onClick={() => setStep('questions')}
-              disabled={!detailsValid}
-              className="bg-[#1e3a5f] hover:bg-[#16304f]"
-            >
-              {needsSyllabus ? 'Continue to question paper →' : 'Continue to questions →'}
-            </Button>
-          </div>
-        </Card>
-      ) : null}
-
-      {step === 'questions' ? (
-        <>
           {!isManualExam && paperWarnings.length > 0 ? (
             <StatusAlert variant="info">{paperWarnings.join(' ')}</StatusAlert>
           ) : null}
 
-          {!isManualExam ? (
-            <Card className="p-5 border-violet-200 bg-violet-50/50 space-y-4">
-              <p className="text-sm text-violet-900">
-                Syllabus paper mode — use <strong>Generate question paper</strong> below or on the
-                details step, then edit MCQs before submitting.
+          <div className="flex justify-end pt-2">
+            {isManualExam ? (
+              <Button
+                onClick={() => setStep('questions')}
+                disabled={!detailsValid}
+                className="bg-[#1e3a5f] hover:bg-[#16304f]"
+              >
+                Continue to questions →
+              </Button>
+            ) : (
+              <p className="text-sm text-slate-600">
+                Use <strong>Draw from bank</strong> or <strong>Generate with AI</strong> above — the exam
+                is sent for admin approval automatically.
               </p>
-          <ExamBuilderControls
-            compact
-            testType={testType}
-            onTestTypeChange={setTestType}
-            slotKey={slotKey}
-            onSlotKeyChange={setSlotKey}
-            selectedTopicIds={syllabusTopicIds}
-            onSelectedTopicIdsChange={setSyllabusTopicIds}
-            questionsPerTopic={questionsPerTopic}
-            onQuestionsPerTopicChange={setQuestionsPerTopic}
-            onQuestionsGenerated={(qs, warnings) => {
-              setQuestions(qs.length ? qs : [emptyQuestion()]);
-              setPaperWarnings(warnings);
-            }}
-            catalogRefreshToken={catalogRefresh}
-          />
-            </Card>
-          ) : (
-            <Card className="p-6 sm:p-8 space-y-4 border-dashed border-slate-300 bg-slate-50/50">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="app-section-title">Import from PDF</h3>
-                  <p className="app-muted mt-0.5">
-                    Upload a .pdf question paper. Numbered questions with options A–D and an answer
-                    key (e.g. <span className="font-mono text-xs">Answer: B</span>) work best.
-                  </p>
-                </div>
-                <Badge tone="brand">PDF · auto-parse</Badge>
+            )}
+          </div>
+        </Card>
+      ) : null}
+
+      {step === 'questions' && isManualExam ? (
+        <>
+          <Card className="p-6 sm:p-8 space-y-4 border-dashed border-slate-300 bg-slate-50/50">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="app-section-title">Import from PDF</h3>
+                <p className="app-muted mt-0.5">
+                  Upload a .pdf question paper. Numbered questions with options A–D and an answer key
+                  (e.g. <span className="font-mono text-xs">Answer: B</span>) work best.
+                </p>
               </div>
-              <Input
-                type="file"
-                accept=".pdf,application/pdf"
-                disabled={parsingPdf}
-                onChange={(e) => void handlePdfImport(e)}
-                className="bg-white"
-              />
-              {parsingPdf ? (
-                <p className="text-sm text-slate-500">Reading question paper…</p>
-              ) : null}
-            </Card>
-          )}
+              <Badge tone="brand">PDF · auto-parse</Badge>
+            </div>
+            <Input
+              type="file"
+              accept=".pdf,application/pdf"
+              disabled={parsingPdf}
+              onChange={(e) => void handlePdfImport(e)}
+              className="bg-white"
+            />
+            {parsingPdf ? <p className="text-sm text-slate-500">Reading question paper…</p> : null}
+          </Card>
 
           <Card className="p-6 sm:p-8 space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -559,7 +583,7 @@ export default function FacultyUploadPage() {
         </>
       ) : null}
 
-      {step === 'review' ? (
+      {step === 'review' && isManualExam ? (
         <Card className="p-6 sm:p-8 space-y-5">
           <div>
             <h3 className="app-section-title">Review submission</h3>
@@ -655,17 +679,24 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 }
 
 function Stepper({
+  steps,
   current,
   onSelect,
   canEnter,
 }: {
+  steps: Array<{ id: Step; label: string; hint: string }>;
   current: Step;
   onSelect: (s: Step) => void;
   canEnter: Record<Step, boolean>;
 }) {
   return (
-    <ol className="grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-white p-2">
-      {STEPS.map((s, idx) => {
+    <ol
+      className={cn(
+        'grid gap-2 rounded-xl border border-slate-200 bg-white p-2',
+        steps.length === 1 ? 'grid-cols-1' : 'grid-cols-3',
+      )}
+    >
+      {steps.map((s, idx) => {
         const active = current === s.id;
         const enabled = canEnter[s.id];
         return (

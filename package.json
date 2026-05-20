@@ -9,7 +9,8 @@
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && next build",
-    "migrate:admin": "node scripts/apply-admin-setup.mjs"
+    "migrate:admin": "node scripts/apply-admin-setup.mjs",
+    "migrate:question-bank": "node scripts/apply-question-bank-migration.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
