@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,6 @@ import {
   validateAdminUsername,
   validatePassword,
 } from '@/lib/college-auth';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import {
   isSupabasePublicEnvConfigured,
   SUPABASE_PUBLIC_ENV_MESSAGE,
@@ -32,6 +31,11 @@ function AdminLoginForm() {
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setUsername(DEFAULT_ADMIN_EMAIL);
+    setPassword(DEFAULT_ADMIN_PASSWORD);
+  }, []);
 
   const onBootstrapAdmin = async () => {
     setError(null);
@@ -98,9 +102,6 @@ function AdminLoginForm() {
 
     setLoading(true);
     try {
-      const supabase = createSupabaseBrowserClient();
-      if (!supabase) throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
-
       const trimmed = username.trim();
       const email = trimmed.includes('@') ? trimmed.toLowerCase() : adminAuthEmail(trimmed);
       if (!trimmed.includes('@')) {
@@ -108,8 +109,24 @@ function AdminLoginForm() {
           `Enter the full admin email (e.g. ${DEFAULT_ADMIN_EMAIL}). Username-only login maps to @admin.ramachandra.edu and will not work for the default admin.`,
         );
       }
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) throw new Error(signInError.message);
+
+      const signInRes = await fetch('/api/auth/admin/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password: password.trim() }),
+      });
+      const signInJson = (await signInRes.json().catch(() => ({}))) as {
+        error?: string;
+        hint?: string;
+        attemptedEmail?: string;
+      };
+      if (!signInRes.ok) {
+        throw new Error(
+          [signInJson.error, signInJson.hint].filter(Boolean).join(' — ') ||
+            'Invalid login credentials',
+        );
+      }
 
       await verifyAdmin();
     } catch (err) {
