@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 export const metadata = {
   title: 'Practice Tests — RCE',
-  description: 'Practice psychometric, SWARX, AI interview, and competitive exam modules',
+  description: 'Evalora assessment portal and AI interview studio',
 };
 
 type Theme = {
@@ -149,6 +149,24 @@ const themes: Record<string, Theme> = {
     ],
     ctaLabel: 'Open programming lab',
     decoration: 'code',
+  },
+  rmset: {
+    gradient: 'from-violet-600 via-indigo-600 to-blue-700',
+    orb1: 'bg-violet-300/40',
+    orb2: 'bg-indigo-300/30',
+    titleGradient: 'from-white via-violet-100 to-indigo-100',
+    dot: 'bg-violet-200',
+    eyebrow: 'Eligibility · Topics',
+    features: [
+      'Admin-selected topics',
+      'Question bank MCQs',
+      'Per-topic question draw',
+      'Timed examination',
+      'Proctored when live',
+      'Batch scheduled',
+    ],
+    ctaLabel: 'Open RMSET',
+    decoration: 'grid',
   },
 };
 
@@ -305,8 +323,7 @@ export default function TestsPage() {
           <span className="app-eyebrow">Assessment library</span>
           <h1 className="app-title-xl">Practice tests</h1>
           <p className="app-subtitle">
-            Each module is a complete experience — placement, psychometric, communication, AI
-            interview, competitive papers, faculty exams, and programming. Pick any to start.
+            Open Evalora for scheduled college assessments, RMSET for topic-selected papers, or AI Interview for spoken practice.
           </p>
         </div>
       </header>

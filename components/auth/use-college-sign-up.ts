@@ -27,7 +27,7 @@ export function useCollegeSignUp() {
       password,
       fullName,
       role,
-      redirectTo = '/dashboard',
+      redirectTo = '/home',
       metadata = {},
     }: SignUpOptions) => {
       setError(null);

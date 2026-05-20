@@ -18,7 +18,7 @@ export function useCollegeSignIn() {
   const [error, setError] = useState<string | null>(null);
 
   const signIn = useCallback(
-    async ({ email, password, redirectTo = '/dashboard', metadata }: SignInOptions) => {
+    async ({ email, password, redirectTo = '/home', metadata }: SignInOptions) => {
       setError(null);
       setLoading(true);
       try {

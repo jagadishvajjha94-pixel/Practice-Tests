@@ -51,25 +51,6 @@ export default function Home() {
               <Link href="/auth/role">Sign in to portal</Link>
             </Button>
           </div>
-
-          <div className="mt-10 grid grid-cols-3 gap-2 text-[11px] sm:text-xs text-slate-500 font-medium">
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-[#1e3a5f] text-base font-bold">100+</span>
-              <span>Practice papers</span>
-            </div>
-            <div className="flex flex-col items-center gap-1 border-x border-slate-200/80">
-              <span className="text-[#1e3a5f] text-base font-bold">AI</span>
-              <span>Scored interviews</span>
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-[#1e3a5f] text-base font-bold">6</span>
-              <span>Placement sections</span>
-            </div>
-          </div>
-
-          <p className="mt-8 text-xs text-slate-500">
-            Authorized access only · Internal examination system
-          </p>
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-500">

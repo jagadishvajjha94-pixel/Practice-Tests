@@ -40,7 +40,7 @@ function StudentLoginForm() {
   const redirect = searchParams.get('redirect');
   const notice = searchParams.get('notice');
   const postLogin =
-    redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/dashboard';
+    redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/home';
 
   const signupOpen = !isSignupDisabled();
   const signupHref = redirect

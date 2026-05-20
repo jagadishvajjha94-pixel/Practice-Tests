@@ -35,7 +35,7 @@ function StudentSignupForm() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect');
   const postSignup =
-    redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/dashboard';
+    redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/home';
 
   const { signUp, loading, error, setError } = useCollegeSignUp();
   const [fullName, setFullName] = useState('');

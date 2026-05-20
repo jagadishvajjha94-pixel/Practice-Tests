@@ -138,6 +138,7 @@ export default function DashboardPage() {
           if (next.length === 0) return prev.length > 0 ? prev : bootstrapAttempts();
           return mergeDashboardAttempts(prev, next);
         });
+
       } catch (error) {
         console.error(
           'Error fetching dashboard data:',
@@ -160,7 +161,9 @@ export default function DashboardPage() {
 
     const onFocus = () => void fetchDashboardData();
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+    };
   }, [router]);
 
   if (loading) {
@@ -232,11 +235,18 @@ export default function DashboardPage() {
               Track your progress, review past attempts, and prepare for upcoming assessments.
             </p>
           </div>
-          {isAdminUser ? (
-            <Link href="/admin">
-              <Button variant="outline">Open admin panel</Button>
-            </Link>
-          ) : null}
+          <div className="flex flex-wrap gap-2 shrink-0">
+            {!isAdminUser ? (
+              <Link href="/home">
+                <Button variant="outline">← Home</Button>
+              </Link>
+            ) : null}
+            {isAdminUser ? (
+              <Link href="/admin">
+                <Button variant="outline">Open admin panel</Button>
+              </Link>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -300,9 +310,9 @@ export default function DashboardPage() {
               </p>
             </div>
             {attempts.length > 0 ? (
-              <Link href="/tests">
+              <Link href="/home">
                 <Button variant="outline" size="sm">
-                  Browse tests
+                  View examinations
                 </Button>
               </Link>
             ) : null}
@@ -312,8 +322,8 @@ export default function DashboardPage() {
             <div className="text-center py-10 rounded-xl border border-dashed border-slate-200 bg-slate-50/40">
               <p className="text-slate-600 mb-4">You haven&apos;t taken any tests yet.</p>
               {!isAdminUser ? (
-                <Link href="/tests">
-                  <Button>Start your first test</Button>
+                <Link href="/home">
+                  <Button>Go to examinations</Button>
                 </Link>
               ) : (
                 <Link href="/admin/tests">
@@ -385,27 +395,6 @@ export default function DashboardPage() {
           )}
         </Card>
 
-        {!isAdminUser ? (
-          <Card className="p-6 mt-8 bg-gradient-to-br from-[#0c2340] to-[#1e3a5f] text-white border-0">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-200">
-                  Ready for your next test?
-                </p>
-                <h3 className="text-xl font-bold mt-1">Continue your placement preparation</h3>
-                <p className="text-sm text-white/85 mt-1 max-w-xl">
-                  Choose from psychometric, aptitude, programming, or the AI-graded Evalora placement
-                  assessment.
-                </p>
-              </div>
-              <Link href="/tests">
-                <Button className="bg-white text-[#0c2340] hover:bg-slate-100 shadow-md">
-                  Browse practice tests
-                </Button>
-              </Link>
-            </div>
-          </Card>
-        ) : null}
       </div>
     </div>
   );

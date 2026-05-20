@@ -51,36 +51,30 @@ export const TEST_CATEGORIES = [
   { id: 'swarx', name: 'SWARX Communication', icon: '🗣️' },
 ];
 
-/** All student-facing practice modules shown on home + tests hub. */
+/** Practice hub: Evalora (all scheduled assessments) + AI Interview only. */
 export const PRACTICE_HUB_ITEMS = [
   {
     id: 'placement',
     href: '/placement',
     name: 'Evalora',
     icon: '✨',
-    badge: '6 sections · 100 marks · 60 min',
+    badge: 'Scheduled assessments',
     description:
-      'AI-graded campus placement assessment — technical, speaking, psychometric, aptitude, logic, and IQ in one sitting. Department-aware questions and an instant employability scorecard.',
+      'Your college examination portal — psychometric, competitive, programming, department exams, and the full six-section Evalora paper when they are open for your batch.',
     accent: 'evalora' as const,
-    cta: 'Launch Evalora →',
+    cta: 'Open Evalora →',
     featured: true as const,
   },
   {
-    id: 'psychometric',
-    href: '/tests/psychometric',
-    name: 'Psychometric Tests',
-    icon: '🧠',
+    id: 'rmset',
+    href: '/tests/rmset',
+    name: 'RMSET',
+    icon: '📋',
+    badge: 'Topic-selected MCQs',
     description:
-      'Quick visual and pattern drills — think fast in seconds per item, not long reading.',
-    accent: 'default' as const,
-  },
-  {
-    id: 'swarx',
-    href: '/tests/swarx',
-    name: 'SWARX Communication',
-    icon: '🗣️',
-    description: 'Grammar, vocal practice, and situation-based English drills.',
-    accent: 'default' as const,
+      'Ramachandra Multi-Section Eligibility Test — questions come only from topics your examination cell allows for this sitting.',
+    accent: 'blue' as const,
+    cta: 'Open RMSET →',
   },
   {
     id: 'ai-interview',
@@ -91,38 +85,7 @@ export const PRACTICE_HUB_ITEMS = [
     description:
       'Resume analysis plus a spoken mock interview — AI asks aloud and listens to your answers.',
     accent: 'blue' as const,
-  },
-  {
-    id: 'competitive-exam',
-    href: '/tests/competitive-exam',
-    name: 'All India Competitive Paper',
-    icon: '📝',
-    badge: '60 Q · 90 min',
-    description:
-      '60 MCQs · 90 minutes · Maths, Science, Chemistry, Aptitude, Reasoning, Logic, English & Computer.',
-    accent: 'emerald' as const,
-  },
-  {
-    id: 'department-exams',
-    href: '/tests/department',
-    name: 'Department Exams',
-    icon: '🏫',
-    badge: 'Faculty · Admin approved',
-    description:
-      'MCQ exams from your department faculty, visible only after admin approval and matched to your year.',
-    accent: 'blue' as const,
-    cta: 'View department exams →',
-  },
-  {
-    id: 'programming',
-    href: '/tests/programming',
-    name: 'Programming',
-    icon: '💻',
-    badge: '60 min · 7 languages',
-    description:
-      'HackerRank-style timed test: problem panel, Monaco editor, run & submit. Python, Java, C, C++, JavaScript, Go, C#.',
-    accent: 'blue' as const,
-    cta: 'Open programming test →',
+    cta: 'Start AI interview →',
   },
 ];
 

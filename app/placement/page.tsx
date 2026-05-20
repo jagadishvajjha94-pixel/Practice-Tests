@@ -1,233 +1,145 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  PLACEMENT_DEPARTMENTS,
-  PLACEMENT_EXAM_NAME,
-  PLACEMENT_EXAM_TAGLINE,
-  PLACEMENT_SECTIONS,
-  PLACEMENT_TOTAL_MARKS,
-} from '@/lib/placement/config';
-import {
-  buildPlacementSession,
-  loadSessionByHallTicket,
-  saveCandidateDraft,
-  saveSession,
-} from '@/lib/placement/session';
-import { buildCandidate } from '@/lib/placement/scoring';
+import { Badge } from '@/components/ui/badge';
+import { PLACEMENT_EXAM_NAME, PLACEMENT_EXAM_TAGLINE } from '@/lib/placement/config';
+import type { StudentEvaloraModule } from '@/lib/evalora/module-schedule';
 
-export default function PlacementLandingPage() {
-  const router = useRouter();
-  const [fullName, setFullName] = useState('');
-  const [hallTicket, setHallTicket] = useState('');
-  const [departmentId, setDepartmentId] = useState('cse');
-  const [customDepartment, setCustomDepartment] = useState('');
-  const [collegeName, setCollegeName] = useState('');
-  const [resumeAvailable, setResumeAvailable] = useState(false);
+function ModuleCard({ mod, live }: { mod: StudentEvaloraModule; live: boolean }) {
+  return (
+    <Card className="p-5 border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-3xl shrink-0" aria-hidden>{mod.icon}</span>
+          <div className="min-w-0">
+            <h3 className="font-bold text-[#0c2340] truncate">{mod.title}</h3>
+            {mod.badge ? <p className="text-xs text-slate-500 mt-0.5">{mod.badge}</p> : null}
+          </div>
+        </div>
+        <Badge tone={live ? 'success' : 'warning'}>{live ? 'LIVE' : 'UPCOMING'}</Badge>
+      </div>
+      <p className="text-sm text-slate-600 mb-3">{mod.description}</p>
+      {mod.notice ? <p className="text-sm text-slate-700 mb-3 rounded-lg bg-slate-50 p-3 border border-slate-100">{mod.notice}</p> : null}
+      <div className="flex flex-wrap gap-2 text-xs text-slate-500 mb-4">
+        <span>Starts {new Date(mod.starts_at).toLocaleString()}</span>
+        {mod.ends_at ? <span>· Ends {new Date(mod.ends_at).toLocaleString()}</span> : null}
+      </div>
+      {live ? (
+        <Link href={mod.href}>
+          <Button className="w-full bg-fuchsia-700 hover:bg-fuchsia-800">Start now →</Button>
+        </Link>
+      ) : (
+        <Button disabled className="w-full" variant="outline">
+          Opens {new Date(mod.starts_at).toLocaleString()}
+        </Button>
+      )}
+    </Card>
+  );
+}
+
+export default function EvaloraHubPage() {
+  const [live, setLive] = useState<StudentEvaloraModule[]>([]);
+  const [upcoming, setUpcoming] = useState<StudentEvaloraModule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Show "Resume previous attempt" CTA only if a session exists for this device.
-    if (typeof window === 'undefined') return;
-    const draft = window.sessionStorage.getItem('placement:session');
-    setResumeAvailable(Boolean(draft));
-  }, []);
-
-  const totalMinutes = useMemo(
-    () =>
-      Math.round(
-        PLACEMENT_SECTIONS.reduce((acc, s) => acc + s.durationSec, 0) / 60,
-      ),
-    [],
-  );
-
-  const canStart =
-    fullName.trim().length > 1 && hallTicket.trim().length > 0 && (departmentId !== 'other' || customDepartment.trim().length > 1);
-
-  const handleStart = () => {
-    const finalDept = departmentId === 'other' && customDepartment.trim()
-      ? `other-${customDepartment.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
-      : departmentId;
-
-    // If a saved session matches this hall ticket, ask to resume; otherwise build fresh.
-    const existing = loadSessionByHallTicket(hallTicket.trim());
-    if (existing && !existing.submitted) {
-      const proceed = window.confirm(
-        'A previous in-progress attempt was found for this hall ticket on this device. Resume it?',
-      );
-      if (proceed) {
-        saveCandidateDraft(existing.candidate);
-        // Re-mirror to sessionStorage so /placement/take loads it.
-        saveSession(existing);
-        router.push('/placement/take');
-        return;
+    const load = async () => {
+      const res = await fetch('/api/student/evalora-modules');
+      if (res.ok) {
+        const json = (await res.json()) as {
+          live?: StudentEvaloraModule[];
+          upcoming?: StudentEvaloraModule[];
+          message?: string;
+        };
+        setLive(json.live ?? []);
+        setUpcoming(json.upcoming ?? []);
+        setMessage(json.message ?? null);
       }
-    }
-
-    const candidate = buildCandidate({
-      fullName,
-      hallTicket,
-      departmentId: finalDept,
-      collegeName: collegeName.trim() || null,
-      examName: PLACEMENT_EXAM_NAME,
-    });
-    const session = buildPlacementSession(candidate);
-    saveCandidateDraft(candidate);
-    saveSession(session);
-    router.push('/placement/take');
-  };
+      setLoading(false);
+    };
+    void load();
+    const id = window.setInterval(() => void load(), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <div className="relative overflow-hidden bg-gradient-to-br from-fuchsia-500 via-purple-600 to-indigo-600 text-white">
         <div className="absolute -top-24 -right-20 h-72 w-72 rounded-full bg-pink-400/40 blur-3xl" aria-hidden />
         <div className="absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-300/30 blur-3xl" aria-hidden />
-        <div className="relative max-w-5xl mx-auto px-4 py-10 flex items-center gap-5">
-          <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur ring-1 ring-white/30 flex items-center justify-center text-3xl shadow-lg shrink-0">
-            ✨
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/85">
-              {collegeName.trim() || 'Your College'}
-            </p>
-            <h1 className="text-4xl sm:text-5xl font-black tracking-tight bg-gradient-to-r from-white via-fuchsia-100 to-cyan-200 bg-clip-text text-transparent">
-              {PLACEMENT_EXAM_NAME}
-            </h1>
-            <p className="text-sm text-white/85 mt-1">
-              {PLACEMENT_EXAM_TAGLINE} · {PLACEMENT_SECTIONS.length} sections · {PLACEMENT_TOTAL_MARKS} marks ·{' '}
-              {totalMinutes} minutes total
-            </p>
+        <div className="relative max-w-5xl mx-auto px-4 py-10">
+          <Link href="/home" className="text-sm text-white/80 hover:text-white mb-4 inline-block">
+            ← Back to home
+          </Link>
+          <div className="flex items-center gap-5">
+            <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur ring-1 ring-white/30 flex items-center justify-center text-3xl shadow-lg shrink-0">
+              ✨
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/85">Assessment portal</p>
+              <h1 className="text-4xl sm:text-5xl font-black tracking-tight bg-gradient-to-r from-white via-fuchsia-100 to-cyan-200 bg-clip-text text-transparent">
+                {PLACEMENT_EXAM_NAME}
+              </h1>
+              <p className="text-sm text-white/85 mt-1">{PLACEMENT_EXAM_TAGLINE}</p>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-10 grid md:grid-cols-5 gap-8">
-        <Card className="md:col-span-3 p-6 sm:p-8 shadow-sm border-slate-200">
-          <h2 className="text-xl font-bold text-slate-900 mb-1">Candidate details</h2>
-          <p className="text-sm text-slate-600 mb-6">
-            Enter your hall ticket and department to begin. The exam will start a global 60-minute timer.
-          </p>
+      <div className="max-w-5xl mx-auto px-4 py-10 space-y-10">
+        {loading ? (
+          <p className="text-slate-500">Loading your assessments…</p>
+        ) : message ? (
+          <Card className="p-6 border-amber-200 bg-amber-50">
+            <p className="text-sm text-amber-900">{message}</p>
+          </Card>
+        ) : null}
 
-          <div className="space-y-5">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="fullName">Full name</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. Ramachandra K"
-                  className="mt-1"
-                  autoComplete="off"
-                />
-              </div>
-              <div>
-                <Label htmlFor="hallTicket">Hall ticket / Student ID</Label>
-                <Input
-                  id="hallTicket"
-                  value={hallTicket}
-                  onChange={(e) => setHallTicket(e.target.value.toUpperCase())}
-                  placeholder="e.g. 22ABC1234"
-                  className="mt-1 font-mono"
-                  autoComplete="off"
-                />
-              </div>
+        {!loading && live.length === 0 && upcoming.length === 0 && !message ? (
+          <Card className="p-8 text-center border-slate-200">
+            <p className="text-lg font-semibold text-slate-800 mb-2">No assessments scheduled yet</p>
+            <p className="text-sm text-slate-600 max-w-md mx-auto">
+              Psychometric, competitive, programming, department, and full Evalora papers will appear here when your
+              examination cell schedules them. Check back on this page or your dashboard.
+            </p>
+            <Button variant="outline" className="mt-6" asChild>
+              <Link href="/dashboard">Go to dashboard</Link>
+            </Button>
+          </Card>
+        ) : null}
+
+        {live.length > 0 ? (
+          <section>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600" />
+              </span>
+              <h2 className="text-xl font-bold text-[#0c2340]">Live now</h2>
             </div>
-
-            <div>
-              <Label htmlFor="college">College name (optional)</Label>
-              <Input
-                id="college"
-                value={collegeName}
-                onChange={(e) => setCollegeName(e.target.value)}
-                placeholder="e.g. RCE Institute of Technology"
-                className="mt-1"
-                autoComplete="off"
-              />
+            <div className="grid md:grid-cols-2 gap-4">
+              {live.map((mod) => (
+                <ModuleCard key={mod.schedule_id} mod={mod} live />
+              ))}
             </div>
+          </section>
+        ) : null}
 
-            <div>
-              <Label htmlFor="department">Department</Label>
-              <select
-                id="department"
-                value={departmentId}
-                onChange={(e) => setDepartmentId(e.target.value)}
-                className="mt-1 w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
-              >
-                {PLACEMENT_DEPARTMENTS.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              {departmentId === 'other' ? (
-                <div className="mt-3">
-                  <Label htmlFor="customDept">Specify your department</Label>
-                  <Input
-                    id="customDept"
-                    value={customDepartment}
-                    onChange={(e) => setCustomDepartment(e.target.value)}
-                    placeholder="e.g. Biomedical Engineering"
-                    className="mt-1"
-                  />
-                </div>
-              ) : null}
+        {upcoming.length > 0 ? (
+          <section>
+            <h2 className="text-xl font-bold text-[#0c2340] mb-4">Upcoming</h2>
+            <div className="grid md:grid-cols-2 gap-4">
+              {upcoming.map((mod) => (
+                <ModuleCard key={mod.schedule_id} mod={mod} live={false} />
+              ))}
             </div>
+          </section>
+        ) : null}
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Button
-                size="lg"
-                disabled={!canStart}
-                onClick={handleStart}
-                className="bg-[#1e3a5f] hover:bg-[#16304f]"
-              >
-                Begin assessment
-              </Button>
-              {resumeAvailable ? (
-                <Button variant="outline" asChild>
-                  <Link href="/placement/take">Resume saved session</Link>
-                </Button>
-              ) : null}
-              <Button variant="ghost" asChild>
-                <Link href="/dashboard">Cancel</Link>
-              </Button>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="md:col-span-2 p-6 sm:p-8 shadow-sm border-slate-200 bg-slate-50">
-          <h2 className="text-lg font-bold text-slate-900 mb-3">Section breakdown</h2>
-          <ul className="space-y-3 text-sm">
-            {PLACEMENT_SECTIONS.map((s) => (
-              <li
-                key={s.id}
-                className="flex items-center justify-between gap-3 rounded-md bg-white border border-slate-200 p-3"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xl shrink-0" aria-hidden>
-                    {s.icon}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-900 truncate">{s.name}</p>
-                    <p className="text-xs text-slate-500 truncate">
-                      {s.marks} marks · {Math.round(s.durationSec / 60)} min
-                      {s.questionCount ? ` · ${s.questionCount} Q` : ''}
-                    </p>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-          <p className="text-xs text-slate-500 mt-4">
-            Section timers run independently; when a section&apos;s timer expires, the platform auto-advances. The
-            global 60-minute timer caps the whole sitting.
-          </p>
-        </Card>
       </div>
     </div>
   );

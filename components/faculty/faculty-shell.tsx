@@ -47,7 +47,7 @@ export function FacultyShell({ children }: { children: React.ReactNode }) {
           router.replace('/admin/dashboard');
           return;
         }
-        router.replace('/dashboard');
+        router.replace('/home');
         return;
       }
 

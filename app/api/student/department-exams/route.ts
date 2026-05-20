@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { examMatchesDepartment } from '@/lib/faculty/department-match';
+import { isFacultyExamLiveForStudent } from '@/lib/exam-schedule';
+import type { ExamScheduleRow } from '@/lib/exam-schedule';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 
 export async function GET() {
@@ -37,10 +39,14 @@ export async function GET() {
     .eq('status', 'approved')
     .not('published_test_id', 'is', null);
 
+  const { data: scheduleRows } = await admin.from('exam_schedules').select('*');
+  const schedules = (scheduleRows ?? []) as ExamScheduleRow[];
+
   const exams = (requests ?? []).filter((r) => {
     const years = (r.target_years as string[]) ?? [];
     if (!years.includes(year)) return false;
-    return examMatchesDepartment(r, department);
+    if (!examMatchesDepartment(r, department)) return false;
+    return isFacultyExamLiveForStudent(r.id as string, schedules, department, year);
   });
 
   return NextResponse.json({ exams, department, year });

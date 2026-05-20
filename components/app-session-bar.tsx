@@ -46,8 +46,8 @@ export default function AppSessionBar() {
   if (!email) return null;
   if (isExamFocusRoute(pathname)) return null;
   if (pathname === '/' || pathname?.startsWith('/auth')) return null;
-  // Account shortcuts only on student dashboard (not on every page).
-  if (pathname !== '/dashboard') return null;
+  // Account shortcuts on student home and dashboard.
+  if (pathname !== '/home' && pathname !== '/dashboard') return null;
 
   const handleLogout = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -69,9 +69,16 @@ export default function AppSessionBar() {
         {email}
       </span>
       <div className="flex shrink-0 items-center gap-1.5">
-        <Button variant="ghost" size="sm" className="h-8 px-2 text-[#1e3a5f]" asChild>
-          <Link href="/dashboard">Dashboard</Link>
-        </Button>
+        {pathname !== '/home' ? (
+          <Button variant="ghost" size="sm" className="h-8 px-2 text-[#1e3a5f]" asChild>
+            <Link href="/home">Home</Link>
+          </Button>
+        ) : null}
+        {pathname !== '/dashboard' ? (
+          <Button variant="ghost" size="sm" className="h-8 px-2 text-[#1e3a5f]" asChild>
+            <Link href="/dashboard">Dashboard</Link>
+          </Button>
+        ) : null}
         <Button variant="ghost" size="sm" className="h-8 px-2 text-[#1e3a5f]" asChild>
           <Link href="/profile">Profile</Link>
         </Button>
