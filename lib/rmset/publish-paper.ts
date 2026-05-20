@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { RMSET_CATEGORY_SLUG } from '@/lib/rmset/types';
+import { detectQuestionsIdKind, normalizeQuestionId } from '@/lib/exam-builder/id-utils';
+import { linkTestQuestions } from '@/lib/exam-builder/link-test-questions';
 import { resolveSyllabusTopicsForBuilder } from '@/lib/exam-builder/draw-questions';
+import { RMSET_CATEGORY_SLUG } from '@/lib/rmset/types';
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
@@ -127,16 +129,14 @@ export async function publishRmsetPaper(
 
   const testId = testRow.id as string;
 
-  const links = orderedQuestionIds.map((questionId, idx) => ({
-    test_id: testId,
-    question_id: questionId,
-    order: idx + 1,
-  }));
-
-  const { error: linkError } = await admin.from('test_questions').upsert(links, {
-    onConflict: 'test_id,question_id',
-  });
-  if (linkError) throw new Error(linkError.message);
+  const idKind = await detectQuestionsIdKind(admin);
+  await linkTestQuestions(
+    admin,
+    testId,
+    orderedQuestionIds.map((id) => ({
+      id: idKind === 'bigint' ? Number(normalizeQuestionId(id)) : normalizeQuestionId(id),
+    })),
+  );
 
   await admin
     .from('rmset_papers')

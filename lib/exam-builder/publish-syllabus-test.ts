@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { linkTestQuestions } from '@/lib/exam-builder/link-test-questions';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 
 const SYLLABUS_CATEGORY_SLUG = 'syllabus-exams';
@@ -79,12 +80,7 @@ export async function publishSyllabusExam(
   if (qError) throw new Error(qError.message);
 
   if (inserted?.length) {
-    const links = inserted.map((row, idx) => ({
-      test_id: testId,
-      question_id: row.id,
-      order: idx + 1,
-    }));
-    await admin.from('test_questions').upsert(links, { onConflict: 'test_id,question_id' });
+    await linkTestQuestions(admin, testId, inserted);
   }
 
   return { testId };
