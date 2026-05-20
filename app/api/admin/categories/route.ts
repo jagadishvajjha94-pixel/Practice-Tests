@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { checkIsAdmin } from '@/lib/admin-verify';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { fetchTestCategories } from '@/lib/supabase-catalog-queries';
 
 const FALLBACK_CATEGORIES = [
   { id: 'fallback-quantitative', name: 'Quantitative Ability', slug: 'quantitative', description: null, icon: '📊', order: 1 },
@@ -32,20 +33,17 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { data, error } = await service
-    .from('test_categories')
-    .select('id, name, slug, description, icon, order, created_at')
-    .order('name', { ascending: true });
+  const { categories, error } = await fetchTestCategories(service);
 
-  if (error || !data?.length) {
+  if (error || !categories.length) {
     return NextResponse.json({
       categories: FALLBACK_CATEGORIES,
       source: 'fallback',
       warning:
-        error?.message ??
+        error ??
         'No categories in database. Run supabase/migrations/006_test_categories_and_exam_core.sql in Supabase SQL Editor.',
     });
   }
 
-  return NextResponse.json({ categories: data, source: 'database' });
+  return NextResponse.json({ categories, source: 'database' });
 }

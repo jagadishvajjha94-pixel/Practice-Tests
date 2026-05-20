@@ -47,6 +47,7 @@ export default function AdminExamSchedulesPage() {
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [creating, setCreating] = useState(false);
+  const [loadWarning, setLoadWarning] = useState<string | null>(null);
 
   const load = async () => {
     const res = await fetch('/api/admin/exam-schedules');
@@ -54,12 +55,17 @@ export default function AdminExamSchedulesPage() {
       const json = (await res.json()) as {
         schedules?: ExamScheduleRow[];
         approvedExams?: ApprovedExam[];
+        warnings?: string[];
       };
       setSchedules(json.schedules ?? []);
       setApprovedExams(json.approvedExams ?? []);
+      setLoadWarning(json.warnings?.join(' ') ?? null);
       if (!facultyExamRequestId && json.approvedExams?.length) {
         setFacultyExamRequestId(json.approvedExams[0].id);
       }
+    } else {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      setLoadWarning(json.error ?? 'Could not load exam schedules');
     }
     setLoading(false);
   };
@@ -136,6 +142,12 @@ export default function AdminExamSchedulesPage() {
         title="Live & upcoming exams"
         description="Trigger a live test for students or schedule a future exam with a notice on their dashboard."
       />
+
+      {loadWarning ? (
+        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          {loadWarning}
+        </p>
+      ) : null}
 
       <Card className="p-6 space-y-4">
         <h3 className="font-semibold text-[#0c2340]">Schedule or go live</h3>

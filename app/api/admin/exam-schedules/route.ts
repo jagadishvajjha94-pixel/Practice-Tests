@@ -11,16 +11,25 @@ export async function GET() {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }
 
-  const { data: schedules, error } = await admin
+  const warnings: string[] = [];
+
+  const { data: schedules, error: schedulesError } = await admin
     .from('exam_schedules')
-    .select('*')
+    .select(
+      'id, title, description, notice, faculty_exam_request_id, test_id, status, starts_at, ends_at, target_departments, target_years, created_by, created_at, updated_at',
+    )
     .order('starts_at', { ascending: false });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (schedulesError) {
+    const msg = schedulesError.message ?? '';
+    if (msg.includes('exam_schedules') && (msg.includes('does not exist') || msg.includes('schema cache'))) {
+      warnings.push('Run supabase/migrations/013_exam_schedules.sql in Supabase SQL editor.');
+    } else {
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
   }
 
-  const { data: approved } = await admin
+  const { data: approved, error: approvedError } = await admin
     .from('faculty_exam_requests')
     .select(
       'id, title, topic, department, target_years, target_branches, duration_minutes, published_test_id, status',
@@ -29,9 +38,14 @@ export async function GET() {
     .not('published_test_id', 'is', null)
     .order('created_at', { ascending: false });
 
+  if (approvedError) {
+    return NextResponse.json({ error: approvedError.message }, { status: 500 });
+  }
+
   return NextResponse.json({
     schedules: schedules ?? [],
     approvedExams: approved ?? [],
+    warnings: warnings.length ? warnings : undefined,
   });
 }
 

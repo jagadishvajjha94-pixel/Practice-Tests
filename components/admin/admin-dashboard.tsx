@@ -79,21 +79,28 @@ export function AdminDashboard() {
 
         setIsAdmin(true);
 
-        const [{ data: users }, { data: attempts }, { data: tests }, categoryResult] = await Promise.all([
+        const [{ data: users }, { data: attempts }, testsResult, categoryResult] = await Promise.all([
           supabase.from('users').select('*'),
           supabase.from('test_attempts').select('*'),
-          supabase.from('tests').select('id, name, category_id'),
+          supabase.from('tests').select('id, title, category_id'),
           supabase.from('test_categories').select('id, name, slug'),
         ]);
+
+        let tests = testsResult.data;
+        if (testsResult.error) {
+          const legacy = await supabase.from('tests').select('id, name, category_id');
+          tests = legacy.error ? [] : legacy.data;
+        }
+
         const categoryRows = categoryResult.error ? [] : categoryResult.data;
         const attemptRows = (attempts ?? []) as DashboardAttemptRow[];
         setAllAttempts(attemptRows);
 
         const testsById = new Map<string, { name: string; category_id: string }>();
         for (const t of tests ?? []) {
-          const row = t as { id: string | number; name?: string; category_id?: string };
+          const row = t as { id: string | number; name?: string; title?: string; category_id?: string };
           testsById.set(String(row.id), {
-            name: row.name ?? `Test ${String(row.id)}`,
+            name: row.title ?? row.name ?? `Test ${String(row.id)}`,
             category_id: row.category_id ?? '',
           });
         }

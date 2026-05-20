@@ -11,6 +11,7 @@ const MIGRATION_FILES = [
   '022_exam_builder_draws_bigint_question_ids.sql',
   '023_faculty_department_group_id.sql',
   '024_published_test_id_text.sql',
+  '025_test_categories_order_column.sql',
 ];
 
 /** Full SQL to paste in Supabase SQL editor (020 + 021). */
