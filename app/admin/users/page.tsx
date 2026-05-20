@@ -138,71 +138,28 @@ export default function UsersManagementPage() {
   };
 
   const buildStudentReport = async (student: User): Promise<StudentReport> => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) {
-      throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
+    const res = await fetch(`/api/admin/users/${student.id}/attempts`, {
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(json.error ?? 'Failed to load student attempts');
     }
-    const { data: attemptsData, error: attemptsError } = await supabase
-      .from('test_attempts')
-      .select('*, test:tests(*)')
-      .eq('user_id', student.id)
-      .order('created_at', { ascending: false });
-
-    if (attemptsError) {
-      throw new Error(formatSupabaseError(attemptsError));
-    }
-
-    const rawAttempts = (attemptsData ?? []) as AttemptRow[];
-    const detailedAttempts: AttemptReport[] = await Promise.all(
-      rawAttempts.map(async (attempt) => {
-        const answers = (attempt.answers ?? {}) as Record<string, { userAnswer?: unknown }>;
-        const normalizedQuestions = await getAttemptQuestions(supabase, attempt);
-        const questions: AttemptQuestionRow[] = normalizedQuestions.map((q) => {
-          const userAnswer = String(answers[q.id]?.userAnswer ?? '');
-          return {
-            questionText: q.question_text,
-            userAnswer,
-            correctAnswer: String(q.correct_answer ?? ''),
-            isCorrect: answersMatchMcq(userAnswer, q.correct_answer),
-          };
-        });
-
-        const answeredCount = questions.filter((q) => q.userAnswer.trim().length > 0).length;
-        const correctCount = questions.filter((q) => q.isCorrect).length;
-        const score = Number(attempt.score ?? 0);
-        const testName =
-          attempt.test?.name ??
-          attempt.test?.title ??
-          `Test ${String(attempt.test_id ?? '')}`;
-
-        return {
-          id: String(attempt.id),
-          testName,
-          score,
-          status: String(attempt.status ?? 'completed'),
-          date: String(attempt.created_at ?? new Date().toISOString()),
-          timeTakenSec: Number(attempt.time_taken ?? 0),
-          answeredCount,
-          correctCount,
-          totalQuestions: questions.length,
-          questions,
-        };
-      })
-    );
-
-    const scores = detailedAttempts.map((a) => a.score);
-    const completedAttempts = detailedAttempts.filter((a) => a.status === 'completed').length;
-    const avgScore =
-      scores.length > 0 ? Number((scores.reduce((sum, s) => sum + s, 0) / scores.length).toFixed(1)) : 0;
-    const bestScore = scores.length > 0 ? Math.max(...scores) : 0;
+    const json = (await res.json()) as {
+      totalAttempts: number;
+      completedAttempts: number;
+      avgScore: number;
+      bestScore: number;
+      attempts: AttemptReport[];
+    };
 
     return {
       student,
-      totalAttempts: detailedAttempts.length,
-      completedAttempts,
-      avgScore,
-      bestScore,
-      attempts: detailedAttempts,
+      totalAttempts: json.totalAttempts,
+      completedAttempts: json.completedAttempts,
+      avgScore: json.avgScore,
+      bestScore: json.bestScore,
+      attempts: json.attempts ?? [],
     };
   };
 

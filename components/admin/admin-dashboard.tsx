@@ -10,6 +10,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { cn } from '@/lib/utils';
 import { StatCard } from '@/components/ui/stat-card';
+import { LiveExamDashboard } from '@/components/admin/live-exam-dashboard';
 
 type DashboardStudent = {
   id: string;
@@ -26,7 +27,8 @@ type DashboardStudent = {
 type DashboardAttemptRow = {
   id: string | number;
   user_id?: string;
-  test_id?: string | number;
+  test_id?: string | number | null;
+  test_name?: string;
   score?: number | null;
   status?: string | null;
   created_at?: string | null;
@@ -79,107 +81,30 @@ export function AdminDashboard() {
 
         setIsAdmin(true);
 
-        const [usersRes, { data: attempts }, testsResult, categoryResult] = await Promise.all([
-          fetch('/api/admin/users', { credentials: 'include' }),
-          supabase.from('test_attempts').select('*'),
-          supabase.from('tests').select('id, title, category_id'),
-          supabase.from('test_categories').select('id, name, slug'),
-        ]);
-
-        let users: Array<Record<string, unknown>> = [];
-        if (usersRes.ok) {
-          const usersJson = (await usersRes.json()) as { students?: Array<Record<string, unknown>> };
-          users = usersJson.students ?? [];
+        const statsRes = await fetch('/api/admin/dashboard-stats', { credentials: 'include' });
+        if (!statsRes.ok) {
+          throw new Error('Failed to load dashboard stats');
         }
+        const payload = (await statsRes.json()) as {
+          stats: typeof stats;
+          students: DashboardStudent[];
+          attempts: DashboardAttemptRow[];
+          tests: Array<{ id: string; name: string; category_id: string }>;
+          categories: Array<{ id: string; name: string; slug: string }>;
+        };
 
-        let tests = testsResult.data;
-        if (testsResult.error) {
-          const legacy = await supabase.from('tests').select('id, name, category_id');
-          tests = legacy.error ? [] : legacy.data;
-        }
-
-        const categoryRows = categoryResult.error ? [] : categoryResult.data;
-        const attemptRows = (attempts ?? []) as DashboardAttemptRow[];
-        setAllAttempts(attemptRows);
-
+        setAllAttempts(payload.attempts ?? []);
         const testsById = new Map<string, { name: string; category_id: string }>();
-        for (const t of tests ?? []) {
-          const row = t as { id: string | number; name?: string; title?: string; category_id?: string };
-          testsById.set(String(row.id), {
-            name: row.title ?? row.name ?? `Test ${String(row.id)}`,
-            category_id: row.category_id ?? '',
+        for (const t of payload.tests ?? []) {
+          testsById.set(String(t.id), {
+            name: t.name,
+            category_id: t.category_id ?? '',
           });
         }
         setTestsMap(testsById);
-        setCategories(
-          (categoryRows ?? []).map((c) => {
-            const x = c as { id: string; name: string; slug: string };
-            return { id: x.id, name: x.name, slug: x.slug };
-          })
-        );
+        setCategories(payload.categories ?? []);
 
-        const totalTests = attempts?.length || 0;
-        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        const testsLast7Days = (attempts ?? []).filter(
-          (a) => new Date(String(a.created_at)).getTime() >= sevenDaysAgo.getTime()
-        ).length;
-        const categoryByTestId = new Map<string, string>();
-        for (const [id, t] of testsById.entries()) {
-          const c = (categoryRows ?? []).find((row) => (row as { id: string }).id === t.category_id) as
-            | { slug?: string }
-            | undefined;
-          categoryByTestId.set(id, c?.slug ?? '');
-        }
-        let psychometricSubmitted = 0;
-        let swarxSubmitted = 0;
-
-        const byUser = new Map<string, DashboardStudent>();
-        for (const u of users ?? []) {
-          byUser.set(String((u as { id: string }).id), {
-            id: String((u as { id: string }).id),
-            email: String((u as { email?: string }).email ?? ''),
-            full_name: (u as { full_name?: string | null }).full_name ?? null,
-            created_at: String((u as { created_at?: string }).created_at ?? new Date().toISOString()),
-            attempts: 0,
-            avgScore: 0,
-            latestAttemptAt: null,
-            highestScore: 0,
-            highestTestName: null,
-          });
-        }
-
-        const scoresByUser = new Map<string, number[]>();
-        for (const a of attemptRows) {
-          const userId = String((a as { user_id?: string }).user_id ?? '');
-          const score = Number((a as { score?: number | null }).score ?? 0);
-          const createdAt = String((a as { created_at?: string }).created_at ?? '');
-          const testId = String((a as { test_id?: string }).test_id ?? '');
-          const slug = (categoryByTestId.get(testId) || '').toLowerCase();
-          if (slug === 'psychometric') psychometricSubmitted += 1;
-          if (slug === 'swarx') swarxSubmitted += 1;
-          const row = byUser.get(userId);
-          if (!row) continue;
-          row.attempts += 1;
-          if (score > row.highestScore) {
-            row.highestScore = score;
-            row.highestTestName = testsById.get(String((a as { test_id?: string }).test_id ?? ''))?.name ?? null;
-          }
-          if (!row.latestAttemptAt || new Date(createdAt) > new Date(row.latestAttemptAt)) {
-            row.latestAttemptAt = createdAt;
-          }
-          if (!scoresByUser.has(userId)) scoresByUser.set(userId, []);
-          scoresByUser.get(userId)!.push(score);
-        }
-
-        for (const [userId, values] of scoresByUser.entries()) {
-          const row = byUser.get(userId);
-          if (!row || values.length === 0) continue;
-          row.avgScore = Number((values.reduce((s, v) => s + v, 0) / values.length).toFixed(1));
-        }
-
-        const students = Array.from(byUser.values());
-        const attendedStudents = students.filter((s) => s.attempts > 0).length;
-        const lowPerformers = students.filter((s) => s.attempts > 0 && s.avgScore < 40).length;
+        const students = payload.students ?? [];
         const recent = [...students]
           .sort((a, b) => {
             const bt = b.latestAttemptAt ? new Date(b.latestAttemptAt).getTime() : 0;
@@ -192,17 +117,7 @@ export function AdminDashboard() {
           .sort((a, b) => b.highestScore - a.highestScore)
           .slice(0, 5);
 
-        setStats({
-          totalRegisteredUsers: users?.length ?? 0,
-          totalStudentsAttended: attendedStudents,
-          totalTestsSubmitted: totalTests,
-          avgTestsPerStudent:
-            attendedStudents > 0 ? Number((totalTests / attendedStudents).toFixed(1)) : 0,
-          testsLast7Days,
-          lowPerformers,
-          psychometricSubmitted,
-          swarxSubmitted,
-        });
+        setStats(payload.stats);
         setRecentStudents(recent);
         setTopStudents(top);
         setAllStudents(students);
@@ -213,7 +128,47 @@ export function AdminDashboard() {
       }
     };
 
-    checkAdminAccess();
+    const reloadStats = async () => {
+      try {
+        const statsRes = await fetch('/api/admin/dashboard-stats', { credentials: 'include' });
+        if (!statsRes.ok) return;
+        const payload = (await statsRes.json()) as {
+          stats: typeof stats;
+          students: DashboardStudent[];
+          attempts: DashboardAttemptRow[];
+          tests: Array<{ id: string; name: string; category_id: string }>;
+          categories: Array<{ id: string; name: string; slug: string }>;
+        };
+        setAllAttempts(payload.attempts ?? []);
+        const testsById = new Map<string, { name: string; category_id: string }>();
+        for (const t of payload.tests ?? []) {
+          testsById.set(String(t.id), { name: t.name, category_id: t.category_id ?? '' });
+        }
+        setTestsMap(testsById);
+        setCategories(payload.categories ?? []);
+        setStats(payload.stats);
+        setAllStudents(payload.students ?? []);
+        const recent = [...(payload.students ?? [])]
+          .sort((a, b) => {
+            const bt = b.latestAttemptAt ? new Date(b.latestAttemptAt).getTime() : 0;
+            const at = a.latestAttemptAt ? new Date(a.latestAttemptAt).getTime() : 0;
+            return bt - at;
+          })
+          .slice(0, 8);
+        const top = [...(payload.students ?? [])]
+          .filter((s) => s.attempts > 0)
+          .sort((a, b) => b.highestScore - a.highestScore)
+          .slice(0, 5);
+        setRecentStudents(recent);
+        setTopStudents(top);
+      } catch {
+        // ignore background refresh errors
+      }
+    };
+
+    void checkAdminAccess();
+    const refreshTimer = setInterval(() => void reloadStats(), 20000);
+    return () => clearInterval(refreshTimer);
   }, [router]);
 
   if (loading) {
@@ -345,14 +300,17 @@ export function AdminDashboard() {
       return acc;
     }, new Map<string, { attempts: number; totalScore: number; highest: number; passed: number }>())
   )
-    .map(([testId, row]) => ({
-      testId,
-      testName: testsMap.get(testId)?.name ?? `Test ${testId}`,
-      attempts: row.attempts,
-      avgScore: Number((row.totalScore / row.attempts).toFixed(1)),
-      highestScore: row.highest,
-      passRate: Number(((row.passed / row.attempts) * 100).toFixed(1)),
-    }))
+    .map(([testId, row]) => {
+      const sample = filteredAttempts.find((a) => String(a.test_id ?? '') === testId);
+      return {
+        testId,
+        testName: sample?.test_name ?? testsMap.get(testId)?.name ?? `Test ${testId}`,
+        attempts: row.attempts,
+        avgScore: Number((row.totalScore / row.attempts).toFixed(1)),
+        highestScore: row.highest,
+        passRate: Number(((row.passed / row.attempts) * 100).toFixed(1)),
+      };
+    })
     .sort((a, b) => b.attempts - a.attempts)
     .slice(0, 8);
 
@@ -365,7 +323,10 @@ export function AdminDashboard() {
     .slice(0, 12)
     .map((attempt) => {
       const student = allStudents.find((s) => s.id === String(attempt.user_id ?? ''));
-      const testName = testsMap.get(String(attempt.test_id ?? ''))?.name ?? `Test ${String(attempt.test_id ?? '-')}`;
+      const testName =
+        attempt.test_name ??
+        testsMap.get(String(attempt.test_id ?? ''))?.name ??
+        `Test ${String(attempt.test_id ?? '-')}`;
       return {
         id: String(attempt.id ?? ''),
         studentName: student?.full_name || student?.email || 'Unknown student',
@@ -446,6 +407,7 @@ export function AdminDashboard() {
 
   return (
     <>
+      <LiveExamDashboard />
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Overview</h2>

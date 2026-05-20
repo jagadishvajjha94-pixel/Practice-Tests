@@ -135,6 +135,7 @@ export default function TestInterface({
 
   const submitRef = useRef<(options?: SubmitOptions) => Promise<void>>(async () => {});
   const prevTimeRemainingRef = useRef<number | null>(null);
+  const liveAttemptIdRef = useRef<string | null>(null);
   const proctorVideoRef = useRef<HTMLVideoElement>(null);
   const proctorSummaryRef = useRef<ProctorSummary | null>(null);
 
@@ -198,6 +199,60 @@ export default function TestInterface({
     () => assignQuestionsToSections(questions, examSections),
     [questions, examSections],
   );
+
+  useEffect(() => {
+    if (!fullAccess || isSubmitted || test.id.startsWith('fallback-')) return;
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        const supabase = getSupabaseBrowserClient();
+        if (!supabase) return;
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        let scorePercent = 0;
+        if (sectionMode && examSections.length) {
+          scorePercent = scoreBySections(examSections, questionsBySection, answers).overallPercent;
+        } else {
+          const { netScore, maxScore } = scoreMcqWithNegativeMarking(questions, answers, 0);
+          scorePercent = maxScore > 0 ? Math.round((netScore / maxScore) * 100) : 0;
+        }
+
+        const headers = await getSupabaseAuthHeaders(supabase);
+        const res = await fetch('/api/student/test-attempts/progress', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({
+            testId: test.id,
+            testName: dashboardDisplayNameForTest(test),
+            scorePercent,
+            answers,
+            elapsedSec: Math.max(0, test.duration * 60 - timeRemaining),
+            attemptId: liveAttemptIdRef.current,
+          }),
+        });
+        if (res.ok) {
+          const json = (await res.json()) as { id?: string };
+          if (json.id) liveAttemptIdRef.current = String(json.id);
+        }
+      })();
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [
+    answers,
+    timeRemaining,
+    isSubmitted,
+    fullAccess,
+    test,
+    sectionMode,
+    examSections,
+    questions,
+    questionsBySection,
+  ]);
 
   const submitRefEarly = useRef<() => Promise<void>>(async () => {});
 

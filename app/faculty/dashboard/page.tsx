@@ -38,6 +38,15 @@ export default function FacultyDashboardPage() {
       setLoading(false);
     };
     void load();
+    const timer = setInterval(() => {
+      void fetch('/api/faculty/performance')
+        .then((perfRes) => perfRes.json())
+        .then((json: { summary?: PerformanceSummary }) => {
+          if (json.summary) setSummary(json.summary);
+        })
+        .catch(() => undefined);
+    }, 15000);
+    return () => clearInterval(timer);
   }, []);
 
   const counts = useMemo(() => {

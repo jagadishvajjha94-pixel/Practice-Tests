@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { departmentsMatch, examMatchesDepartment } from '@/lib/faculty/department-match';
 import { departmentsForPerformanceView } from '@/lib/department-groups';
-import { resolveStoredPercent } from '@/lib/test-attempts';
+import { resolveStoredPercent, testIdsMatch } from '@/lib/test-attempts';
+import type { DashboardStatEntry } from '@/lib/student-dashboard-stats';
 
 export type DeptStudent = {
   id: string;
@@ -152,13 +153,22 @@ function examTitleKeys(title: string): string[] {
   return [base, `department · ${base}`];
 }
 
+function parseStatAttempts(raw: unknown): DashboardStatEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((row): row is DashboardStatEntry => {
+    if (!row || typeof row !== 'object') return false;
+    const o = row as DashboardStatEntry;
+    return Boolean(o.id && o.user_id);
+  });
+}
+
 function resolveAttemptExamTestId(
   attempt: RawAttempt,
   publishedExams: PublishedDeptExam[],
 ): string | null {
   const testId = attempt.test_id ? String(attempt.test_id) : '';
   if (testId) {
-    const direct = publishedExams.find((e) => e.published_test_id === testId);
+    const direct = publishedExams.find((e) => testIdsMatch(e.published_test_id, testId));
     if (direct) return direct.published_test_id;
   }
 
@@ -175,19 +185,12 @@ function resolveAttemptExamTestId(
   return testId || null;
 }
 
-function attemptBelongsToDepartmentExam(
-  attempt: RawAttempt,
-  publishedExams: PublishedDeptExam[],
-): boolean {
-  return resolveAttemptExamTestId(attempt, publishedExams) != null;
-}
-
 export async function fetchDepartmentExamAttempts(
   admin: SupabaseClient,
   studentIds: string[],
   publishedExams: PublishedDeptExam[],
 ): Promise<MatchedAttempt[]> {
-  if (studentIds.length === 0 || publishedExams.length === 0) return [];
+  if (studentIds.length === 0) return [];
 
   const { data: attemptRows } = await admin
     .from('test_attempts')
@@ -197,20 +200,56 @@ export async function fetchDepartmentExamAttempts(
     .in('user_id', studentIds)
     .order('created_at', { ascending: false });
 
-  return (attemptRows ?? [])
-    .filter((row) => attemptBelongsToDepartmentExam(row as RawAttempt, publishedExams))
+  const merged: RawAttempt[] = [...((attemptRows ?? []) as RawAttempt[])];
+  const seen = new Set(merged.map((a) => String(a.id)));
+
+  if (studentIds.length > 0) {
+    const { data: statsRows } = await admin
+      .from('student_dashboard_stats')
+      .select('user_id, attempts')
+      .in('user_id', studentIds);
+
+    for (const row of statsRows ?? []) {
+      for (const entry of parseStatAttempts(row.attempts)) {
+        if (seen.has(String(entry.id))) continue;
+        if (!studentIds.includes(entry.user_id)) continue;
+        merged.push({
+          id: entry.id,
+          user_id: entry.user_id,
+          test_id: entry.test_id,
+          test_title: entry.test_name,
+          score: entry.score,
+          percentage_score: entry.score,
+          total_score: null,
+          status: entry.status,
+          completed_at: entry.completed_at,
+          created_at: entry.created_at,
+        });
+        seen.add(String(entry.id));
+      }
+    }
+  }
+
+  return merged
     .map((row) => {
       const attempt = row as RawAttempt;
+      const resolved =
+        resolveAttemptExamTestId(attempt, publishedExams) ??
+        (attempt.test_id ? String(attempt.test_id) : null);
       return {
         ...attempt,
-        resolved_test_id: resolveAttemptExamTestId(attempt, publishedExams),
+        resolved_test_id: resolved,
         score_percent: resolveStoredPercent(
           attempt.percentage_score,
           attempt.score,
           attempt.total_score,
         ),
       };
-    });
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
+    );
 }
 
 export type FacultyPerformancePayload = {
@@ -307,7 +346,9 @@ export function buildFacultyPerformancePayload(
 
   const examStats = publishedExams.map((exam) => {
     const testId = exam.published_test_id;
-    const examAttempts = attempts.filter((a) => a.resolved_test_id === testId);
+    const examAttempts = attempts.filter(
+      (a) => a.resolved_test_id && testIdsMatch(a.resolved_test_id, testId),
+    );
     const completed = examAttempts.filter((a) => a.status === 'completed');
     const scores = completed.map((a) => a.score_percent);
     const avg =
