@@ -20,7 +20,9 @@ Deleting rows with **`seed-demo-v1`** cleanly removes **all** seeded demo MCQs b
 
 ## Apply (first time)
 
-**Order matters.** If you see `Could not find the table 'public.questions' in the schema cache`, run **`020_ensure_questions_table.sql` first**, then **`019_demo_question_bank_seed.sql`**.
+**Order matters.** If you see `Could not find the table 'public.questions' in the schema cache`, run **`020_ensure_questions_table.sql` first**, then **`019_demo_question_bank_seed.sql`** (or use **Load topic question bank** in the app).
+
+If migration 020 fails with **uuid and bigint incompatible** on `question_tag_links`, your `questions.id` is legacy **BIGINT**. Re-run the **updated** `020` file (it auto-detects id type). If a broken `question_tag_links` table was created, 020 drops and recreates it when types mismatch.
 
 ```bash
 cd apps/prepindia-web

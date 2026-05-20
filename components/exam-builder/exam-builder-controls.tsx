@@ -33,6 +33,8 @@ export type ExamBuilderControlsProps = {
   onQuestionsPerTopicChange: (n: number) => void;
   onQuestionsGenerated: (questions: FacultyExamQuestion[], warnings: string[]) => void;
   compact?: boolean;
+  /** Bump to refetch syllabus topic counts from the bank. */
+  catalogRefreshToken?: number;
 };
 
 export function ExamBuilderControls({
@@ -46,6 +48,7 @@ export function ExamBuilderControls({
   onQuestionsPerTopicChange,
   onQuestionsGenerated,
   compact = false,
+  catalogRefreshToken = 0,
 }: ExamBuilderControlsProps) {
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [syllabusOpen, setSyllabusOpen] = useState(false);
@@ -59,7 +62,7 @@ export function ExamBuilderControls({
       .then((json: CatalogResponse | null) => {
         if (json) setCatalog(json);
       });
-  }, []);
+  }, [catalogRefreshToken]);
 
   const testDef = getExamBuilderTestType(testType);
   const syllabusTopics = catalog?.syllabusByTestType?.[testType] ?? [];

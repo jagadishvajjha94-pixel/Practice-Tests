@@ -40,6 +40,7 @@ export default function AdminExamBuilderPage() {
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDepts, setNewGroupDepts] = useState<string[]>([]);
   const [creatingGroup, setCreatingGroup] = useState(false);
+  const [catalogRefresh, setCatalogRefresh] = useState(0);
 
   const testDef = getExamBuilderTestType(testType);
   const isManual = testType === 'department-manual';
@@ -170,9 +171,13 @@ export default function AdminExamBuilderPage() {
             setQuestions(qs);
             setWarnings(w);
           }}
+          catalogRefreshToken={catalogRefresh}
         />
 
-        <QuestionBankUploadPanel tagIds={syllabusTopicIds} />
+        <QuestionBankUploadPanel
+          tagIds={syllabusTopicIds}
+          onBankUpdated={() => setCatalogRefresh((n) => n + 1)}
+        />
 
         <div className="grid md:grid-cols-2 gap-4">
           <div>

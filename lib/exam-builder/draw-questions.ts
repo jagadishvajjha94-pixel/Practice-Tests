@@ -51,7 +51,10 @@ async function questionIdsMatchingTagSlug(admin: SupabaseClient, tagSlug: string
       .select('id')
       .contains('tags', [tagSlug])
       .range(offset, offset + QUESTION_FETCH_PAGE - 1);
-    if (error) throw new Error(error.message);
+    if (error) {
+      // JSONB contains may fail on older schemas — link table is primary path
+      break;
+    }
     const rows = data ?? [];
     for (const row of rows) {
       if (row.id) out.push(row.id as string);

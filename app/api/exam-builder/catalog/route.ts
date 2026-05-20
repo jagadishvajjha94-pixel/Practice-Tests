@@ -7,21 +7,28 @@ import {
 } from '@/lib/exam-builder/test-catalog';
 import { syllabusUnitsForGroup, type SyllabusGroupKey } from '@/lib/exam-builder/syllabus';
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 async function countForSlug(
   admin: NonNullable<ReturnType<typeof getServiceSupabase>>,
   slug: string,
-  _tagId?: string,
+  tagId?: string,
 ): Promise<number> {
+  if (tagId && UUID_RE.test(tagId)) {
+    const { count, error } = await admin
+      .from('question_tag_links')
+      .select('*', { count: 'exact', head: true })
+      .eq('tag_id', tagId);
+    if (!error && count != null && count > 0) return count;
+  }
+
   const { count, error } = await admin
     .from('questions')
     .select('id', { count: 'exact', head: true })
     .contains('tags', [slug]);
 
-  if (error) {
-    console.warn('[exam-builder/catalog] countForSlug', slug, error.message);
-    return 0;
-  }
-
+  if (error) return 0;
   return count ?? 0;
 }
 

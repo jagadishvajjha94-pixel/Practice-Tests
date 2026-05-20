@@ -59,6 +59,7 @@ export default function FacultyUploadPage() {
   const [questionsPerTopic, setQuestionsPerTopic] = useState(5);
   const [paperWarnings, setPaperWarnings] = useState<string[]>([]);
   const [departmentGroupId, setDepartmentGroupId] = useState('');
+  const [catalogRefresh, setCatalogRefresh] = useState(0);
 
   // Step 2 – questions
   const [questions, setQuestions] = useState<FacultyExamQuestion[]>([emptyQuestion()]);
@@ -266,9 +267,13 @@ export default function FacultyUploadPage() {
               setPaperWarnings(warnings);
               if (qs.length) setStep('questions');
             }}
+            catalogRefreshToken={catalogRefresh}
           />
 
-          <QuestionBankUploadPanel tagIds={syllabusTopicIds} />
+          <QuestionBankUploadPanel
+            tagIds={syllabusTopicIds}
+            onBankUpdated={() => setCatalogRefresh((n) => n + 1)}
+          />
 
           <div>
             <h3 className="app-section-title">Exam details</h3>
@@ -425,6 +430,7 @@ export default function FacultyUploadPage() {
               setQuestions(qs.length ? qs : [emptyQuestion()]);
               setPaperWarnings(warnings);
             }}
+            catalogRefreshToken={catalogRefresh}
           />
             </Card>
           ) : (
