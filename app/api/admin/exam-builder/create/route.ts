@@ -3,9 +3,9 @@ import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { parseQuestionsJson } from '@/lib/faculty-exams';
 import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
 import { drawExamQuestionsFromTopics } from '@/lib/exam-builder/draw-questions';
-import { publishSyllabusExam } from '@/lib/exam-builder/publish-syllabus-test';
+import { createFacultyExamRequestRecord } from '@/lib/exam-builder/create-exam-request';
 import { isValidAcademicYear } from '@/lib/roles';
-import { ACADEMIC_YEARS } from '@/lib/college-brand';
+import { DEPARTMENTS } from '@/lib/college-brand';
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(['admin']);
@@ -35,7 +35,15 @@ export async function POST(request: NextRequest) {
   const targetYears = (Array.isArray(body.targetYears) ? body.targetYears : []).filter((y) =>
     isValidAcademicYear(String(y)),
   );
-  const department = String(body.department ?? 'All departments').trim();
+  const primaryDepartment = String(body.department ?? '').trim();
+  const departmentGroupId =
+    typeof body.departmentGroupId === 'string' && body.departmentGroupId
+      ? body.departmentGroupId
+      : null;
+  const extraBranches = Array.isArray(body.extraBranches)
+    ? (body.extraBranches as string[])
+    : [];
+  const goLiveNow = Boolean(body.goLiveNow);
 
   let questions = parseQuestionsJson(body.questions);
 
@@ -64,22 +72,50 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No questions to publish' }, { status: 400 });
   }
 
+  if (!targetYears.length) {
+    return NextResponse.json({ error: 'Select at least one target year' }, { status: 400 });
+  }
+
+  const resolvedDept =
+    primaryDepartment && primaryDepartment !== 'All departments'
+      ? primaryDepartment
+      : DEPARTMENTS[0];
+
   try {
-    const { testId } = await publishSyllabusExam(admin, {
+    const result = await createFacultyExamRequestRecord(admin, {
+      creatorUserId: auth.ctx.user.id,
+      primaryDepartment: resolvedDept,
       title,
       description:
         typeof body.description === 'string'
           ? body.description
-          : `${def.name} · ${slotKey} · ${targetYears.length ? targetYears.join(', ') : 'All years'}`,
+          : `${def.name} · ${slotKey}`,
+      topic: def.name,
+      targetYears,
+      extraBranches,
+      departmentGroupId,
       durationMinutes,
       questions,
       testType,
+      slotKey,
+      syllabusTopicIds: topicIds,
+      questionsPerTopic,
+      status: 'approved',
+      autoPublish: true,
+      autoGoLive: goLiveNow,
+      goLiveNotice:
+        typeof body.notice === 'string' ? body.notice : `${def.name} is now live for your group.`,
     });
 
     return NextResponse.json({
-      testId,
-      takeUrl: `/tests/take/${testId}`,
-      message: 'Exam published. Schedule it live via Evalora modules or Faculty exam schedules.',
+      requestId: result.requestId,
+      testId: result.testId,
+      scheduleId: result.scheduleId,
+      takeUrl: result.testId ? `/tests/take/${result.testId}` : undefined,
+      targetDepartments: [result.department, ...result.target_branches],
+      message: goLiveNow
+        ? 'Exam published and is live for the selected department group.'
+        : 'Exam published. Go live from Faculty exam schedules when ready.',
     });
   } catch (err) {
     return NextResponse.json(

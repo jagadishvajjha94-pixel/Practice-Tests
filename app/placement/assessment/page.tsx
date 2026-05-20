@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ElevateXLiveInfo } from '@/components/elevatex/elevatex-live-info';
 import {
   PLACEMENT_DEPARTMENTS,
   PLACEMENT_EXAM_NAME,
@@ -27,7 +28,6 @@ export default function PlacementAssessmentStartPage() {
   const [fullName, setFullName] = useState('');
   const [hallTicket, setHallTicket] = useState('');
   const [departmentId, setDepartmentId] = useState('cse');
-  const [customDepartment, setCustomDepartment] = useState('');
   const [collegeName, setCollegeName] = useState('');
   const [resumeAvailable, setResumeAvailable] = useState(false);
 
@@ -46,13 +46,10 @@ export default function PlacementAssessmentStartPage() {
     [],
   );
 
-  const canStart =
-    fullName.trim().length > 1 && hallTicket.trim().length > 0 && (departmentId !== 'other' || customDepartment.trim().length > 1);
+  const canStart = fullName.trim().length > 1 && hallTicket.trim().length > 0;
 
   const handleStart = () => {
-    const finalDept = departmentId === 'other' && customDepartment.trim()
-      ? `other-${customDepartment.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
-      : departmentId;
+    const finalDept = departmentId;
 
     // If a saved session matches this hall ticket, ask to resume; otherwise build fresh.
     const existing = loadSessionByHallTicket(hallTicket.trim());
@@ -89,11 +86,11 @@ export default function PlacementAssessmentStartPage() {
         <div className="absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-300/30 blur-3xl" aria-hidden />
         <div className="relative max-w-5xl mx-auto px-4 py-8">
           <Link href="/placement" className="text-sm text-white/80 hover:text-white mb-4 inline-block">
-            ← Back to Evalora hub
+            ← Back to ElevateX hub
           </Link>
           <div className="flex items-center gap-5">
             <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur ring-1 ring-white/30 flex items-center justify-center text-3xl shadow-lg shrink-0">
-              ✨
+              🚀
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/85">
@@ -115,8 +112,11 @@ export default function PlacementAssessmentStartPage() {
         <Card className="md:col-span-3 p-6 sm:p-8 shadow-sm border-slate-200">
           <h2 className="text-xl font-bold text-slate-900 mb-1">Candidate details</h2>
           <p className="text-sm text-slate-600 mb-6">
-            Enter your hall ticket and department to begin. The exam will start a global 60-minute timer.
+            Enter your hall ticket and department to begin. The exam runs on a single 60-minute timer across all
+            sections.
           </p>
+
+          <ElevateXLiveInfo className="mb-6" />
 
           <div className="space-y-5">
             <div className="grid sm:grid-cols-2 gap-4">
@@ -170,18 +170,6 @@ export default function PlacementAssessmentStartPage() {
                   </option>
                 ))}
               </select>
-              {departmentId === 'other' ? (
-                <div className="mt-3">
-                  <Label htmlFor="customDept">Specify your department</Label>
-                  <Input
-                    id="customDept"
-                    value={customDepartment}
-                    onChange={(e) => setCustomDepartment(e.target.value)}
-                    placeholder="e.g. Biomedical Engineering"
-                    className="mt-1"
-                  />
-                </div>
-              ) : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-3 pt-2">

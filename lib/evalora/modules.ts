@@ -1,4 +1,4 @@
-/** Sub-assessments merged under Evalora (not shown on /tests hub). */
+/** Sub-assessments scheduled via admin (ElevateX full paper + practice modules). */
 export type EvaloraModuleKey =
   | 'placement_full'
   | 'psychometric'
@@ -21,13 +21,13 @@ export type EvaloraModuleDef = {
 export const EVALORA_MODULES: EvaloraModuleDef[] = [
   {
     key: 'placement_full',
-    name: 'Evalora Full Assessment',
+    name: 'ElevateX',
     description:
-      'Six-section AI-graded placement paper — technical, speaking, psychometric, aptitude, logic, and IQ.',
-    icon: '✨',
+      'Talent Challenge Exam — 100-mark, 1-hour placement-readiness paper across six industry-aligned sections.',
+    icon: '🚀',
     href: '/placement/assessment',
     badge: '6 sections · 100 marks · 60 min',
-    features: ['Technical 35', 'Speaking 10', 'Psychometric 10', 'Aptitude 20', 'Logic 15', 'IQ 10'],
+    features: ['Technical 20', 'Aptitude 20', 'Logic 15', 'IQ 15', 'Psychometric 15', 'Speaking 15'],
   },
   {
     key: 'psychometric',
@@ -77,7 +77,7 @@ export const EVALORA_MODULES: EvaloraModuleDef[] = [
     key: 'rmset',
     name: 'RMSET',
     description:
-      'Ramachandra Multi-Section Eligibility Test — MCQs from admin-selected topics only.',
+      'RCE-RMSET — merit scholarship eligibility test (Tier 4); MPC, psychometric, and communication components when conducted.',
     icon: '📋',
     href: '/tests/rmset',
     badge: 'Topic-selected',

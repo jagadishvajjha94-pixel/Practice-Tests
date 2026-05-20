@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FACULTY_EXAM_YEARS, parseQuestionsJson } from '@/lib/faculty-exams';
 import { isValidAcademicYear } from '@/lib/roles';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { createFacultyExamRequestRecord } from '@/lib/exam-builder/create-exam-request';
 
 export async function GET() {
   const auth = await requireAuth(['faculty']);
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
     slot_key?: string;
     syllabus_topic_ids?: string[];
     questions_per_topic?: number;
+    department_group_id?: string;
   };
 
   try {
@@ -96,30 +98,37 @@ export async function POST(request: NextRequest) {
   );
   const topic = body.topic?.trim() || null;
 
-  const { data, error } = await admin
-    .from('faculty_exam_requests')
-    .insert({
-      faculty_user_id: auth.ctx.resolved.id,
-      department,
-      topic,
+  try {
+    const result = await createFacultyExamRequestRecord(admin, {
+      creatorUserId: auth.ctx.resolved.id,
+      primaryDepartment: department,
       title,
       description: body.description?.trim() ?? null,
-      target_years: targetYears,
-      target_branches: targetBranches,
-      duration_minutes: duration,
-      questions_json: questions,
+      topic,
+      targetYears,
+      extraBranches: targetBranches,
+      departmentGroupId: body.department_group_id ?? null,
+      durationMinutes: duration,
+      questions,
+      testType: body.test_type?.trim() || null,
+      slotKey: body.slot_key?.trim() || null,
+      syllabusTopicIds: Array.isArray(body.syllabus_topic_ids) ? body.syllabus_topic_ids : [],
+      questionsPerTopic: body.questions_per_topic ?? null,
       status: 'pending',
-      test_type: body.test_type?.trim() || null,
-      slot_key: body.slot_key?.trim() || null,
-      syllabus_topic_ids: Array.isArray(body.syllabus_topic_ids) ? body.syllabus_topic_ids : [],
-      questions_per_topic: body.questions_per_topic ?? null,
-    })
-    .select('*')
-    .single();
+      autoPublish: false,
+    });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const { data } = await admin
+      .from('faculty_exam_requests')
+      .select('*')
+      .eq('id', result.requestId)
+      .single();
+
+    return NextResponse.json({ request: data });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Submit failed' },
+      { status: 400 },
+    );
   }
-
-  return NextResponse.json({ request: data });
 }

@@ -71,7 +71,7 @@ export default function AdminRmsetPage() {
         alert(json.error ?? 'Could not publish RMSET paper');
         return;
       }
-      alert(`RMSET paper published with ${json.totalQuestions ?? 0} questions. Go live via Evalora modules.`);
+      alert(`RMSET paper published with ${json.totalQuestions ?? 0} questions. Go live via ElevateX & modules.`);
       await load();
     } finally {
       setPublishing(false);
@@ -183,13 +183,13 @@ export default function AdminRmsetPage() {
             Publish RMSET paper
           </Button>
           <Link href="/admin/evalora-modules">
-            <Button variant="outline">Go live in Evalora →</Button>
+            <Button variant="outline">Go live in modules hub →</Button>
           </Link>
         </div>
         <p className="text-xs text-slate-500">
           After publishing, open{' '}
           <Link href="/admin/evalora-modules" className="underline">
-            Evalora modules
+            ElevateX & modules
           </Link>{' '}
           and schedule <strong>RMSET</strong> so students see it on the tests hub.
         </p>

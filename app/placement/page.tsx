@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PLACEMENT_EXAM_NAME, PLACEMENT_EXAM_TAGLINE } from '@/lib/placement/config';
+import { isElevateXModule } from '@/lib/elevatex';
+import { ElevateXLiveInfo } from '@/components/elevatex/elevatex-live-info';
 import type { StudentEvaloraModule } from '@/lib/evalora/module-schedule';
 
 function ModuleCard({ mod, live }: { mod: StudentEvaloraModule; live: boolean }) {
+  const isElevateX = isElevateXModule(mod.module_key);
   return (
     <Card className="p-5 border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -22,6 +25,12 @@ function ModuleCard({ mod, live }: { mod: StudentEvaloraModule; live: boolean })
         <Badge tone={live ? 'success' : 'warning'}>{live ? 'LIVE' : 'UPCOMING'}</Badge>
       </div>
       <p className="text-sm text-slate-600 mb-3">{mod.description}</p>
+      {isElevateX && live ? <ElevateXLiveInfo compact className="mb-3" /> : null}
+      {isElevateX && !live ? (
+        <p className="text-xs text-slate-500 mb-3">
+          Full ElevateX briefing and pattern will appear when the exam goes live.
+        </p>
+      ) : null}
       {mod.notice ? <p className="text-sm text-slate-700 mb-3 rounded-lg bg-slate-50 p-3 border border-slate-100">{mod.notice}</p> : null}
       <div className="flex flex-wrap gap-2 text-xs text-slate-500 mb-4">
         <span>Starts {new Date(mod.starts_at).toLocaleString()}</span>
@@ -77,7 +86,7 @@ export default function EvaloraHubPage() {
           </Link>
           <div className="flex items-center gap-5">
             <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur ring-1 ring-white/30 flex items-center justify-center text-3xl shadow-lg shrink-0">
-              ✨
+              🚀
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/85">Assessment portal</p>
@@ -103,8 +112,8 @@ export default function EvaloraHubPage() {
           <Card className="p-8 text-center border-slate-200">
             <p className="text-lg font-semibold text-slate-800 mb-2">No assessments scheduled yet</p>
             <p className="text-sm text-slate-600 max-w-md mx-auto">
-              Psychometric, competitive, programming, department, and full Evalora papers will appear here when your
-              examination cell schedules them. Check back on this page or your dashboard.
+              Psychometric, competitive, programming, department papers, and ElevateX will appear here when your
+              examination cell schedules them. RMSET stays on its separate hub card.
             </p>
             <Button variant="outline" className="mt-6" asChild>
               <Link href="/dashboard">Go to dashboard</Link>

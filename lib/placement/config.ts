@@ -5,8 +5,13 @@ import type {
   SpeakingTask,
 } from '@/lib/placement/types';
 
-export const PLACEMENT_EXAM_NAME = 'Evalora';
-export const PLACEMENT_EXAM_TAGLINE = 'AI-graded campus placement assessment';
+import {
+  ELEVATEX_EXAM_NAME,
+  ELEVATEX_TAGLINE,
+} from '@/lib/elevatex';
+
+export const PLACEMENT_EXAM_NAME = ELEVATEX_EXAM_NAME;
+export const PLACEMENT_EXAM_TAGLINE = ELEVATEX_TAGLINE;
 export const PLACEMENT_TOTAL_MARKS = 100;
 export const PLACEMENT_TOTAL_SEC = 60 * 60; // 1 hour
 
@@ -19,21 +24,21 @@ export const PLACEMENT_SECTIONS: PlacementSectionConfig[] = [
       'Department-aligned MCQs covering subject fundamentals, scenarios, and real-world applications.',
     icon: '🛠️',
     kind: 'mcq',
-    marks: 35,
+    marks: 20,
     durationSec: 20 * 60,
-    questionCount: 25,
+    questionCount: 20,
     negativeMarking: 0.25,
   },
   {
     id: 'speaking',
-    name: 'Speaking Skills',
+    name: 'Speaking / Communication Skills',
     short: 'Speaking',
     description:
-      'Self-introduction, paragraph reading, and a confidence question. AI evaluates fluency, clarity, and grammar.',
+      'Verbal ability, comprehension, and expression — self-introduction, reading, and situational response.',
     icon: '🎙️',
     kind: 'speaking',
-    marks: 10,
-    durationSec: 5 * 60,
+    marks: 15,
+    durationSec: 8 * 60,
   },
   {
     id: 'psychometric',
@@ -43,9 +48,9 @@ export const PLACEMENT_SECTIONS: PlacementSectionConfig[] = [
       'Personality and behavioural items covering leadership, teamwork, EQ, decision making, and stress handling.',
     icon: '🧠',
     kind: 'mcq',
-    marks: 10,
-    durationSec: 5 * 60,
-    questionCount: 10,
+    marks: 15,
+    durationSec: 8 * 60,
+    questionCount: 12,
     negativeMarking: 0,
   },
   {
@@ -82,9 +87,9 @@ export const PLACEMENT_SECTIONS: PlacementSectionConfig[] = [
       'IQ-style observation, memory, sequence, and visual reasoning items.',
     icon: '🔮',
     kind: 'mcq',
-    marks: 10,
-    durationSec: 8 * 60,
-    questionCount: 10,
+    marks: 15,
+    durationSec: 10 * 60,
+    questionCount: 12,
     negativeMarking: 0,
   },
 ];
@@ -95,18 +100,34 @@ export function getPlacementSection(id: PlacementSectionId): PlacementSectionCon
   return found;
 }
 
-/** Built-in departments. Faculty / admin can extend via DB later. */
+/** Built-in departments — aligned with RCEE (rcee.ac.in). */
 export const PLACEMENT_DEPARTMENTS: PlacementDepartment[] = [
-  { id: 'cse', name: 'Computer Science & Engineering', technicalCategory: 'cse' },
-  { id: 'ece', name: 'Electronics & Communication', technicalCategory: 'ece' },
-  { id: 'cyber', name: 'Cyber Security', technicalCategory: 'cyber' },
-  { id: 'aiml', name: 'AI / Machine Learning', technicalCategory: 'aiml' },
-  { id: 'mech', name: 'Mechanical Engineering', technicalCategory: 'mechanical' },
   { id: 'civil', name: 'Civil Engineering', technicalCategory: 'civil' },
-  { id: 'eee', name: 'Electrical & Electronics', technicalCategory: 'generic' },
-  { id: 'it', name: 'Information Technology', technicalCategory: 'cse' },
-  { id: 'biotech', name: 'Biotechnology', technicalCategory: 'generic' },
-  { id: 'other', name: 'Other / Custom Department', technicalCategory: 'generic' },
+  { id: 'mech', name: 'Mechanical Engineering', technicalCategory: 'mechanical' },
+  { id: 'eee', name: 'Electrical & Electronics Engineering', technicalCategory: 'generic' },
+  { id: 'ece', name: 'Electronics & Communication Engineering', technicalCategory: 'ece' },
+  { id: 'cse', name: 'Computer Science Engineering', technicalCategory: 'cse' },
+  {
+    id: 'cse-cyber',
+    name: 'Computer Science Engineering (Cyber Security)',
+    technicalCategory: 'cyber',
+  },
+  {
+    id: 'cse-iot',
+    name: 'Computer Science Engineering (Internet of Things)',
+    technicalCategory: 'cse',
+  },
+  {
+    id: 'aids',
+    name: 'Artificial Intelligence and Data Science',
+    technicalCategory: 'aiml',
+  },
+  {
+    id: 'aiml',
+    name: 'Artificial Intelligence & Machine Learning',
+    technicalCategory: 'aiml',
+  },
+  { id: 'bba', name: 'Business Administration', technicalCategory: 'generic' },
 ];
 
 export function findDepartment(id: string): PlacementDepartment | null {

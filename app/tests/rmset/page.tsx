@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ExamCountdown } from '@/components/student/exam-countdown';
+import { RmsetExamIntro } from '@/components/rmset/rmset-exam-intro';
 import type { StudentRmsetPaper } from '@/lib/rmset/types';
 
 export default function RmsetLandingPage() {
@@ -44,10 +45,13 @@ export default function RmsetLandingPage() {
           <Link href="/home" className="text-sm text-white/80 hover:text-white mb-4 inline-block">
             ← Back to home
           </Link>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-violet-200">Tests hub · RMSET</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-violet-200">
+            Tests hub · RCE-RMSET
+          </p>
           <h1 className="text-4xl font-black mt-2">RMSET</h1>
           <p className="text-white/85 mt-2 max-w-2xl">
-            Ramachandra Multi-Section Eligibility Test — MCQs from admin-selected topics only.
+            Ramachandra Merit Scholarship Eligibility Test — Tier 4 pathway for merit-based assistance (Category B /
+            non-EAPCET RMSR and invited admits).
           </p>
         </div>
       </div>
@@ -67,6 +71,9 @@ export default function RmsetLandingPage() {
           </Card>
         ) : (
           <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-3">
+              <RmsetExamIntro />
+            </div>
             <Card className="lg:col-span-2 p-6 sm:p-8 border-2 border-violet-200">
               <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
                 <div>
@@ -124,7 +131,7 @@ export default function RmsetLandingPage() {
                 className="bg-violet-700 hover:bg-violet-800"
                 onClick={begin}
               >
-                {paper.is_live ? 'Begin RMSET →' : 'Waiting for go-live'}
+                {paper.is_live ? 'I have read the details · Begin RMSET →' : 'Waiting for go-live'}
               </Button>
             </Card>
 

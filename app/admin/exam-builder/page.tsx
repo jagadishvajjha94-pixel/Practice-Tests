@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatusAlert } from '@/components/ui/status-alert';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { ExamBuilderControls } from '@/components/exam-builder/exam-builder-controls';
+import { DepartmentGroupPicker } from '@/components/exam-builder/department-group-picker';
 import { ACADEMIC_YEARS, DEPARTMENTS } from '@/lib/college-brand';
 import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
@@ -22,9 +23,11 @@ export default function AdminExamBuilderPage() {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [department, setDepartment] = useState('All departments');
+  const [department, setDepartment] = useState(DEPARTMENTS[0]);
+  const [departmentGroupId, setDepartmentGroupId] = useState('');
   const [targetYears, setTargetYears] = useState<string[]>([...ACADEMIC_YEARS]);
   const [duration, setDuration] = useState(45);
+  const [goLiveNow, setGoLiveNow] = useState(true);
 
   const [questions, setQuestions] = useState<FacultyExamQuestion[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -32,6 +35,10 @@ export default function AdminExamBuilderPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [takeUrl, setTakeUrl] = useState<string | null>(null);
+
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupDepts, setNewGroupDepts] = useState<string[]>([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
 
   const testDef = getExamBuilderTestType(testType);
   const isManual = testType === 'department-manual';
@@ -41,6 +48,37 @@ export default function AdminExamBuilderPage() {
     setTargetYears((prev) =>
       prev.includes(year) ? prev.filter((y) => y !== year) : [...prev, year],
     );
+
+  const toggleNewGroupDept = (dept: string) =>
+    setNewGroupDepts((prev) =>
+      prev.includes(dept) ? prev.filter((d) => d !== dept) : [...prev, dept],
+    );
+
+  const createGroup = async () => {
+    if (!newGroupName.trim() || newGroupDepts.length === 0) {
+      setError('Enter a group name and select at least one department.');
+      return;
+    }
+    setCreatingGroup(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/department-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newGroupName.trim(), departments: newGroupDepts }),
+      });
+      const json = (await res.json()) as { error?: string; group?: { id: string } };
+      if (!res.ok) throw new Error(json.error ?? 'Could not create group');
+      if (json.group?.id) setDepartmentGroupId(json.group.id);
+      setNewGroupName('');
+      setNewGroupDepts([]);
+      setSuccess('Department group created.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create group');
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
 
   const publish = async () => {
     setError(null);
@@ -53,6 +91,10 @@ export default function AdminExamBuilderPage() {
     }
     if (!questions.length && !needsSyllabus) {
       setError('Manual exams need questions — use faculty upload for typed MCQs.');
+      return;
+    }
+    if (!departmentGroupId && !department) {
+      setError('Choose a primary department or department group.');
       return;
     }
 
@@ -69,8 +111,10 @@ export default function AdminExamBuilderPage() {
           title: title.trim() || `${testDef?.name ?? 'Exam'} Examination`,
           description: description.trim() || undefined,
           department,
+          departmentGroupId: departmentGroupId || undefined,
           targetYears,
           durationMinutes: duration,
+          goLiveNow,
           questions: questions.length ? questions : undefined,
         }),
       });
@@ -94,7 +138,7 @@ export default function AdminExamBuilderPage() {
     <div className="space-y-6 max-w-4xl">
       <AdminPageHeader
         title="Exam builder"
-        description="Select the test type from the dropdown, pick syllabus topics (Aptitude opens a popup), choose a slot for non-repetitive question sets, and publish directly."
+        description="Same controls as faculty — pick test type, syllabus topics, and department group. Admin can publish and go live immediately."
       />
 
       {error ? <StatusAlert variant="error">{error}</StatusAlert> : null}
@@ -165,14 +209,13 @@ export default function AdminExamBuilderPage() {
           </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Department scope
+              Primary department
             </label>
             <select
               className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
             >
-              <option value="All departments">All departments</option>
               {DEPARTMENTS.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -207,13 +250,29 @@ export default function AdminExamBuilderPage() {
           </div>
         </div>
 
+        <DepartmentGroupPicker
+          value={departmentGroupId}
+          onChange={setDepartmentGroupId}
+          primaryDepartment={department}
+        />
+
+        <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={goLiveNow}
+            onChange={(e) => setGoLiveNow(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          Go live immediately for the selected group and years
+        </label>
+
         {questions.length > 0 ? (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
             <p className="text-sm font-semibold text-emerald-900">
               Question paper ready — {questions.length} MCQs
             </p>
             <p className="text-xs text-emerald-800 mt-1">
-              Topics are de-duplicated per slot so repeat sittings get fresh sets.
+              Students in the department group see the exam once it is live.
             </p>
           </div>
         ) : needsSyllabus ? (
@@ -228,7 +287,7 @@ export default function AdminExamBuilderPage() {
             <Link href="/faculty/upload" className="font-semibold underline">
               Create exam
             </Link>{' '}
-            — admin can approve and schedule from Faculty approvals.
+            — admin approves then schedules from Faculty approvals.
           </StatusAlert>
         ) : null}
 
@@ -238,7 +297,7 @@ export default function AdminExamBuilderPage() {
             onClick={() => void publish()}
             className="bg-[#1e3a5f] hover:bg-[#16304f]"
           >
-            {publishing ? 'Publishing…' : 'Publish exam'}
+            {publishing ? 'Publishing…' : goLiveNow ? 'Publish & go live' : 'Publish exam'}
           </Button>
           {takeUrl ? (
             <Link href={takeUrl}>
@@ -246,9 +305,49 @@ export default function AdminExamBuilderPage() {
             </Link>
           ) : null}
           <Link href="/admin/exam-schedules">
-            <Button variant="ghost">Schedule live →</Button>
+            <Button variant="ghost">Exam schedules →</Button>
           </Link>
         </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <h3 className="font-semibold text-[#0c2340]">Create department group</h3>
+        <p className="text-sm text-slate-600">
+          Bundle branches so exams reach the right students and faculty in those branches track progress.
+        </p>
+        <Input
+          value={newGroupName}
+          onChange={(e) => setNewGroupName(e.target.value)}
+          placeholder="e.g. CSE + IT combined"
+        />
+        <div className="flex flex-wrap gap-2">
+          {DEPARTMENTS.map((d) => {
+            const active = newGroupDepts.includes(d);
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleNewGroupDept(d)}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-xs font-medium border transition',
+                  active
+                    ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                    : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400',
+                )}
+              >
+                {d}
+              </button>
+            );
+          })}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={creatingGroup}
+          onClick={() => void createGroup()}
+        >
+          {creatingGroup ? 'Creating…' : 'Create group'}
+        </Button>
       </Card>
 
       {questions.length > 0 ? (

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { departmentsMatch, examMatchesDepartment } from '@/lib/faculty/department-match';
+import { departmentsForPerformanceView } from '@/lib/department-groups';
 import { resolveStoredPercent } from '@/lib/test-attempts';
 
 export type DeptStudent = {
@@ -42,10 +43,13 @@ export type MatchedAttempt = RawAttempt & {
 const EXAM_SELECT =
   'id, title, topic, published_test_id, target_years, target_branches, department, duration_minutes';
 
-export async function listStudentsInDepartment(
+export async function listStudentsInDepartments(
   admin: SupabaseClient,
-  department: string,
+  departments: string[],
 ): Promise<DeptStudent[]> {
+  const targets = departments.filter(Boolean);
+  if (targets.length === 0) return [];
+
   const byId = new Map<string, DeptStudent>();
 
   const { data: dbUsers } = await admin
@@ -54,7 +58,7 @@ export async function listStudentsInDepartment(
 
   for (const row of dbUsers ?? []) {
     const branch = row.branch as string | null;
-    if (!departmentsMatch(branch, department)) continue;
+    if (!targets.some((dept) => departmentsMatch(branch, dept))) continue;
     byId.set(row.id as string, {
       id: row.id as string,
       email: String(row.email ?? ''),
@@ -84,7 +88,7 @@ export async function listStudentsInDepartment(
         (meta.branch as string | undefined) ??
         null;
 
-      if (!departmentsMatch(branch, department)) continue;
+      if (!targets.some((dept) => departmentsMatch(branch, dept))) continue;
 
       byId.set(user.id, {
         id: user.id,
@@ -109,6 +113,13 @@ export async function listStudentsInDepartment(
   return Array.from(byId.values()).sort((a, b) =>
     (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email),
   );
+}
+
+export async function listStudentsInDepartment(
+  admin: SupabaseClient,
+  department: string,
+): Promise<DeptStudent[]> {
+  return listStudentsInDepartments(admin, [department]);
 }
 
 export async function listDepartmentApprovedExams(
@@ -365,10 +376,9 @@ export async function loadFacultyPerformanceData(
   admin: SupabaseClient,
   department: string,
 ): Promise<FacultyPerformancePayload> {
-  const [publishedExams, students] = await Promise.all([
-    listDepartmentApprovedExams(admin, department),
-    listStudentsInDepartment(admin, department),
-  ]);
+  const publishedExams = await listDepartmentApprovedExams(admin, department);
+  const scopeDepartments = departmentsForPerformanceView(department, publishedExams);
+  const students = await listStudentsInDepartments(admin, scopeDepartments);
 
   const studentIds = students.map((s) => s.id);
   const attempts = await fetchDepartmentExamAttempts(admin, studentIds, publishedExams);

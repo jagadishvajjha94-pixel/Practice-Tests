@@ -12,6 +12,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 import { cn } from '@/lib/utils';
 import { ExamBuilderControls } from '@/components/exam-builder/exam-builder-controls';
+import { DepartmentGroupPicker } from '@/components/exam-builder/department-group-picker';
 import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
 
 type Step = 'details' | 'questions' | 'review';
@@ -56,6 +57,7 @@ export default function FacultyUploadPage() {
   const [syllabusTopicIds, setSyllabusTopicIds] = useState<string[]>([]);
   const [questionsPerTopic, setQuestionsPerTopic] = useState(5);
   const [paperWarnings, setPaperWarnings] = useState<string[]>([]);
+  const [departmentGroupId, setDepartmentGroupId] = useState('');
 
   // Step 2 – questions
   const [questions, setQuestions] = useState<FacultyExamQuestion[]>([emptyQuestion()]);
@@ -72,7 +74,19 @@ export default function FacultyUploadPage() {
       const res = await fetch('/api/faculty/profile');
       if (!res.ok) return;
       const json = (await res.json()) as { department?: string };
-      if (json.department) setDepartment(json.department);
+      if (json.department) {
+        setDepartment(json.department);
+        const groupsRes = await fetch('/api/department-groups');
+        if (groupsRes.ok) {
+          const groupsJson = (await groupsRes.json()) as {
+            groups?: Array<{ id: string; name: string; departments: string[] }>;
+          };
+          const match = (groupsJson.groups ?? []).find(
+            (g) => g.name === json.department || g.departments.length === 1 && g.departments[0] === json.department,
+          );
+          if (match) setDepartmentGroupId(match.id);
+        }
+      }
     };
     void load();
   }, []);
@@ -196,6 +210,7 @@ export default function FacultyUploadPage() {
           slot_key: slotKey,
           syllabus_topic_ids: syllabusTopicIds,
           questions_per_topic: questionsPerTopic,
+          department_group_id: departmentGroupId || undefined,
         }),
       });
       const json = (await res.json()) as { error?: string };
@@ -218,8 +233,8 @@ export default function FacultyUploadPage() {
         <h2 className="app-title-lg">Create an exam</h2>
         <p className="app-subtitle">
           Choose the test type from the dropdown — Aptitude opens a syllabus popup for topic selection.
-          Questions are pulled from the bank per topic and stay non-repetitive across slots. Manual
-          department exams still use PDF or typed MCQs.
+          Pick a department group so the right students receive the exam and faculty in those branches see
+          progress. Questions stay non-repetitive across slots.
         </p>
       </div>
 
@@ -302,9 +317,15 @@ export default function FacultyUploadPage() {
             </select>
           </Field>
 
+          <DepartmentGroupPicker
+            value={departmentGroupId}
+            onChange={setDepartmentGroupId}
+            primaryDepartment={department}
+          />
+
           <Field
             label="Make available to additional branches"
-            hint="Leave empty if the exam is for your branch only."
+            hint="Optional when a department group is selected — adds extra branches beyond the group."
           >
             <div className="flex flex-wrap gap-2">
               {DEPARTMENTS.filter((d) => d !== department).map((d) => {
@@ -550,6 +571,9 @@ export default function FacultyUploadPage() {
                   ? `${syllabusTopicIds.length} selected · ${questionsPerTopic} per topic`
                   : '—'}
               </DetailRow>
+            ) : null}
+            {departmentGroupId ? (
+              <DetailRow label="Department group">Selected</DetailRow>
             ) : null}
             <DetailRow label="Primary branch">{department || '—'}</DetailRow>
             <DetailRow label="Additional branches">

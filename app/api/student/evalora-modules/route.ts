@@ -29,7 +29,7 @@ export async function GET() {
       upcoming: [],
       department,
       year,
-      message: 'Complete your profile (department and year) to see Evalora assessments.',
+      message: 'Complete your profile (department and year) to see ElevateX and scheduled assessments.',
     });
   }
 

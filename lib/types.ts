@@ -64,6 +64,8 @@ export interface Test {
   updated_at: string;
   /** If set, each question has this many seconds (speed / cognitive-style tests). */
   question_time_limit_sec?: number | null;
+  /** Joined from test_categories.slug when fetched with embed */
+  category_slug?: string | null;
 }
 
 export interface TestQuestion {

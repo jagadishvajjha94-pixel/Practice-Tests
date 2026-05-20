@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ExamStatusPanel } from '@/components/student/exam-status-panel';
 import { ExamCountdown } from '@/components/student/exam-countdown';
+import { ElevateXLiveInfo } from '@/components/elevatex/elevatex-live-info';
+import { isElevateXModule } from '@/lib/elevatex';
 import type { PortalExamItem, StudentPortalPayload } from '@/lib/student-portal';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { COLLEGE } from '@/lib/college-brand';
@@ -103,11 +105,11 @@ export default function StudentHomePage() {
               <Card className="p-5 border-slate-200">
                 <h2 className="text-lg font-bold text-[#0c2340] mb-2">Quick access</h2>
                 <p className="text-sm text-slate-600 mb-4">
-                  Open Evalora for multi-section placement papers, or AI Interview for spoken practice.
+                  Open ElevateX for the talent challenge paper, RMSET for topic-selected tests, or AI Interview for spoken practice.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Link href="/placement">
-                    <Button className="bg-fuchsia-700 hover:bg-fuchsia-800">Evalora assessments</Button>
+                    <Button className="bg-fuchsia-700 hover:bg-fuchsia-800">ElevateX</Button>
                   </Link>
                   <Link href="/ai/interview">
                     <Button variant="outline">AI Interview Studio</Button>
@@ -167,6 +169,10 @@ function FeaturedExamCard({ exam }: { exam: PortalExamItem | null }) {
       </div>
 
       <p className="text-base text-slate-700 leading-relaxed mb-4">{exam.description}</p>
+
+      {isElevateXModule(exam.module_key) && exam.kind === 'live' ? (
+        <ElevateXLiveInfo compact className="mb-4" />
+      ) : null}
 
       {exam.notice ? (
         <div className="rounded-lg border border-slate-200 bg-white/80 p-4 mb-5">

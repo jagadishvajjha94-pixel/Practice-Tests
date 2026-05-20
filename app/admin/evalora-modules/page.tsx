@@ -109,14 +109,14 @@ export default function AdminEvaloraModulesPage() {
   };
 
   if (loading) {
-    return <p className="text-gray-600">Loading Evalora modules…</p>;
+    return <p className="text-gray-600">Loading assessment modules…</p>;
   }
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        title="Evalora modules"
-        description="Schedule or go live with assessments inside the Evalora hub. Students open /placement to see only what you trigger."
+        title="ElevateX & assessment modules"
+        description="Schedule or go live with ElevateX and other assessments. Students open /placement to see only what you trigger."
       />
 
       <Card className="p-6 space-y-4">

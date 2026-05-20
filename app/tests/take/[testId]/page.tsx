@@ -31,6 +31,8 @@ import { defaultRedirectForRole } from '@/lib/roles';
 import { useAppRole } from '@/lib/use-app-role';
 import { ProctorConsentGate } from '@/components/proctor/proctor-consent-gate';
 import { createProctorSessionId } from '@/lib/exam-v2/proctoring';
+import { RmsetExamIntro } from '@/components/rmset/rmset-exam-intro';
+import { isRmsetTestCategorySlug } from '@/lib/rmset/student-exam-intro';
 
 /** `pending` = waiting on Supabase session; avoid starting the test until resolved (prevents full-paper race). */
 type PracticeAccessState = 'pending' | 'guest' | 'full';
@@ -135,7 +137,7 @@ export default function TakeTestPage({
         // Fetch test details
         const { data: testData, error: testError } = await supabase
           .from('tests')
-          .select('*')
+          .select('*, test_categories(slug)')
           .eq('id', testId)
           .single();
 
@@ -265,12 +267,22 @@ export default function TakeTestPage({
     });
   };
 
+  const isRmsetPaper =
+    isRmsetTestCategorySlug(test.category_slug) || /\bRMSET\b/i.test(test.name ?? '');
+
   if (!testStarted) {
     if (practiceAccess === 'full') {
       return (
         <div className="min-h-screen flex items-center justify-center p-4">
-          <Card className="max-w-lg w-full border-border/90 p-8 shadow-xl">
+          <Card className="max-w-2xl w-full border-border/90 p-6 sm:p-8 shadow-xl max-h-[90vh] overflow-y-auto">
             <h1 className="text-2xl font-bold text-foreground mb-2">{test.name}</h1>
+
+            {isRmsetPaper ? (
+              <div className="mb-6">
+                <RmsetExamIntro compact />
+              </div>
+            ) : null}
+
             <div className="space-y-4 mb-6 rounded-lg border border-border bg-muted/40 p-4 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Questions</span>
@@ -296,8 +308,16 @@ export default function TakeTestPage({
 
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="max-w-md w-full border-border/90 p-8 shadow-xl">
+        <Card
+          className={`w-full border-border/90 p-8 shadow-xl ${isRmsetPaper ? 'max-w-2xl max-h-[90vh] overflow-y-auto' : 'max-w-md'}`}
+        >
           <h1 className="text-2xl font-bold text-foreground mb-4">{test.name}</h1>
+
+          {isRmsetPaper ? (
+            <div className="mb-6">
+              <RmsetExamIntro compact />
+            </div>
+          ) : null}
 
           <div className="space-y-4 mb-6 rounded-lg border border-border bg-muted/40 p-4">
             <div className="flex justify-between">

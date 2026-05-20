@@ -12,14 +12,21 @@ export const COLLEGE = {
 /** @deprecated Use departmentTitle */
 export const portalTitle = COLLEGE.departmentTitle;
 
+/**
+ * B.Tech / MBA branches at Ramachandra College of Engineering (RCEE), Eluru.
+ * Source: https://www.rcee.ac.in/ — Courses Offered section.
+ */
 export const DEPARTMENTS = [
-  'Computer Science & Engineering',
-  'Electronics & Communication Engineering',
-  'Electrical & Electronics Engineering',
-  'Mechanical Engineering',
   'Civil Engineering',
-  'Information Technology',
-  'Master of Business Administration',
+  'Mechanical Engineering',
+  'Electrical & Electronics Engineering',
+  'Electronics & Communication Engineering',
+  'Computer Science Engineering',
+  'Computer Science Engineering (Cyber Security)',
+  'Computer Science Engineering (Internet of Things)',
+  'Artificial Intelligence and Data Science',
+  'Artificial Intelligence & Machine Learning',
+  'Business Administration',
 ] as const;
 
 export const ACADEMIC_YEARS = ['I Year', 'II Year', 'III Year', 'IV Year'] as const;

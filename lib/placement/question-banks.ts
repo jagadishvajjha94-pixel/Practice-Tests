@@ -23,7 +23,7 @@ function takeN<T>(arr: T[], n: number, rng: () => number): T[] {
 }
 
 function buildTechnical(seed: string, departmentId: string, count: number): Question[] {
-  const dept = findDepartment(departmentId) ?? findDepartment('other')!;
+  const dept = findDepartment(departmentId) ?? findDepartment('cse')!;
   const pool = technicalBankForDepartment(dept);
   const rng = forkRng(seed, 'tech-pick');
   const picked = takeN(pool, count, rng);

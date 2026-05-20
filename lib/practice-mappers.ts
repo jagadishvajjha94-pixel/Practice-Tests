@@ -26,6 +26,16 @@ export function adaptTestRow(row: Record<string, unknown>): Test {
   const question_time_limit_sec =
     qLimit != null && !Number.isNaN(Number(qLimit)) ? Number(qLimit) : null;
 
+  const catEmbed = row.test_categories as { slug?: string } | { slug?: string }[] | null | undefined;
+  let categorySlug: string | undefined;
+  if (catEmbed && typeof catEmbed === 'object') {
+    if (Array.isArray(catEmbed)) {
+      categorySlug = catEmbed[0]?.slug;
+    } else {
+      categorySlug = catEmbed.slug;
+    }
+  }
+
   return {
     id: String(row.id),
     name: title,
@@ -39,6 +49,7 @@ export function adaptTestRow(row: Record<string, unknown>): Test {
     created_at: (row.created_at as string | undefined) ?? new Date().toISOString(),
     updated_at: (row.updated_at as string | undefined) ?? new Date().toISOString(),
     question_time_limit_sec,
+    category_slug: categorySlug ?? null,
   };
 }
 

@@ -252,7 +252,7 @@ export default function PlacementTakePage() {
 
       const scorecard = computePlacementScorecard(finalSession);
       const dept = findDepartment(scorecard.candidate.departmentId);
-      const testName = `Evalora · ${dept?.name ?? 'Custom Department'}${reason === 'timeout' ? ' (auto-submit)' : ''}`;
+      const testName = `ElevateX · ${dept?.name ?? 'Department'}${reason === 'timeout' ? ' (auto-submit)' : ''}`;
 
       const res = await recordDashboardAttempt({
         testId: `placement-${scorecard.candidate.departmentId}`,

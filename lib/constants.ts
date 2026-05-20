@@ -51,18 +51,18 @@ export const TEST_CATEGORIES = [
   { id: 'swarx', name: 'SWARX Communication', icon: '🗣️' },
 ];
 
-/** Practice hub: Evalora (all scheduled assessments) + AI Interview only. */
+/** Practice hub: ElevateX + RMSET + AI Interview. */
 export const PRACTICE_HUB_ITEMS = [
   {
     id: 'placement',
     href: '/placement',
-    name: 'Evalora',
-    icon: '✨',
-    badge: 'Scheduled assessments',
+    name: 'ElevateX',
+    icon: '🚀',
+    badge: 'Talent Challenge · 100 marks',
     description:
-      'Your college examination portal — psychometric, competitive, programming, department exams, and the full six-section Evalora paper when they are open for your batch.',
+      'Placement-readiness talent challenge for your batch — technical, aptitude, logic, IQ, psychometric, and communication when scheduled live.',
     accent: 'evalora' as const,
-    cta: 'Open Evalora →',
+    cta: 'Open ElevateX →',
     featured: true as const,
   },
   {
@@ -72,7 +72,7 @@ export const PRACTICE_HUB_ITEMS = [
     icon: '📋',
     badge: 'Topic-selected MCQs',
     description:
-      'Ramachandra Multi-Section Eligibility Test — questions come only from topics your examination cell allows for this sitting.',
+      'RCE-RMSET merit scholarship eligibility — read the briefing on the RMSET page, then attempt when your batch is live.',
     accent: 'blue' as const,
     cta: 'Open RMSET →',
   },

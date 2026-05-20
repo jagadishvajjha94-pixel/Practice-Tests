@@ -1,0 +1,16 @@
+import { NextResponse } from 'next/server';
+import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { listDepartmentGroups } from '@/lib/department-groups';
+
+export async function GET() {
+  const auth = await requireAuth(['admin', 'faculty']);
+  if ('response' in auth) return auth.response;
+
+  const admin = getServiceSupabase();
+  if (!admin) {
+    return NextResponse.json({ groups: [] });
+  }
+
+  const groups = await listDepartmentGroups(admin);
+  return NextResponse.json({ groups });
+}

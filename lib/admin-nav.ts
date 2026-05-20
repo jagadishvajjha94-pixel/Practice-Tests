@@ -3,7 +3,7 @@ export const ADMIN_NAV_ITEMS = [
   { href: '/admin/approvals', label: 'Faculty approvals', description: 'Review and publish faculty exams' },
   { href: '/admin/exam-builder', label: 'Exam builder', description: 'Create syllabus exams — test type, topics, and slot' },
   { href: '/admin/rmset', label: 'RMSET', description: 'Select topics and publish the eligibility test paper' },
-  { href: '/admin/evalora-modules', label: 'Evalora modules', description: 'Go live and schedule assessments inside Evalora' },
+  { href: '/admin/evalora-modules', label: 'ElevateX & modules', description: 'Go live with ElevateX and other scheduled assessments' },
   { href: '/admin/exam-schedules', label: 'Faculty exam schedules', description: 'Go live on individual faculty department exams' },
   { href: '/admin/questions', label: 'Questions', description: 'Question bank and MCQ management' },
   { href: '/admin/tests', label: 'Test attempts', description: 'Monitor tests and student submissions' },

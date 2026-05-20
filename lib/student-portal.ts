@@ -14,6 +14,7 @@ export type PortalExamItem = {
   icon: string;
   badge?: string;
   duration_minutes?: number | null;
+  module_key?: string;
 };
 
 export type StudentPortalPayload = {
@@ -38,6 +39,7 @@ function fromEvalora(mod: StudentEvaloraModule): PortalExamItem {
     href: mod.href,
     icon: mod.icon,
     badge: mod.badge,
+    module_key: mod.module_key,
   };
 }
 

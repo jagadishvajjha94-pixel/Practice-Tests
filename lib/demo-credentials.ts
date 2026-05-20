@@ -7,7 +7,7 @@ export const DEMO_STUDENT_ACCOUNTS = [
     rollNumber: '21CS001',
     password: 'Student@2026',
     fullName: 'Arjun Kumar (Demo)',
-    department: 'Computer Science & Engineering',
+    department: 'Computer Science Engineering',
     year: 'III Year',
   },
   {
@@ -30,5 +30,5 @@ export const DEMO_FACULTY_ACCOUNT = {
   employeeId: 'FAC1001',
   password: 'Faculty@2026',
   fullName: 'Dr. Demo Faculty',
-  department: 'Computer Science & Engineering',
+  department: 'Computer Science Engineering',
 } as const;

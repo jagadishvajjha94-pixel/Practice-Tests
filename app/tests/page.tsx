@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 export const metadata = {
   title: 'Practice Tests — RCE',
-  description: 'Evalora assessment portal and AI interview studio',
+  description: 'ElevateX talent challenge, RMSET, and AI interview studio',
 };
 
 type Theme = {
@@ -32,14 +32,14 @@ const themes: Record<string, Theme> = {
     dot: 'bg-emerald-300',
     eyebrow: 'Featured · AI scored',
     features: [
-      'Technical · 35 marks',
-      'Speaking · 10 marks',
-      'Psychometric · 10 marks',
+      'Technical · 20 marks',
       'Aptitude · 20 marks',
       'Logic · 15 marks',
-      'Intelligence · 10 marks',
+      'Intelligence · 15 marks',
+      'Psychometric · 15 marks',
+      'Speaking · 15 marks',
     ],
-    ctaLabel: 'Launch Evalora',
+    ctaLabel: 'Launch ElevateX',
     decoration: 'orbs',
   },
   psychometric: {
@@ -323,7 +323,7 @@ export default function TestsPage() {
           <span className="app-eyebrow">Assessment library</span>
           <h1 className="app-title-xl">Practice tests</h1>
           <p className="app-subtitle">
-            Open Evalora for scheduled college assessments, RMSET for topic-selected papers, or AI Interview for spoken practice.
+            Open ElevateX for the talent challenge, RMSET for topic-selected papers, or AI Interview for spoken practice.
           </p>
         </div>
       </header>
