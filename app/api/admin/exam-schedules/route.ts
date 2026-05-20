@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import type { ExamScheduleStatus } from '@/lib/exam-schedule';
+import {
+  examSchedulesMigrationHint,
+  isMissingTableOrColumnError,
+} from '@/lib/db-migration-hints';
 
 export async function GET() {
   const auth = await requireAuth(['admin']);
@@ -29,14 +33,26 @@ export async function GET() {
     }
   }
 
-  const { data: approved, error: approvedError } = await admin
+  const approvedSelectFull =
+    'id, title, topic, department, target_years, target_branches, duration_minutes, published_test_id, status';
+  const approvedSelectMin =
+    'id, title, department, target_years, duration_minutes, published_test_id, status';
+
+  let { data: approved, error: approvedError } = await admin
     .from('faculty_exam_requests')
-    .select(
-      'id, title, topic, department, target_years, target_branches, duration_minutes, published_test_id, status',
-    )
+    .select(approvedSelectFull)
     .eq('status', 'approved')
     .not('published_test_id', 'is', null)
     .order('created_at', { ascending: false });
+
+  if (approvedError && isMissingTableOrColumnError(approvedError.message ?? '')) {
+    ({ data: approved, error: approvedError } = await admin
+      .from('faculty_exam_requests')
+      .select(approvedSelectMin)
+      .eq('status', 'approved')
+      .not('published_test_id', 'is', null)
+      .order('created_at', { ascending: false }));
+  }
 
   if (approvedError) {
     return NextResponse.json({ error: approvedError.message }, { status: 500 });
@@ -137,7 +153,9 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (insertErr || !created) {
-    return NextResponse.json({ error: insertErr?.message ?? 'Could not create schedule' }, { status: 500 });
+    const msg = insertErr?.message ?? 'Could not create schedule';
+    const hint = examSchedulesMigrationHint(msg);
+    return NextResponse.json({ error: hint ?? msg }, { status: 500 });
   }
 
   return NextResponse.json({ schedule: created });

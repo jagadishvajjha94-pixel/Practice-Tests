@@ -31,13 +31,21 @@ export async function GET() {
 
   const schedule = await getLiveRmsetSchedule(admin, department, year);
 
-  const { data: paperRow } = await admin
+  const { data: paperRow, error: paperErr } = await admin
     .from('rmset_papers')
     .select('*')
     .eq('status', 'published')
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (paperErr?.message?.includes('rmset_papers')) {
+    return NextResponse.json({
+      paper: null,
+      is_live: false,
+      message: 'RMSET is not configured yet. Ask admin to run migration 027 in Supabase.',
+    });
+  }
 
   if (!paperRow?.test_id) {
     return NextResponse.json({

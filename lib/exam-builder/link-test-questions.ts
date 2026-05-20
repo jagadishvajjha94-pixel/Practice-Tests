@@ -14,12 +14,19 @@ export async function linkTestQuestions(
   if (!insertedRows.length) return;
 
   const questionIdKind = await detectQuestionsIdKind(admin);
+  const normalizedTestId =
+    typeof testId === 'number'
+      ? testId
+      : /^\d+$/.test(String(testId).trim())
+        ? Number(testId)
+        : testId;
+
   const links = insertedRows.map((row, idx) => {
     const rawId = normalizeQuestionId(row.id);
     const question_id =
       questionIdKind === 'bigint' ? Number(rawId) : rawId;
     return {
-      test_id: testId,
+      test_id: normalizedTestId,
       question_id,
       order: idx + 1,
     };

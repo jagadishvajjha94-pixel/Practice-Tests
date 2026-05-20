@@ -58,6 +58,8 @@ const files = [
   '021_questions_test_id_nullable.sql',
   '022_exam_builder_draws_bigint_question_ids.sql',
   '023_faculty_department_group_id.sql',
+  '027_ensure_rmset_papers.sql',
+  '028_ensure_exam_schedules.sql',
 ];
 
 const client = postgres(url, { max: 1, onnotice: () => {} });

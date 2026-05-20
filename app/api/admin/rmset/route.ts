@@ -3,6 +3,7 @@ import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { publishRmsetPaper } from '@/lib/rmset/publish-paper';
 import type { RmsetPaperWithTopics, RmsetTopic } from '@/lib/rmset/types';
 import { buildSyllabusCatalogForGroup } from '@/lib/exam-builder/build-syllabus-catalog';
+import { rmsetPapersMigrationHint } from '@/lib/db-migration-hints';
 
 export async function GET() {
   const auth = await requireAuth(['admin']);
@@ -13,7 +14,14 @@ export async function GET() {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }
 
-  const catalogTopics = await buildSyllabusCatalogForGroup(admin, 'rmset');
+  let catalogTopics: Awaited<ReturnType<typeof buildSyllabusCatalogForGroup>> = [];
+  try {
+    catalogTopics = await buildSyllabusCatalogForGroup(admin, 'rmset');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Could not load RMSET topics';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
   const topics: RmsetTopic[] = catalogTopics.map((t) => ({
     id: t.id,
     name: t.name,
@@ -21,10 +29,22 @@ export async function GET() {
     question_count: t.question_count,
   }));
 
-  const { data: papers } = await admin
+  const { data: papers, error: papersErr } = await admin
     .from('rmset_papers')
     .select('*')
     .order('updated_at', { ascending: false });
+
+  if (papersErr) {
+    const msg = papersErr.message ?? '';
+    if (msg.includes('rmset_papers') && (msg.includes('schema cache') || msg.includes('does not exist'))) {
+      return NextResponse.json({
+        topics,
+        papers: [],
+        warning: 'Run supabase/migrations/027_ensure_rmset_papers.sql in Supabase SQL editor, wait 30s, retry.',
+      });
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 
   const tagMap = new Map(topics.map((t) => [t.id, t]));
   const tagMapBySlug = new Map(topics.map((t) => [t.slug, t]));
@@ -79,6 +99,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Publish failed';
-    return NextResponse.json({ error: message }, { status: 400 });
+    const hint = rmsetPapersMigrationHint(message);
+    return NextResponse.json(
+      {
+        error: hint ?? message,
+        hint:
+          message.includes('No questions found') || message.includes('not found')
+            ? 'Tag MCQs in the question bank for each selected topic (Load topic bank), then publish again.'
+            : undefined,
+      },
+      { status: 400 },
+    );
   }
 }

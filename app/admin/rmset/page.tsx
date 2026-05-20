@@ -17,6 +17,7 @@ export default function AdminRmsetPage() {
   const [topics, setTopics] = useState<RmsetTopic[]>([]);
   const [papers, setPapers] = useState<RmsetPaperWithTopics[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
 
   const [title, setTitle] = useState('RMSET — Eligibility Test');
@@ -31,9 +32,14 @@ export default function AdminRmsetPage() {
       const json = (await res.json()) as {
         topics?: RmsetTopic[];
         papers?: RmsetPaperWithTopics[];
+        warning?: string;
       };
       setTopics(json.topics ?? []);
       setPapers(json.papers ?? []);
+      setLoadError(json.warning ?? null);
+    } else {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      setLoadError(json.error ?? 'Could not load RMSET');
     }
     setLoading(false);
   };
@@ -66,9 +72,13 @@ export default function AdminRmsetPage() {
           durationMinutes,
         }),
       });
-      const json = (await res.json()) as { error?: string; totalQuestions?: number };
+      const json = (await res.json()) as {
+        error?: string;
+        hint?: string;
+        totalQuestions?: number;
+      };
       if (!res.ok) {
-        alert(json.error ?? 'Could not publish RMSET paper');
+        alert([json.error, json.hint].filter(Boolean).join('\n\n') ?? 'Could not publish RMSET paper');
         return;
       }
       alert(`RMSET paper published with ${json.totalQuestions ?? 0} questions. Go live via ElevateX & modules.`);
@@ -90,6 +100,12 @@ export default function AdminRmsetPage() {
         title="RMSET"
         description="Select RMSET syllabus topics. Questions are drawn from the question bank for each topic (use Load topic bank if counts are zero)."
       />
+
+      {loadError ? (
+        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+          {loadError}
+        </p>
+      ) : null}
 
       <Card className="p-6 space-y-5">
         <h3 className="font-semibold text-[#0c2340]">Paper settings</h3>

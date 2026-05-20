@@ -1,8 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { detectQuestionsIdKind, normalizeQuestionId } from '@/lib/exam-builder/id-utils';
+import {
+  detectQuestionsIdKind,
+  looksLikeUuid,
+  normalizeQuestionId,
+} from '@/lib/exam-builder/id-utils';
 import { linkTestQuestions } from '@/lib/exam-builder/link-test-questions';
 import { resolveSyllabusTopicsForBuilder } from '@/lib/exam-builder/draw-questions';
 import { RMSET_CATEGORY_SLUG } from '@/lib/rmset/types';
+import { insertTestRow } from '@/lib/tests/insert-test';
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
@@ -46,13 +51,26 @@ async function questionIdsForTopic(
 ): Promise<string[]> {
   const ids = new Set<string>();
 
-  const { data: links } = await admin
-    .from('question_tag_links')
-    .select('question_id')
-    .eq('tag_id', tagId);
+  let resolvedTagId: string | null = looksLikeUuid(tagId) ? tagId : null;
+  if (!resolvedTagId) {
+    const { data: tagRow } = await admin
+      .from('question_tags')
+      .select('id')
+      .eq('slug', tagSlug)
+      .maybeSingle();
+    if (tagRow?.id && looksLikeUuid(String(tagRow.id))) {
+      resolvedTagId = String(tagRow.id);
+    }
+  }
 
-  for (const row of links ?? []) {
-    if (row.question_id) ids.add(row.question_id as string);
+  if (resolvedTagId) {
+    const { data: links } = await admin
+      .from('question_tag_links')
+      .select('question_id')
+      .eq('tag_id', resolvedTagId);
+    for (const row of links ?? []) {
+      if (row.question_id) ids.add(row.question_id as string);
+    }
   }
 
   const { data: taggedRows } = await admin.from('questions').select('id, tags');
@@ -108,26 +126,16 @@ export async function publishRmsetPaper(
   const categoryId = await ensureRmsetCategory(admin);
   const topicNames = resolvedTags.map((t) => t.name).join(', ');
 
-  const { data: testRow, error: testError } = await admin
-    .from('tests')
-    .insert({
-      category_id: categoryId,
-      title: input.title.trim(),
-      description:
-        input.description?.trim() ||
-        `RMSET paper covering: ${topicNames}. ${orderedQuestionIds.length} MCQs.`,
-      duration_minutes: input.durationMinutes,
-      total_questions: orderedQuestionIds.length,
-      difficulty: 'medium',
-    })
-    .select('id')
-    .single();
-
-  if (testError || !testRow?.id) {
-    throw new Error(testError?.message ?? 'Failed to create RMSET test');
-  }
-
-  const testId = testRow.id as string;
+  const { testId } = await insertTestRow(admin, {
+    categoryId,
+    title: input.title.trim(),
+    description:
+      input.description?.trim() ||
+      `RMSET paper covering: ${topicNames}. ${orderedQuestionIds.length} MCQs.`,
+    durationMinutes: input.durationMinutes,
+    totalQuestions: orderedQuestionIds.length,
+    difficulty: 'medium',
+  });
 
   const idKind = await detectQuestionsIdKind(admin);
   await linkTestQuestions(

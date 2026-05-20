@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Test, Question } from '@/lib/types';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { adaptQuestionRow, adaptTestRow, extractJoinedQuestion } from '@/lib/practice-mappers';
+import { loadTestBundleForTake } from '@/lib/load-test-for-take';
 import { TestProvider } from './test-context';
 import TestInterface from './test-interface';
 import { loadTestSections } from '@/lib/exam-v2/load-sections';
@@ -59,6 +59,7 @@ export default function TakeTestPage({
   const [proctorSessionId, setProctorSessionId] = useState('');
   const [practiceAccess, setPracticeAccess] = useState<PracticeAccessState>('pending');
   const [examSections, setExamSections] = useState<TestSectionConfig[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -122,6 +123,7 @@ export default function TakeTestPage({
 
   useEffect(() => {
     const fetchTest = async () => {
+      setLoadError(null);
       try {
         const supabase = getSupabaseBrowserClient();
         if (!supabase) {
@@ -131,43 +133,45 @@ export default function TakeTestPage({
             setTest(fallbackTest);
             setQuestions(fallbackQuestions);
           }
-          setLoading(false);
           return;
         }
-        // Fetch test details
-        const { data: testData, error: testError } = await supabase
-          .from('tests')
-          .select('*, test_categories(slug)')
-          .eq('id', testId)
-          .single();
 
-        if (testError) throw testError;
-        const adaptedTest = adaptTestRow(testData as Record<string, unknown>);
-
-        // Fetch questions for this test
-        const { data: testQuestions, error: questionsError } = await supabase
-          .from('test_questions')
-          .select('question:questions(*)')
-          .eq('test_id', testId)
-          .order('order', { ascending: true });
-
-        if (questionsError) throw questionsError;
-
-        let questionsData = (testQuestions ?? [])
-          .map(extractJoinedQuestion)
-          .filter((q): q is Record<string, unknown> => q != null)
-          .map(adaptQuestionRow);
-
-        if (questionsData.length === 0) {
-          const { data: directQs, error: directErr } = await supabase
-            .from('questions')
-            .select('*')
-            .eq('test_id', testId)
-            .order('id', { ascending: true });
-          if (!directErr && directQs?.length) {
-            questionsData = directQs.map((q) => adaptQuestionRow(q as Record<string, unknown>));
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session?.user) {
+          const res = await fetch(`/api/student/tests/${encodeURIComponent(testId)}`, {
+            credentials: 'include',
+          });
+          const json = (await res.json().catch(() => ({}))) as {
+            test?: Test;
+            questions?: Question[];
+            sections?: TestSectionConfig[];
+            error?: string;
+          };
+          if (json.test) {
+            setTest(json.test);
+          }
+          if (res.ok && json.questions?.length) {
+            setQuestions(json.questions);
+            setExamSections(json.sections ?? []);
+            return;
+          }
+          if (!res.ok && json.error) {
+            setLoadError(json.error);
+            if (json.test) return;
           }
         }
+
+        const { test: loadedTest, questions: loadedQuestions } = await loadTestBundleForTake(
+          supabase,
+          testId,
+        );
+
+        if (!loadedTest) {
+          return;
+        }
+
+        let questionsData = loadedQuestions;
+        const adaptedTest = loadedTest;
 
         const psychometricLike =
           /psychometric/i.test(testId) ||
@@ -190,10 +194,15 @@ export default function TakeTestPage({
               '200 visual/pattern psychometric items in 30 minutes.',
           });
         } else {
-          setTest(adaptedTest);
+          setTest({ ...adaptedTest, total_questions: questionsData.length || adaptedTest.total_questions });
         }
 
         setQuestions(questionsData);
+        if (!questionsData.length) {
+          setLoadError(
+            'This test has no questions loaded. Sign in as a student or ask faculty to republish the exam.',
+          );
+        }
 
         const sections = await loadTestSections(supabase, testId);
         setExamSections(sections);
@@ -208,12 +217,13 @@ export default function TakeTestPage({
           }
         }
         console.error('Error fetching test:', error);
+        setLoadError(error instanceof Error ? error.message : 'Could not load test');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTest();
+    void fetchTest();
   }, [testId]);
 
   if (loading) {
@@ -228,11 +238,30 @@ export default function TakeTestPage({
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="p-8 text-center max-w-md">
-          <p className="text-muted-foreground mb-4">Test not found</p>
+          <p className="text-muted-foreground mb-2">Test not found</p>
+          {loadError ? (
+            <p className="text-sm text-amber-800 mb-4">{loadError}</p>
+          ) : null}
           <Button
             onClick={() => router.back()}
             className="w-full"
           >
+            Go Back
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!questions.length) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="p-8 text-center max-w-md">
+          <p className="font-semibold text-foreground mb-2">{test.name}</p>
+          <p className="text-muted-foreground mb-4">
+            {loadError ?? 'No questions are available for this test yet.'}
+          </p>
+          <Button onClick={() => router.back()} className="w-full">
             Go Back
           </Button>
         </Card>

@@ -121,6 +121,9 @@ export default function AdminExamSchedulesPage() {
       if (!res.ok) {
         const json = (await res.json()) as { error?: string };
         alert(json.error ?? 'Could not create schedule');
+        if (json.error?.includes('028_ensure_exam_schedules')) {
+          setLoadWarning(json.error);
+        }
         return;
       }
       setNotice('');

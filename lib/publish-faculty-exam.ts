@@ -96,10 +96,8 @@ export async function publishFacultyExamRequest(
       correct_answer: q.correct_answer,
       explanation: q.explanation ?? '',
       marks: 1,
+      test_id: testsIdKind === 'bigint' ? Number(testIdStr) : testId,
     };
-    if (testsIdKind === questionsIdKind) {
-      row.test_id = testId;
-    }
     return row;
   });
 

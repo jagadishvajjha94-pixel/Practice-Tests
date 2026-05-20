@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { examSchedulesMigrationHint } from '@/lib/db-migration-hints';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -69,7 +70,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     .single();
 
   if (updateErr || !updated) {
-    return NextResponse.json({ error: updateErr?.message ?? 'Update failed' }, { status: 500 });
+    const msg = updateErr?.message ?? 'Update failed';
+    const hint = examSchedulesMigrationHint(msg);
+    return NextResponse.json({ error: hint ?? msg }, { status: 500 });
   }
 
   return NextResponse.json({ schedule: updated });
