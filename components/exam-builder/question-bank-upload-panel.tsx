@@ -106,24 +106,23 @@ export function QuestionBankUploadPanel({
       )}
 
       <div className="flex flex-wrap gap-2 items-center">
-        <label className="inline-flex cursor-pointer">
-          <span
-            className={`inline-flex h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent/10 ${
-              uploading || !canUpload ? 'pointer-events-none opacity-50' : ''
-            }`}
-          >
-            {uploading ? 'Uploading…' : 'Choose file'}
-          </span>
+        <div
+          className={`relative inline-flex h-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-input bg-background px-4 text-sm font-medium shadow-sm hover:bg-accent/10 ${
+            uploading || !canUpload ? 'pointer-events-none cursor-not-allowed opacity-50' : ''
+          }`}
+        >
           <input
-            id="exam-bank-file"
             type="file"
-            className="sr-only"
             aria-label="Upload questions file"
             accept=".csv,.pdf,.docx,.txt,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv"
             disabled={uploading || !canUpload}
             onChange={(ev) => void runUpload(ev)}
+            className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
           />
-        </label>
+          <span className="pointer-events-none select-none" aria-hidden="true">
+            {uploading ? 'Uploading…' : 'Choose file'}
+          </span>
+        </div>
         <Button type="button" variant="ghost" size="sm" onClick={() => setShowSample((s) => !s)}>
           {showSample ? 'Hide' : 'Show'} CSV sample
         </Button>
