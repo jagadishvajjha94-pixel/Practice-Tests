@@ -33,11 +33,8 @@ import { ProctorConsentGate } from '@/components/proctor/proctor-consent-gate';
 import { createProctorSessionId } from '@/lib/exam-v2/proctoring';
 import { RmsetExamIntro } from '@/components/rmset/rmset-exam-intro';
 import { isRmsetTestCategorySlug } from '@/lib/rmset/student-exam-intro';
-import {
-  getAttemptIndexForUser,
-  testIdsMatch,
-  type CompletedAttemptSummary,
-} from '@/lib/test-attempts';
+import { getAttemptIndexForUser } from '@/lib/local-test-attempts';
+import { testIdsMatch, type CompletedAttemptSummary } from '@/lib/test-attempts';
 
 /** `pending` = waiting on Supabase session; avoid starting the test until resolved (prevents full-paper race). */
 type PracticeAccessState = 'pending' | 'guest' | 'full';
