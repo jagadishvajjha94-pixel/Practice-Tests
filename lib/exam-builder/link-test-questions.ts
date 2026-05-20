@@ -1,15 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { detectQuestionsIdKind, normalizeQuestionId } from '@/lib/exam-builder/id-utils';
-
-function isUuidTypeMismatchError(message: string): boolean {
-  const m = message.toLowerCase();
-  return m.includes('invalid input syntax for type uuid') || m.includes('uuid');
-}
+import {
+  detectQuestionsIdKind,
+  isUuidTypeMismatchError,
+  normalizeQuestionId,
+} from '@/lib/exam-builder/id-utils';
 
 /** Link published questions to a test via test_questions (handles legacy BIGINT question ids). */
 export async function linkTestQuestions(
   admin: SupabaseClient,
-  testId: string,
+  testId: string | number,
   insertedRows: Array<{ id: unknown }>,
 ): Promise<void> {
   if (!insertedRows.length) return;
@@ -32,11 +31,11 @@ export async function linkTestQuestions(
 
   if (!error) return;
 
-  if (isUuidTypeMismatchError(String(error.message ?? '')) && questionIdKind === 'bigint') {
-    // Legacy: test_questions.question_id is UUID but questions.id is BIGINT.
-    // Questions are already tied via questions.test_id from publish insert.
+  if (isUuidTypeMismatchError(String(error.message ?? ''))) {
+    // Legacy schema mismatch — questions.test_id already links rows to the test.
     return;
   }
 
-  throw new Error(error.message);
+  // Non-fatal: approval should still complete; take-test page falls back to questions.test_id.
+  console.warn('test_questions link skipped:', error.message);
 }

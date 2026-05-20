@@ -25,3 +25,23 @@ export async function detectQuestionsIdKind(admin: SupabaseClient): Promise<'uui
   if (raw == null) return 'uuid';
   return looksLikeBigIntId(raw) ? 'bigint' : 'uuid';
 }
+
+export async function detectTestsIdKind(admin: SupabaseClient): Promise<'uuid' | 'bigint'> {
+  const { data } = await admin.from('tests').select('id').limit(1);
+  const raw = (data?.[0] as { id?: unknown } | undefined)?.id;
+  if (raw == null) {
+    return detectQuestionsIdKind(admin);
+  }
+  return looksLikeBigIntId(raw) ? 'bigint' : 'uuid';
+}
+
+export function normalizeTestId(value: unknown, kind: 'uuid' | 'bigint'): string | number {
+  const raw = normalizeQuestionId(value);
+  if (!raw) return kind === 'bigint' ? 0 : '';
+  return kind === 'bigint' ? Number(raw) : raw;
+}
+
+export function isUuidTypeMismatchError(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes('invalid input syntax for type uuid') || m.includes('type uuid');
+}
