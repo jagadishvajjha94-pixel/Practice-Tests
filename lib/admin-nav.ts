@@ -1,6 +1,7 @@
 export const ADMIN_NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Overview', description: 'College-wide performance and exports' },
   { href: '/admin/approvals', label: 'Faculty approvals', description: 'Review and publish faculty exams' },
+  { href: '/admin/exam-builder', label: 'Exam builder', description: 'Create syllabus exams — test type, topics, and slot' },
   { href: '/admin/rmset', label: 'RMSET', description: 'Select topics and publish the eligibility test paper' },
   { href: '/admin/evalora-modules', label: 'Evalora modules', description: 'Go live and schedule assessments inside Evalora' },
   { href: '/admin/exam-schedules', label: 'Faculty exam schedules', description: 'Go live on individual faculty department exams' },

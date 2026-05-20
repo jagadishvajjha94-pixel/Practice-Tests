@@ -9,7 +9,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 const navItems = [
   { href: '/faculty/dashboard', label: 'Overview' },
-  { href: '/faculty/upload', label: 'Upload exam' },
+  { href: '/faculty/upload', label: 'Create exam' },
   { href: '/faculty/performance', label: 'Student performance' },
   { href: '/faculty/proctoring', label: 'Proctoring' },
 ] as const;

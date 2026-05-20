@@ -11,6 +11,8 @@ import { ACADEMIC_YEARS, DEPARTMENTS } from '@/lib/college-brand';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 import { cn } from '@/lib/utils';
+import { ExamBuilderControls } from '@/components/exam-builder/exam-builder-controls';
+import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
 
 type Step = 'details' | 'questions' | 'review';
 
@@ -48,6 +50,12 @@ export default function FacultyUploadPage() {
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState(30);
   const [years, setYears] = useState<string[]>([]);
+
+  const [testType, setTestType] = useState('aptitude');
+  const [slotKey, setSlotKey] = useState('slot-1');
+  const [syllabusTopicIds, setSyllabusTopicIds] = useState<string[]>([]);
+  const [questionsPerTopic, setQuestionsPerTopic] = useState(5);
+  const [paperWarnings, setPaperWarnings] = useState<string[]>([]);
 
   // Step 2 – questions
   const [questions, setQuestions] = useState<FacultyExamQuestion[]>([emptyQuestion()]);
@@ -88,12 +96,17 @@ export default function FacultyUploadPage() {
     [questions],
   );
 
+  const testDef = getExamBuilderTestType(testType);
+  const isManualExam = testType === 'department-manual';
+
+  const needsSyllabus = Boolean(testDef?.requiresSyllabus);
   const detailsValid =
     department.length > 0 &&
     title.trim().length > 0 &&
     years.length > 0 &&
     duration >= 5 &&
-    duration <= 180;
+    duration <= 180 &&
+    (!needsSyllabus || syllabusTopicIds.length > 0);
 
   const canProceedFromQuestions = validQuestionCount > 0;
 
@@ -173,12 +186,16 @@ export default function FacultyUploadPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
-          topic: topic.trim() || undefined,
+          topic: topic.trim() || testDef?.name || undefined,
           description: description.trim() || undefined,
           target_years: years,
           target_branches: extraBranches,
           duration_minutes: duration,
           questions: cleanQuestions,
+          test_type: testType,
+          slot_key: slotKey,
+          syllabus_topic_ids: syllabusTopicIds,
+          questions_per_topic: questionsPerTopic,
         }),
       });
       const json = (await res.json()) as { error?: string };
@@ -198,11 +215,11 @@ export default function FacultyUploadPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h2 className="app-title-lg">Create a department exam</h2>
+        <h2 className="app-title-lg">Create an exam</h2>
         <p className="app-subtitle">
-          Pick a topic, choose the branches and years it should reach, attach MCQs, then send it to
-          the examination cell for approval. Students cannot see or attempt the test until admin
-          approves it.
+          Choose the test type from the dropdown — Aptitude opens a syllabus popup for topic selection.
+          Questions are pulled from the bank per topic and stay non-repetitive across slots. Manual
+          department exams still use PDF or typed MCQs.
         </p>
       </div>
 
@@ -214,9 +231,30 @@ export default function FacultyUploadPage() {
 
       {step === 'details' ? (
         <Card className="p-6 sm:p-8 space-y-6">
+          <ExamBuilderControls
+            testType={testType}
+            onTestTypeChange={(id) => {
+              setTestType(id);
+              const def = getExamBuilderTestType(id);
+              if (def && !title.trim()) setTitle(`${def.name} Examination`);
+              if (def) setDuration(def.defaultDurationMinutes);
+            }}
+            slotKey={slotKey}
+            onSlotKeyChange={setSlotKey}
+            selectedTopicIds={syllabusTopicIds}
+            onSelectedTopicIdsChange={setSyllabusTopicIds}
+            questionsPerTopic={questionsPerTopic}
+            onQuestionsPerTopicChange={setQuestionsPerTopic}
+            onQuestionsGenerated={(qs, warnings) => {
+              setQuestions(qs.length ? qs : [emptyQuestion()]);
+              setPaperWarnings(warnings);
+              if (qs.length) setStep('questions');
+            }}
+          />
+
           <div>
             <h3 className="app-section-title">Exam details</h3>
-            <p className="app-muted mt-0.5">Branches, years, topic, and duration.</p>
+            <p className="app-muted mt-0.5">Branches, years, title, and duration.</p>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-5">
@@ -331,7 +369,7 @@ export default function FacultyUploadPage() {
               disabled={!detailsValid}
               className="bg-[#1e3a5f] hover:bg-[#16304f]"
             >
-              Continue to questions →
+              {needsSyllabus ? 'Continue to question paper →' : 'Continue to questions →'}
             </Button>
           </div>
         </Card>
@@ -339,28 +377,56 @@ export default function FacultyUploadPage() {
 
       {step === 'questions' ? (
         <>
-          <Card className="p-6 sm:p-8 space-y-4 border-dashed border-slate-300 bg-slate-50/50">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="app-section-title">Import from PDF</h3>
-                <p className="app-muted mt-0.5">
-                  Upload a .pdf question paper. Numbered questions with options A–D and an answer
-                  key (e.g. <span className="font-mono text-xs">Answer: B</span>) work best.
-                </p>
+          {!isManualExam && paperWarnings.length > 0 ? (
+            <StatusAlert variant="info">{paperWarnings.join(' ')}</StatusAlert>
+          ) : null}
+
+          {!isManualExam ? (
+            <Card className="p-5 border-violet-200 bg-violet-50/50 space-y-4">
+              <p className="text-sm text-violet-900">
+                Syllabus paper mode — use <strong>Generate question paper</strong> below or on the
+                details step, then edit MCQs before submitting.
+              </p>
+              <ExamBuilderControls
+                compact
+                testType={testType}
+                onTestTypeChange={setTestType}
+                slotKey={slotKey}
+                onSlotKeyChange={setSlotKey}
+                selectedTopicIds={syllabusTopicIds}
+                onSelectedTopicIdsChange={setSyllabusTopicIds}
+                questionsPerTopic={questionsPerTopic}
+                onQuestionsPerTopicChange={setQuestionsPerTopic}
+                onQuestionsGenerated={(qs, warnings) => {
+                  setQuestions(qs.length ? qs : [emptyQuestion()]);
+                  setPaperWarnings(warnings);
+                }}
+              />
+            </Card>
+          ) : (
+            <Card className="p-6 sm:p-8 space-y-4 border-dashed border-slate-300 bg-slate-50/50">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="app-section-title">Import from PDF</h3>
+                  <p className="app-muted mt-0.5">
+                    Upload a .pdf question paper. Numbered questions with options A–D and an answer
+                    key (e.g. <span className="font-mono text-xs">Answer: B</span>) work best.
+                  </p>
+                </div>
+                <Badge tone="brand">PDF · auto-parse</Badge>
               </div>
-              <Badge tone="brand">PDF · auto-parse</Badge>
-            </div>
-            <Input
-              type="file"
-              accept=".pdf,application/pdf"
-              disabled={parsingPdf}
-              onChange={(e) => void handlePdfImport(e)}
-              className="bg-white"
-            />
-            {parsingPdf ? (
-              <p className="text-sm text-slate-500">Reading question paper…</p>
-            ) : null}
-          </Card>
+              <Input
+                type="file"
+                accept=".pdf,application/pdf"
+                disabled={parsingPdf}
+                onChange={(e) => void handlePdfImport(e)}
+                className="bg-white"
+              />
+              {parsingPdf ? (
+                <p className="text-sm text-slate-500">Reading question paper…</p>
+              ) : null}
+            </Card>
+          )}
 
           <Card className="p-6 sm:p-8 space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -474,8 +540,17 @@ export default function FacultyUploadPage() {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-5 rounded-xl border border-slate-200 bg-slate-50/60 p-5">
+            <DetailRow label="Test type">{testDef?.name ?? testType}</DetailRow>
+            <DetailRow label="Slot">{slotKey.replace(/-/g, ' ')}</DetailRow>
             <DetailRow label="Title">{title || '—'}</DetailRow>
-            <DetailRow label="Topic">{topic || '—'}</DetailRow>
+            <DetailRow label="Topic">{topic || testDef?.name || '—'}</DetailRow>
+            {needsSyllabus ? (
+              <DetailRow label="Syllabus topics">
+                {syllabusTopicIds.length
+                  ? `${syllabusTopicIds.length} selected · ${questionsPerTopic} per topic`
+                  : '—'}
+              </DetailRow>
+            ) : null}
             <DetailRow label="Primary branch">{department || '—'}</DetailRow>
             <DetailRow label="Additional branches">
               {extraBranches.length ? extraBranches.join(', ') : '— (own branch only)'}

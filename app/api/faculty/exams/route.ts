@@ -40,6 +40,10 @@ export async function POST(request: NextRequest) {
     target_branches?: string[];
     duration_minutes?: number;
     questions?: unknown[];
+    test_type?: string;
+    slot_key?: string;
+    syllabus_topic_ids?: string[];
+    questions_per_topic?: number;
   };
 
   try {
@@ -105,6 +109,10 @@ export async function POST(request: NextRequest) {
       duration_minutes: duration,
       questions_json: questions,
       status: 'pending',
+      test_type: body.test_type?.trim() || null,
+      slot_key: body.slot_key?.trim() || null,
+      syllabus_topic_ids: Array.isArray(body.syllabus_topic_ids) ? body.syllabus_topic_ids : [],
+      questions_per_topic: body.questions_per_topic ?? null,
     })
     .select('*')
     .single();
