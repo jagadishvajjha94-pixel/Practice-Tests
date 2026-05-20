@@ -18,6 +18,7 @@ type BankStatus = {
   tagCount?: number;
   hint?: string | null;
   sqlEditorUrl?: string | null;
+  postgresConfigured?: boolean;
 };
 
 type QuestionBankUploadPanelProps = {
@@ -37,6 +38,7 @@ export function QuestionBankUploadPanel({
   const [uploading, setUploading] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [settingUp, setSettingUp] = useState(false);
+  const [copyingSql, setCopyingSql] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showSample, setShowSample] = useState(false);
@@ -63,6 +65,32 @@ export function QuestionBankUploadPanel({
     return headers;
   };
 
+  const copyBootstrapSql = async () => {
+    setError(null);
+    setInfo(null);
+    setCopyingSql(true);
+    try {
+      const res = await fetch('/api/exam-builder/bootstrap-sql', {
+        headers: await authHeaders(),
+      });
+      const json = (await res.json()) as { sql?: string; sqlEditorUrl?: string; error?: string };
+      if (!res.ok || !json.sql) throw new Error(json.error ?? 'Could not load bootstrap SQL');
+      await navigator.clipboard.writeText(json.sql);
+      setInfo(
+        `Bootstrap SQL copied (${json.sql.length.toLocaleString()} chars). Open Supabase SQL editor, paste, Run, wait 30s, then Load topic bank.${
+          json.sqlEditorUrl ? '' : ''
+        }`,
+      );
+      if (json.sqlEditorUrl) {
+        window.open(json.sqlEditorUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Copy failed');
+    } finally {
+      setCopyingSql(false);
+    }
+  };
+
   const setupSchema = async () => {
     setError(null);
     setInfo(null);
@@ -80,8 +108,11 @@ export function QuestionBankUploadPanel({
         sqlEditorUrl?: string;
       };
       if (!res.ok) {
-        const parts = [json.error, json.hint].filter(Boolean).join(' ');
-        throw new Error(parts || 'Could not set up question bank tables');
+        const short =
+          json.error === 'Database connection not configured'
+            ? 'Database password not in .env.local — use Copy bootstrap SQL instead (button below).'
+            : [json.error, json.hint].filter(Boolean).join(' ');
+        throw new Error(short || 'Could not set up question bank tables');
       }
       setInfo(json.message ?? 'Tables ready.');
       await loadStatus();
@@ -128,7 +159,7 @@ export function QuestionBankUploadPanel({
   };
 
   const canUpload = !syllabusRequired || tagIds.length > 0;
-  const busy = uploading || seeding || settingUp;
+  const busy = uploading || seeding || settingUp || copyingSql;
 
   const runUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -187,21 +218,22 @@ export function QuestionBankUploadPanel({
           <strong>{bankStatus.tagCount ?? 0}</strong> syllabus tags
           {bankStatus.tableMissing ? (
             <span className="block text-amber-900 mt-1">
-              Database tables missing — click <strong>Setup question bank tables</strong> below (needs{' '}
-              <code className="text-[10px]">SUPABASE_DB_PASSWORD</code> in .env.local), or run migrations 020 + 021 in
-              Supabase SQL.
+              Tables not set up — click <strong>Copy bootstrap SQL</strong>, paste in{' '}
               {bankStatus.sqlEditorUrl ? (
-                <>
-                  {' '}
-                  <a
-                    href={bankStatus.sqlEditorUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline font-medium"
-                  >
-                    Open SQL editor
-                  </a>
-                </>
+                <a
+                  href={bankStatus.sqlEditorUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-medium"
+                >
+                  Supabase SQL editor
+                </a>
+              ) : (
+                'Supabase SQL editor'
+              )}
+              , Run, wait 30s, then <strong>Load topic question bank</strong>.
+              {bankStatus.postgresConfigured ? (
+                <> Or use <strong>Setup question bank tables</strong> (password configured).</>
               ) : null}
             </span>
           ) : null}
@@ -213,15 +245,28 @@ export function QuestionBankUploadPanel({
 
       <div className="flex flex-wrap gap-2 items-center">
         {bankStatus?.tableMissing ? (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={() => void setupSchema()}
-            className="border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100"
-          >
-            {settingUp ? 'Setting up…' : 'Setup question bank tables'}
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={() => void copyBootstrapSql()}
+              className="border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100"
+            >
+              {copyingSql ? 'Copying…' : 'Copy bootstrap SQL'}
+            </Button>
+            {bankStatus.postgresConfigured ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => void setupSchema()}
+                className="border-slate-300"
+              >
+                {settingUp ? 'Setting up…' : 'Setup question bank tables'}
+              </Button>
+            ) : null}
+          </>
         ) : null}
 
         <Button

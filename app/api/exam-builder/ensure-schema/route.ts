@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import {
   applyQuestionBankSchemaMigrations,
+  isPostgresConfigured,
+  readQuestionBankBootstrapSql,
   waitForQuestionsTable,
 } from '@/lib/question-bank/apply-bank-schema';
+import { supabaseSqlEditorUrl } from '@/lib/postgres-url';
 
 export const runtime = 'nodejs';
 
@@ -14,12 +17,25 @@ export async function POST(request: NextRequest) {
 
   const result = await applyQuestionBankSchemaMigrations();
   if (!result.ok) {
+    let bootstrapSql: string | undefined;
+    if (result.error === 'Database connection not configured') {
+      try {
+        bootstrapSql = readQuestionBankBootstrapSql();
+      } catch {
+        /* optional */
+      }
+    }
     return NextResponse.json(
       {
         ok: false,
         error: result.error,
-        hint: result.hint,
-        sqlEditorUrl: result.sqlEditorUrl,
+        hint:
+          result.error === 'Database connection not configured'
+            ? 'Add SUPABASE_DB_PASSWORD to .env.local for one-click setup, or use Copy bootstrap SQL below.'
+            : result.hint,
+        sqlEditorUrl: result.sqlEditorUrl ?? supabaseSqlEditorUrl(),
+        postgresConfigured: isPostgresConfigured(),
+        bootstrapSql,
         applied: result.applied ?? [],
       },
       { status: 400 },

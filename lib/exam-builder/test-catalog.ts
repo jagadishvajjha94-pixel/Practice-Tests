@@ -54,7 +54,7 @@ export const EXAM_BUILDER_TEST_TYPES: ExamBuilderTestType[] = [
   {
     id: 'rmset',
     name: 'RMSET',
-    description: 'Multi-topic eligibility paper — all RMSET syllabus topics available.',
+    description: 'Multi-section eligibility paper — select syllabus topics, then draw MCQs from the question bank.',
     icon: '📋',
     requiresSyllabus: true,
     syllabusGroup: 'rmset',

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { supabaseSqlEditorUrl } from '@/lib/postgres-url';
+import { isPostgresConfigured } from '@/lib/question-bank/apply-bank-schema';
 
 export async function GET() {
   const auth = await requireAuth(['admin', 'faculty']);
@@ -39,10 +40,13 @@ export async function GET() {
     tags: tags ?? [],
     errors: [qErr?.message, tErr?.message].filter(Boolean),
     hint: tableMissing
-      ? 'Click "Setup question bank tables" below, or run migrations 020 + 021 in Supabase SQL editor.'
+      ? isPostgresConfigured()
+        ? 'Click "Setup question bank tables" below, or copy bootstrap SQL into Supabase SQL editor.'
+        : 'Click "Copy bootstrap SQL" → paste in Supabase SQL editor → Run → wait 30s → Load topic bank.'
       : curatedCount === 0
         ? 'Click "Load topic question bank" to populate MCQs, then Draw from bank.'
         : null,
     sqlEditorUrl: tableMissing ? supabaseSqlEditorUrl() : null,
+    postgresConfigured: isPostgresConfigured(),
   });
 }

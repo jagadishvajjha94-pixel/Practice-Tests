@@ -1,32 +1,26 @@
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
-import { SYLLABUS_GROUPS } from '@/lib/exam-builder/syllabus';
+import { allSyllabusUnits } from '@/lib/exam-builder/syllabus';
 
 export type SyllabusTagDef = { slug: string; name: string };
 
-export const RMSET_EXTRA_TAGS: SyllabusTagDef[] = [
-  { slug: 'quantitative-aptitude', name: 'Quantitative Aptitude' },
-  { slug: 'logical-reasoning', name: 'Logical Reasoning' },
-  { slug: 'verbal-ability', name: 'Verbal Ability' },
-  { slug: 'english-grammar', name: 'English Grammar' },
-  { slug: 'computer-science', name: 'Computer Science' },
-  { slug: 'dsa', name: 'Data Structures & Algorithms' },
-  { slug: 'dbms', name: 'Database Management' },
-  { slug: 'operating-systems', name: 'Operating Systems' },
-  { slug: 'electronics', name: 'Electronics' },
-  { slug: 'mechanical', name: 'Mechanical Engineering' },
-];
+/** @deprecated Use allSyllabusUnits() — kept for imports. */
+export const RMSET_EXTRA_TAGS: SyllabusTagDef[] = allSyllabusUnits().filter((u) =>
+  [
+    'quantitative-aptitude',
+    'logical-reasoning',
+    'verbal-ability',
+    'english-grammar',
+    'computer-science',
+    'dsa',
+    'dbms',
+    'operating-systems',
+    'electronics',
+    'mechanical',
+  ].includes(u.slug),
+);
 
 export function allSyllabusTagDefs(): SyllabusTagDef[] {
-  const map = new Map<string, SyllabusTagDef>();
-  for (const group of Object.values(SYLLABUS_GROUPS)) {
-    for (const u of group) {
-      map.set(u.slug, { slug: u.slug, name: u.name });
-    }
-  }
-  for (const t of RMSET_EXTRA_TAGS) {
-    map.set(t.slug, t);
-  }
-  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return allSyllabusUnits();
 }
 
 export const CURATED_BANK_MARKER = 'curated-bank-v2';

@@ -213,7 +213,13 @@ export function ExamBuilderControls({
               </option>
             ))}
           </select>
-          {testDef ? <p className="text-xs text-slate-500 mt-1">{testDef.description}</p> : null}
+          {testDef ? (
+            <p className="text-xs text-slate-500 mt-1">
+              {testDef.id === 'rmset'
+                ? 'RMSET covers aptitude, logical, technical, verbal, and core sections — select topics, then Draw from bank.'
+                : testDef.description}
+            </p>
+          ) : null}
         </div>
         <div>
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">

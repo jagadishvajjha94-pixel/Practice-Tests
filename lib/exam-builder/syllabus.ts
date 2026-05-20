@@ -1,5 +1,22 @@
 /** Syllabus units grouped by test type — slugs must match question_tags.slug in the DB. */
-export const SYLLABUS_GROUPS = {
+
+export type SyllabusUnit = { slug: string; name: string };
+
+/** Core RMSET sections (migration 015_rmset.sql). */
+export const RMSET_CORE_UNITS: SyllabusUnit[] = [
+  { slug: 'quantitative-aptitude', name: 'Quantitative Aptitude' },
+  { slug: 'logical-reasoning', name: 'Logical Reasoning' },
+  { slug: 'verbal-ability', name: 'Verbal Ability' },
+  { slug: 'english-grammar', name: 'English Grammar' },
+  { slug: 'computer-science', name: 'Computer Science' },
+  { slug: 'dsa', name: 'Data Structures & Algorithms' },
+  { slug: 'dbms', name: 'Database Management' },
+  { slug: 'operating-systems', name: 'Operating Systems' },
+  { slug: 'electronics', name: 'Electronics' },
+  { slug: 'mechanical', name: 'Mechanical Engineering' },
+];
+
+const BASE_GROUPS = {
   aptitude: [
     { slug: 'aptitude-percentages', name: 'Percentages' },
     { slug: 'aptitude-profit-loss', name: 'Profit & Loss' },
@@ -39,13 +56,31 @@ export const SYLLABUS_GROUPS = {
     { slug: 'english-grammar', name: 'English Grammar' },
     { slug: 'verbal-ability', name: 'Verbal Ability (general)' },
   ],
-  rmset: [] as { slug: string; name: string }[],
+} as const satisfies Record<string, SyllabusUnit[]>;
+
+/** RMSET = all placement syllabus units + core eligibility sections (deduped by slug). */
+function buildRmsetUnits(): SyllabusUnit[] {
+  const map = new Map<string, SyllabusUnit>();
+  for (const units of Object.values(BASE_GROUPS)) {
+    for (const u of units) map.set(u.slug, u);
+  }
+  for (const u of RMSET_CORE_UNITS) map.set(u.slug, u);
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export const SYLLABUS_GROUPS = {
+  ...BASE_GROUPS,
+  rmset: buildRmsetUnits(),
 } as const;
 
 export type SyllabusGroupKey = keyof typeof SYLLABUS_GROUPS;
 
-export function syllabusUnitsForGroup(group: SyllabusGroupKey | null) {
+export function syllabusUnitsForGroup(group: SyllabusGroupKey | null): SyllabusUnit[] {
   if (!group) return [];
-  if (group === 'rmset') return [];
-  return SYLLABUS_GROUPS[group];
+  return [...SYLLABUS_GROUPS[group]];
+}
+
+/** All unique syllabus slugs (for seeding / bank load). */
+export function allSyllabusUnits(): SyllabusUnit[] {
+  return buildRmsetUnits();
 }

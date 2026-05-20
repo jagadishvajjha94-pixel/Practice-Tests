@@ -66,7 +66,8 @@ export function SyllabusPickerDialog({
 
         {topics.length === 0 ? (
           <p className="text-sm text-slate-600">
-            No syllabus topics found. Run migration 016 and tag questions in the bank.
+            No syllabus topics found. Run migration 015/016, click <strong>Load topic question bank</strong>{' '}
+            in the exam builder, then retry.
           </p>
         ) : (
           <div className="grid gap-2 max-h-[50vh] overflow-y-auto pr-1">

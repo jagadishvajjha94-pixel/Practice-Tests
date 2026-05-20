@@ -25,11 +25,8 @@ const MANUAL_STEPS: Array<{ id: Step; label: string; hint: string }> = [
 ];
 
 const SYLLABUS_STEPS: Array<{ id: Step; label: string; hint: string }> = [
-  {
-    id: 'details',
-    label: 'Create exam',
-    hint: 'Details · syllabus · draw from bank → sent for admin approval',
-  },
+  { id: 'details', label: 'Exam details', hint: 'Topics · branches · draw from bank' },
+  { id: 'review', label: 'Review & submit', hint: 'Confirm and send for admin approval' },
 ];
 
 const emptyQuestion = (): FacultyExamQuestion => ({
@@ -123,12 +120,6 @@ export default function FacultyUploadPage() {
   const testDef = getExamBuilderTestType(testType);
   const isManualExam = testType === 'department-manual';
   const steps = isManualExam ? MANUAL_STEPS : SYLLABUS_STEPS;
-
-  useEffect(() => {
-    if (!isManualExam && (step === 'questions' || step === 'review')) {
-      setStep('details');
-    }
-  }, [isManualExam, step]);
 
   const needsSyllabus = Boolean(testDef?.requiresSyllabus);
   const detailsValid =
@@ -261,34 +252,24 @@ export default function FacultyUploadPage() {
       return;
     }
 
-    if (!detailsValid) {
-      setError('Complete exam details below (title, branch, years), then draw from the bank again.');
-      return;
-    }
-
-    void submitExam(qs);
+    setStep('review');
   };
 
   const stepperCanEnter: Record<Step, boolean> = isManualExam
     ? { details: true, questions: detailsValid, review: detailsValid && canProceedFromQuestions }
-    : { details: true, questions: false, review: false };
+    : { details: true, questions: false, review: detailsValid && canProceedFromQuestions };
 
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
         <h2 className="app-title-lg">Create an exam</h2>
         <p className="app-subtitle">
-          Choose the test type from the dropdown — Aptitude opens a syllabus popup for topic selection.
-          Pick a department group so the right students receive the exam. Draw from the question bank to
-          send the paper straight to admin for approval — no manual question editing step.
+          Fill in exam details, draw questions from the bank, then review and submit for admin approval.
+          Students see the test only after the examination cell approves it.
         </p>
       </div>
 
       <Stepper steps={steps} current={step} onSelect={setStep} canEnter={stepperCanEnter} />
-
-      {submitting && !isManualExam ? (
-        <StatusAlert variant="info">Submitting exam for admin approval…</StatusAlert>
-      ) : null}
 
       {error ? <StatusAlert variant="error">{error}</StatusAlert> : null}
       {message ? <StatusAlert variant="success">{message}</StatusAlert> : null}
@@ -296,6 +277,11 @@ export default function FacultyUploadPage() {
 
       {step === 'details' ? (
         <Card className="p-6 sm:p-8 space-y-6">
+          <div>
+            <h3 className="app-section-title">Exam details</h3>
+            <p className="app-muted mt-0.5">Test type, branches, years, title, and duration.</p>
+          </div>
+
           <ExamBuilderControls
             testType={testType}
             onTestTypeChange={(id) => {
@@ -318,11 +304,6 @@ export default function FacultyUploadPage() {
             tagIds={syllabusTopicIds}
             onBankUpdated={() => setCatalogRefresh((n) => n + 1)}
           />
-
-          <div>
-            <h3 className="app-section-title">Exam details</h3>
-            <p className="app-muted mt-0.5">Branches, years, title, and duration.</p>
-          </div>
 
           <div className="grid sm:grid-cols-2 gap-5">
             <Field label="Exam title" hint="Shown to students on the test hub.">
@@ -449,10 +430,18 @@ export default function FacultyUploadPage() {
               >
                 Continue to questions →
               </Button>
+            ) : canProceedFromQuestions ? (
+              <Button
+                onClick={() => setStep('review')}
+                disabled={!detailsValid}
+                className="bg-[#1e3a5f] hover:bg-[#16304f]"
+              >
+                Review & submit for approval →
+              </Button>
             ) : (
               <p className="text-sm text-slate-600">
-                Use <strong>Draw from bank</strong> or <strong>Generate with AI</strong> above — the exam
-                is sent for admin approval automatically.
+                Use <strong>Draw from bank</strong> or <strong>Generate with AI</strong> above, then
+                continue to review and submit.
               </p>
             )}
           </div>
@@ -583,7 +572,7 @@ export default function FacultyUploadPage() {
         </>
       ) : null}
 
-      {step === 'review' && isManualExam ? (
+      {step === 'review' ? (
         <Card className="p-6 sm:p-8 space-y-5">
           <div>
             <h3 className="app-section-title">Review submission</h3>
@@ -631,12 +620,19 @@ export default function FacultyUploadPage() {
             </div>
           ) : null}
 
+          {!detailsValid ? (
+            <StatusAlert variant="info">
+              Complete exam details (title, department, target years) on the previous step before
+              submitting.
+            </StatusAlert>
+          ) : null}
+
           <div className="flex justify-between pt-2">
-            <Button variant="outline" onClick={() => setStep('questions')}>
+            <Button variant="outline" onClick={() => setStep(isManualExam ? 'questions' : 'details')}>
               ← Back
             </Button>
             <Button
-              disabled={submitting}
+              disabled={submitting || !canProceedFromQuestions || !detailsValid}
               onClick={() => void submitExam()}
               className="bg-[#1e3a5f] hover:bg-[#16304f]"
             >
@@ -693,7 +689,7 @@ function Stepper({
     <ol
       className={cn(
         'grid gap-2 rounded-xl border border-slate-200 bg-white p-2',
-        steps.length === 1 ? 'grid-cols-1' : 'grid-cols-3',
+        steps.length === 1 ? 'grid-cols-1' : steps.length === 2 ? 'grid-cols-2' : 'grid-cols-3',
       )}
     >
       {steps.map((s, idx) => {

@@ -9,6 +9,28 @@ const MIGRATION_FILES = [
   '021_questions_test_id_nullable.sql',
 ];
 
+/** Full SQL to paste in Supabase SQL editor (020 + 021). */
+export function readQuestionBankBootstrapSql(): string {
+  const migrationsDir = path.join(process.cwd(), 'supabase', 'migrations');
+  const parts: string[] = [
+    '-- Question bank bootstrap (migrations 020 + 021). Safe to re-run.',
+    '-- Paste in Supabase → SQL editor → Run, wait 30s, then Load topic question bank.',
+    '',
+  ];
+  for (const file of MIGRATION_FILES) {
+    const filePath = path.join(migrationsDir, file);
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Migration file missing: ${file}`);
+    }
+    parts.push(`-- ----- ${file} -----`, fs.readFileSync(filePath, 'utf8'), '');
+  }
+  return parts.join('\n');
+}
+
+export function isPostgresConfigured(): boolean {
+  return resolvePostgresUrl() != null;
+}
+
 export type ApplyBankSchemaResult = {
   ok: boolean;
   applied?: string[];
@@ -72,19 +94,27 @@ export async function applyQuestionBankSchemaMigrations(): Promise<ApplyBankSche
 
 export function questionBankSchemaMissingMessage(applyResult?: ApplyBankSchemaResult): string {
   const sqlEditorUrl = applyResult?.sqlEditorUrl ?? supabaseSqlEditorUrl();
-  const lines = [
-    'Table public.questions is missing or not visible to the API.',
-    applyResult?.ok
-      ? 'Migrations were applied — wait a few seconds and retry "Load topic bank".'
-      : applyResult?.error
-        ? `Auto-setup failed: ${applyResult.error}`
-        : 'Run migrations 020 and 021 in Supabase.',
-    applyResult?.hint ?? postgresUrlSetupHint(),
-  ];
-  if (sqlEditorUrl) {
-    lines.push(`SQL editor: ${sqlEditorUrl}`);
+  if (applyResult?.ok) {
+    return 'Tables created. Wait ~30 seconds, then click Load topic question bank again.';
   }
-  return lines.filter(Boolean).join(' ');
+  if (applyResult?.error === 'Database connection not configured') {
+    return [
+      'Question bank tables are not set up yet.',
+      'Fastest fix: click Copy bootstrap SQL → open Supabase SQL editor → paste → Run → wait 30s → Load topic bank.',
+      'Optional: add SUPABASE_DB_PASSWORD to .env.local for one-click Setup.',
+      sqlEditorUrl ? `SQL editor: ${sqlEditorUrl}` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+  return [
+    'Table public.questions is missing or not visible to the API.',
+    applyResult?.error ? `Setup error: ${applyResult.error}` : '',
+    applyResult?.hint ?? 'Use Copy bootstrap SQL in the question bank panel, or add SUPABASE_DB_PASSWORD.',
+    sqlEditorUrl ? `SQL editor: ${sqlEditorUrl}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 function sleep(ms: number): Promise<void> {

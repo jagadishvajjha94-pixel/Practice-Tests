@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         error: message,
         sqlEditorUrl: supabaseSqlEditorUrl(),
         hint: message.includes('public.questions')
-          ? 'Add SUPABASE_DB_PASSWORD to .env.local and retry, or run migrations 020 + 021 in Supabase SQL editor.'
+          ? 'Click Copy bootstrap SQL in the question bank panel, run it in Supabase SQL editor, wait 30s, retry.'
           : undefined,
       },
       { status: 400 },

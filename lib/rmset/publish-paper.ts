@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { RMSET_CATEGORY_SLUG } from '@/lib/rmset/types';
+import { resolveSyllabusTopicsForBuilder } from '@/lib/exam-builder/draw-questions';
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
@@ -82,19 +83,14 @@ export async function publishRmsetPaper(
     throw new Error('Select at least one topic');
   }
 
-  const { data: tags, error: tagError } = await admin
-    .from('question_tags')
-    .select('id, name, slug')
-    .in('id', input.topicIds);
-
-  if (tagError) throw new Error(tagError.message);
-  if (!tags?.length) throw new Error('Selected topics not found');
+  const resolvedTags = await resolveSyllabusTopicsForBuilder(admin, input.topicIds);
+  if (!resolvedTags.length) throw new Error('Selected topics not found');
 
   const used = new Set<string>();
   const orderedQuestionIds: string[] = [];
 
-  for (const tag of tags) {
-    const pool = shuffle(await questionIdsForTopic(admin, tag.id as string, tag.slug as string)).filter(
+  for (const tag of resolvedTags) {
+    const pool = shuffle(await questionIdsForTopic(admin, tag.id, tag.slug)).filter(
       (id) => !used.has(id),
     );
     const picked = pool.slice(0, input.questionsPerTopic);
@@ -108,7 +104,7 @@ export async function publishRmsetPaper(
   }
 
   const categoryId = await ensureRmsetCategory(admin);
-  const topicNames = tags.map((t) => t.name).join(', ');
+  const topicNames = resolvedTags.map((t) => t.name).join(', ');
 
   const { data: testRow, error: testError } = await admin
     .from('tests')
@@ -151,7 +147,7 @@ export async function publishRmsetPaper(
     title: input.title.trim(),
     description: input.description?.trim() || null,
     test_id: testId,
-    topic_ids: input.topicIds,
+    topic_ids: resolvedTags.map((t) => t.id),
     questions_per_topic: input.questionsPerTopic,
     duration_minutes: input.durationMinutes,
     status: 'published',

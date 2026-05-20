@@ -88,7 +88,7 @@ export default function AdminRmsetPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="RMSET"
-        description="Build the Ramachandra Multi-Section Eligibility Test by selecting topics. Questions are drawn from the bank for each topic you allow."
+        description="Select RMSET syllabus topics. Questions are drawn from the question bank for each topic (use Load topic bank if counts are zero)."
       />
 
       <Card className="p-6 space-y-5">
@@ -149,7 +149,8 @@ export default function AdminRmsetPage() {
           </p>
           {topics.length === 0 ? (
             <p className="text-sm text-slate-500">
-              No topics yet. Run migration 015_rmset.sql or tag questions in the question bank.
+              No RMSET syllabus topics configured. Run migrations 015/016 and load the topic question bank
+              from the exam builder (faculty or admin).
             </p>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">

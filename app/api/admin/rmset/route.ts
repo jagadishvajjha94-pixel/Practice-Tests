@@ -2,33 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { publishRmsetPaper } from '@/lib/rmset/publish-paper';
 import type { RmsetPaperWithTopics, RmsetTopic } from '@/lib/rmset/types';
-
-async function countQuestionsForTag(
-  admin: NonNullable<ReturnType<typeof getServiceSupabase>>,
-  tagId: string,
-  tagSlug: string,
-): Promise<number> {
-  const ids = new Set<string>();
-
-  const { data: links } = await admin
-    .from('question_tag_links')
-    .select('question_id')
-    .eq('tag_id', tagId);
-
-  for (const row of links ?? []) {
-    if (row.question_id) ids.add(row.question_id as string);
-  }
-
-  const { data: rows } = await admin.from('questions').select('id, tags');
-  for (const row of rows ?? []) {
-    const tags = Array.isArray(row.tags) ? (row.tags as string[]) : [];
-    if (tags.some((t) => t === tagSlug || t === tagId)) {
-      ids.add(row.id as string);
-    }
-  }
-
-  return ids.size;
-}
+import { buildSyllabusCatalogForGroup } from '@/lib/exam-builder/build-syllabus-catalog';
 
 export async function GET() {
   const auth = await requireAuth(['admin']);
@@ -39,20 +13,13 @@ export async function GET() {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }
 
-  const { data: tagRows } = await admin
-    .from('question_tags')
-    .select('id, name, slug')
-    .order('name');
-
-  const topics: RmsetTopic[] = [];
-  for (const tag of tagRows ?? []) {
-    topics.push({
-      id: tag.id as string,
-      name: tag.name as string,
-      slug: tag.slug as string,
-      question_count: await countQuestionsForTag(admin, tag.id as string, tag.slug as string),
-    });
-  }
+  const catalogTopics = await buildSyllabusCatalogForGroup(admin, 'rmset');
+  const topics: RmsetTopic[] = catalogTopics.map((t) => ({
+    id: t.id,
+    name: t.name,
+    slug: t.slug,
+    question_count: t.question_count,
+  }));
 
   const { data: papers } = await admin
     .from('rmset_papers')
@@ -60,9 +27,12 @@ export async function GET() {
     .order('updated_at', { ascending: false });
 
   const tagMap = new Map(topics.map((t) => [t.id, t]));
+  const tagMapBySlug = new Map(topics.map((t) => [t.slug, t]));
   const enriched: RmsetPaperWithTopics[] = (papers ?? []).map((p) => {
     const topicIds = (p.topic_ids ?? []) as string[];
-    const selected = topicIds.map((id) => tagMap.get(id)).filter(Boolean) as RmsetTopic[];
+    const selected = topicIds
+      .map((id) => tagMap.get(id) ?? tagMapBySlug.get(id))
+      .filter(Boolean) as RmsetTopic[];
     return {
       ...(p as RmsetPaperWithTopics),
       topics: selected,
