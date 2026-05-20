@@ -67,33 +67,61 @@ export async function createFacultyExamRequestRecord(
     }
   }
 
-  const { data: row, error } = await admin
+  const insertPayload: Record<string, unknown> = {
+    faculty_user_id: input.creatorUserId,
+    department,
+    topic: input.topic?.trim() || null,
+    title: input.title.trim(),
+    description: input.description?.trim() ?? null,
+    target_years: input.targetYears,
+    target_branches,
+    duration_minutes: input.durationMinutes,
+    questions_json: input.questions,
+    status: 'pending',
+    test_type: input.testType?.trim() || null,
+    slot_key: input.slotKey?.trim() || null,
+    syllabus_topic_ids: syllabusTopicUuids,
+    questions_per_topic: input.questionsPerTopic ?? null,
+  };
+
+  const groupId =
+    input.departmentGroupId && looksLikeUuid(input.departmentGroupId)
+      ? input.departmentGroupId
+      : null;
+  if (groupId) {
+    insertPayload.department_group_id = groupId;
+  }
+
+  let { data: row, error } = await admin
     .from('faculty_exam_requests')
-    .insert({
-      faculty_user_id: input.creatorUserId,
-      department,
-      topic: input.topic?.trim() || null,
-      title: input.title.trim(),
-      description: input.description?.trim() ?? null,
-      target_years: input.targetYears,
-      target_branches,
-      duration_minutes: input.durationMinutes,
-      questions_json: input.questions,
-      status: 'pending',
-      test_type: input.testType?.trim() || null,
-      slot_key: input.slotKey?.trim() || null,
-      syllabus_topic_ids: syllabusTopicUuids,
-      questions_per_topic: input.questionsPerTopic ?? null,
-      department_group_id:
-        input.departmentGroupId && looksLikeUuid(input.departmentGroupId)
-          ? input.departmentGroupId
-          : null,
-    })
+    .insert(insertPayload)
     .select('id')
     .single();
 
+  if (
+    error?.message?.includes('department_group_id') &&
+    (error.message.includes('schema cache') || error.message.includes('does not exist'))
+  ) {
+    delete insertPayload.department_group_id;
+    const retry = await admin
+      .from('faculty_exam_requests')
+      .insert(insertPayload)
+      .select('id')
+      .single();
+    row = retry.data;
+    error = retry.error;
+    if (!error) {
+      console.warn(
+        'faculty_exam_requests.department_group_id missing — saved without group. Run migration 023_faculty_department_group_id.sql in Supabase.',
+      );
+    }
+  }
+
   if (error || !row?.id) {
-    throw new Error(error?.message ?? 'Could not save exam request');
+    const hint = error?.message?.includes('department_group_id')
+      ? `${error?.message ?? 'Could not save exam request'} — Run migration 023_faculty_department_group_id.sql in Supabase SQL editor, wait 30s, retry.`
+      : (error?.message ?? 'Could not save exam request');
+    throw new Error(hint);
   }
 
   const requestId = row.id as string;

@@ -5,17 +5,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { postgresUrlSetupHint, resolvePostgresUrl, supabaseSqlEditorUrl } from '@/lib/postgres-url';
 
 const MIGRATION_FILES = [
+  '017_department_groups.sql',
   '020_ensure_questions_table.sql',
   '021_questions_test_id_nullable.sql',
   '022_exam_builder_draws_bigint_question_ids.sql',
+  '023_faculty_department_group_id.sql',
 ];
 
 /** Full SQL to paste in Supabase SQL editor (020 + 021). */
 export function readQuestionBankBootstrapSql(): string {
   const migrationsDir = path.join(process.cwd(), 'supabase', 'migrations');
   const parts: string[] = [
-    '-- Question bank bootstrap (migrations 020 + 021). Safe to re-run.',
-    '-- Paste in Supabase → SQL editor → Run, wait 30s, then Load topic question bank.',
+    '-- Database bootstrap for exam builder + faculty submit. Safe to re-run.',
+    '-- Paste in Supabase → SQL editor → Run, wait 30s, then retry in the app.',
     '',
   ];
   for (const file of MIGRATION_FILES) {

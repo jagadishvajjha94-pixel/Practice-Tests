@@ -53,9 +53,11 @@ if (!url) {
 
 const migrationsDir = path.join(__dirname, '..', 'supabase', 'migrations');
 const files = [
+  '017_department_groups.sql',
   '020_ensure_questions_table.sql',
   '021_questions_test_id_nullable.sql',
   '022_exam_builder_draws_bigint_question_ids.sql',
+  '023_faculty_department_group_id.sql',
 ];
 
 const client = postgres(url, { max: 1, onnotice: () => {} });
