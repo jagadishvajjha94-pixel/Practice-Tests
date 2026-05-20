@@ -239,6 +239,8 @@ export default function FacultyUploadPage() {
     }
   };
 
+  const canSubmit = canProceedFromQuestions && detailsValid;
+
   const handleBankQuestionsReady = (qs: FacultyExamQuestion[], warnings: string[]) => {
     setPaperWarnings(warnings);
     if (!qs.length) {
@@ -252,12 +254,15 @@ export default function FacultyUploadPage() {
       return;
     }
 
-    setStep('review');
+    setError(null);
+    setMessage(
+      `${qs.length} question(s) loaded from the bank. Complete any missing details above, then click Submit for approval.`,
+    );
   };
 
   const stepperCanEnter: Record<Step, boolean> = isManualExam
     ? { details: true, questions: detailsValid, review: detailsValid && canProceedFromQuestions }
-    : { details: true, questions: false, review: detailsValid && canProceedFromQuestions };
+    : { details: true, questions: false, review: canProceedFromQuestions };
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -421,7 +426,7 @@ export default function FacultyUploadPage() {
             <StatusAlert variant="info">{paperWarnings.join(' ')}</StatusAlert>
           ) : null}
 
-          <div className="flex justify-end pt-2">
+          <div className="flex flex-wrap justify-end gap-2 pt-2">
             {isManualExam ? (
               <Button
                 onClick={() => setStep('questions')}
@@ -430,19 +435,28 @@ export default function FacultyUploadPage() {
               >
                 Continue to questions →
               </Button>
-            ) : canProceedFromQuestions ? (
-              <Button
-                onClick={() => setStep('review')}
-                disabled={!detailsValid}
-                className="bg-[#1e3a5f] hover:bg-[#16304f]"
-              >
-                Review & submit for approval →
-              </Button>
             ) : (
-              <p className="text-sm text-slate-600">
-                Use <strong>Draw from bank</strong> or <strong>Generate with AI</strong> above, then
-                continue to review and submit.
-              </p>
+              <>
+                {canProceedFromQuestions ? (
+                  <>
+                    <Button variant="outline" onClick={() => setStep('review')}>
+                      Review summary
+                    </Button>
+                    <Button
+                      disabled={submitting || !canSubmit}
+                      onClick={() => void submitExam()}
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white min-w-[11rem]"
+                    >
+                      {submitting ? 'Submitting…' : 'Submit for approval'}
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-600">
+                    Use <strong>Draw from bank</strong> or <strong>Generate with AI</strong> above, then
+                    submit for admin approval.
+                  </p>
+                )}
+              </>
             )}
           </div>
         </Card>
@@ -632,14 +646,40 @@ export default function FacultyUploadPage() {
               ← Back
             </Button>
             <Button
-              disabled={submitting || !canProceedFromQuestions || !detailsValid}
+              disabled={submitting || !canSubmit}
               onClick={() => void submitExam()}
-              className="bg-[#1e3a5f] hover:bg-[#16304f]"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white min-w-[11rem]"
             >
               {submitting ? 'Submitting…' : 'Submit for approval'}
             </Button>
           </div>
         </Card>
+      ) : null}
+
+      {!isManualExam && canProceedFromQuestions ? (
+        <div className="sticky bottom-4 z-20 rounded-xl border border-emerald-200 bg-emerald-50/95 backdrop-blur-sm p-4 shadow-lg shadow-emerald-900/10 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-emerald-950">
+            <strong>{validQuestionCount} MCQs</strong> ready · sent to admin after you submit
+            {!detailsValid ? (
+              <span className="block text-amber-900 text-xs mt-0.5">
+                Complete title, department, target years, and syllabus topics to enable submit.
+              </span>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => setStep('review')}>
+              Review
+            </Button>
+            <Button
+              size="sm"
+              disabled={submitting || !canSubmit}
+              onClick={() => void submitExam()}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white min-w-[10rem]"
+            >
+              {submitting ? 'Submitting…' : 'Submit for approval'}
+            </Button>
+          </div>
+        </div>
       ) : null}
     </div>
   );
