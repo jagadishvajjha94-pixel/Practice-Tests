@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { StatusAlert } from '@/components/ui/status-alert';
 import { Badge } from '@/components/ui/badge';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { McqUploadFormatGuide } from '@/components/exam-builder/mcq-upload-format-guide';
 
 const SAMPLE_CSV = `question_text,option_a,option_b,option_c,option_d,correct_answer,explanation
 "What is 15% of 200?","15","20","30","45","C","15% of 200 = 30"
@@ -181,8 +182,22 @@ export function QuestionBankUploadPanel({
       form.append('tagIds', JSON.stringify(tagIds));
 
       const res = await fetch('/api/exam-builder/bank-upload', { method: 'POST', headers, body: form });
-      const json = (await res.json()) as { inserted?: number; warnings?: string[]; error?: string };
-      if (!res.ok) throw new Error(json.error ?? 'Upload failed');
+      const json = (await res.json()) as {
+        inserted?: number;
+        warnings?: string[];
+        error?: string;
+        formatHint?: string;
+        textPreview?: string;
+        charsExtracted?: number;
+      };
+      if (!res.ok) {
+        const parts = [
+          json.error,
+          json.warnings?.join(' '),
+          json.charsExtracted != null ? `Read ${json.charsExtracted} chars.` : null,
+        ].filter(Boolean);
+        throw new Error(parts.join(' ') || 'Upload failed');
+      }
 
       setInfo(`Saved ${json.inserted ?? 0} question(s). ${(json.warnings ?? []).join(' ')}`.trim());
       await loadStatus();
@@ -292,7 +307,7 @@ export function QuestionBankUploadPanel({
             className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
           />
           <span className="pointer-events-none select-none" aria-hidden="true">
-            {uploading ? 'Uploading…' : 'Upload CSV/PDF'}
+            {uploading ? 'Uploading…' : 'Upload CSV / PDF / Word'}
           </span>
         </div>
 
@@ -307,6 +322,8 @@ export function QuestionBankUploadPanel({
           syllabus units at once).
         </StatusAlert>
       ) : null}
+
+      <McqUploadFormatGuide />
 
       {showSample ? (
         <pre className="text-[11px] leading-relaxed rounded-lg bg-slate-900 text-slate-100 p-3 overflow-x-auto max-h-40 overflow-y-auto">

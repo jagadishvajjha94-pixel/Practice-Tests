@@ -13,6 +13,7 @@ import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 import { cn } from '@/lib/utils';
 import { ExamBuilderControls } from '@/components/exam-builder/exam-builder-controls';
 import { QuestionBankUploadPanel } from '@/components/exam-builder/question-bank-upload-panel';
+import { McqUploadFormatGuide } from '@/components/exam-builder/mcq-upload-format-guide';
 import { DepartmentGroupPicker } from '@/components/exam-builder/department-group-picker';
 import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
 
@@ -20,7 +21,7 @@ type Step = 'details' | 'questions' | 'review';
 
 const MANUAL_STEPS: Array<{ id: Step; label: string; hint: string }> = [
   { id: 'details', label: 'Exam details', hint: 'Topic · Branches · Years · Duration' },
-  { id: 'questions', label: 'Questions', hint: 'Upload PDF or enter manually' },
+  { id: 'questions', label: 'Questions', hint: 'Upload CSV/PDF/Word or enter manually' },
   { id: 'review', label: 'Review & submit', hint: 'Summary then send for approval' },
 ];
 
@@ -132,7 +133,7 @@ export default function FacultyUploadPage() {
 
   const canProceedFromQuestions = validQuestionCount > 0;
 
-  const handlePdfImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDocumentImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setParsingPdf(true);
@@ -149,7 +150,7 @@ export default function FacultyUploadPage() {
 
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch('/api/faculty/exams/parse-pdf', {
+      const res = await fetch('/api/faculty/exams/parse-document', {
         method: 'POST',
         headers,
         body: form,
@@ -158,22 +159,34 @@ export default function FacultyUploadPage() {
         questions?: FacultyExamQuestion[];
         warnings?: string[];
         error?: string;
+        formatHint?: string;
+        textPreview?: string;
+        charsExtracted?: number;
       };
-      if (!res.ok) throw new Error(json.error ?? 'Could not read PDF');
+      if (!res.ok) {
+        const parts = [
+          json.error,
+          json.warnings?.join(' '),
+          json.charsExtracted != null
+            ? `Extracted ${json.charsExtracted} characters from file.`
+            : null,
+          json.textPreview
+            ? `Preview: "${json.textPreview.slice(0, 120)}…"`
+            : null,
+        ].filter(Boolean);
+        throw new Error(parts.join(' ') || 'Could not read file');
+      }
 
       const imported = json.questions ?? [];
       if (imported.length === 0) {
-        throw new Error(
-          json.warnings?.[0] ??
-            'No questions found. Format: numbered questions, options A–D, and Answer: X.',
-        );
+        throw new Error(json.warnings?.[0] ?? 'No questions found in file.');
       }
       setQuestions(imported);
       setPdfNote(
-        `Imported ${imported.length} question${imported.length === 1 ? '' : 's'} from PDF. Review and edit below before submitting.`,
+        `Imported ${imported.length} question${imported.length === 1 ? '' : 's'}. Review and edit below before submitting. ${(json.warnings ?? []).join(' ')}`.trim(),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'PDF import failed');
+      setError(err instanceof Error ? err.message : 'File import failed');
     } finally {
       setParsingPdf(false);
       e.target.value = '';
@@ -467,19 +480,20 @@ export default function FacultyUploadPage() {
           <Card className="p-6 sm:p-8 space-y-4 border-dashed border-slate-300 bg-slate-50/50">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="app-section-title">Import from PDF</h3>
+                <h3 className="app-section-title">Import from file</h3>
                 <p className="app-muted mt-0.5">
-                  Upload a .pdf question paper. Numbered questions with options A–D and an answer key
-                  (e.g. <span className="font-mono text-xs">Answer: B</span>) work best.
+                  Upload <strong>.csv</strong> (recommended), <strong>.docx</strong>, or text-based{' '}
+                  <strong>.pdf</strong>. Scanned/image-only PDFs will not work.
                 </p>
               </div>
-              <Badge tone="brand">PDF · auto-parse</Badge>
+              <Badge tone="brand">CSV · PDF · Word</Badge>
             </div>
+            <McqUploadFormatGuide />
             <Input
               type="file"
-              accept=".pdf,application/pdf"
+              accept=".csv,.pdf,.docx,.txt,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
               disabled={parsingPdf}
-              onChange={(e) => void handlePdfImport(e)}
+              onChange={(e) => void handleDocumentImport(e)}
               className="bg-white"
             />
             {parsingPdf ? <p className="text-sm text-slate-500">Reading question paper…</p> : null}

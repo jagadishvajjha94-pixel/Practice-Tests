@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { resolveSyllabusTopicsForBuilder } from '@/lib/exam-builder/draw-questions';
+import { MCQ_UPLOAD_FORMAT_HINT } from '@/lib/faculty/parse-exam-text';
 import {
   extractTextFromUpload,
   parseMcqCsv,
@@ -72,24 +73,34 @@ export async function POST(request: NextRequest) {
   const name = file.name.toLowerCase();
   let parsedPaper: ReturnType<typeof parseMcqCsv>;
 
+  let extractedText = '';
+
   try {
     if (name.endsWith('.csv') || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel') {
       const text = await file.text();
+      extractedText = text;
       parsedPaper = parseMcqCsv(text);
     } else {
       const buffer = Buffer.from(await file.arrayBuffer());
       const { text, format } = await extractTextFromUpload(buffer, file.name, file.type);
+      extractedText = text;
       parsedPaper = parseMcqPlainText(text, format);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Could not read file';
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json({ error: message, formatHint: MCQ_UPLOAD_FORMAT_HINT }, { status: 400 });
   }
 
   const { questions, warnings } = parsedPaper;
   if (questions.length === 0) {
     return NextResponse.json(
-      { error: 'No MCQs could be extracted.', warnings },
+      {
+        error: 'No MCQs could be extracted. Use CSV for best results, or format PDF/Word as numbered questions with A–D options.',
+        warnings,
+        textPreview: extractedText.slice(0, 500),
+        charsExtracted: extractedText.length,
+        formatHint: MCQ_UPLOAD_FORMAT_HINT,
+      },
       { status: 422 },
     );
   }
