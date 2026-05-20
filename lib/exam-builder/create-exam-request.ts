@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
+import { resolveSyllabusTopicsForBuilder } from '@/lib/exam-builder/draw-questions';
+import { looksLikeUuid } from '@/lib/exam-builder/id-utils';
 import { getGroupDepartments, resolveExamBranchTargeting } from '@/lib/department-groups';
 import { publishFacultyExamRequest } from '@/lib/publish-faculty-exam';
 
@@ -56,6 +58,15 @@ export async function createFacultyExamRequestRecord(
     throw new Error('Set a primary department or choose a department group');
   }
 
+  let syllabusTopicUuids: string[] = [];
+  if (input.syllabusTopicIds?.length) {
+    const resolved = await resolveSyllabusTopicsForBuilder(admin, input.syllabusTopicIds);
+    syllabusTopicUuids = resolved.map((t) => t.id).filter(looksLikeUuid);
+    if (!syllabusTopicUuids.length && input.syllabusTopicIds.length) {
+      throw new Error('Could not resolve syllabus topics to tag UUIDs. Re-select topics and try again.');
+    }
+  }
+
   const { data: row, error } = await admin
     .from('faculty_exam_requests')
     .insert({
@@ -71,9 +82,12 @@ export async function createFacultyExamRequestRecord(
       status: 'pending',
       test_type: input.testType?.trim() || null,
       slot_key: input.slotKey?.trim() || null,
-      syllabus_topic_ids: input.syllabusTopicIds ?? [],
+      syllabus_topic_ids: syllabusTopicUuids,
       questions_per_topic: input.questionsPerTopic ?? null,
-      department_group_id: input.departmentGroupId ?? null,
+      department_group_id:
+        input.departmentGroupId && looksLikeUuid(input.departmentGroupId)
+          ? input.departmentGroupId
+          : null,
     })
     .select('id')
     .single();

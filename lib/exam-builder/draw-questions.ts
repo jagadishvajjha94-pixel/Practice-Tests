@@ -1,5 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
+import {
+  detectQuestionsIdKind,
+  looksLikeBigIntId,
+  looksLikeUuid,
+  normalizeQuestionId,
+} from '@/lib/exam-builder/id-utils';
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
@@ -10,11 +16,54 @@ function shuffle<T>(items: T[]): T[] {
   return copy;
 }
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function looksLikeUuidLocal(s: string): boolean {
+  return looksLikeUuid(s);
+}
 
-function looksLikeUuid(s: string): boolean {
-  return UUID_RE.test(s.trim());
+async function upsertQuestionTag(
+  admin: SupabaseClient,
+  slug: string,
+  name: string,
+): Promise<{ id: string; slug: string; name: string } | null> {
+  const { data: existing } = await admin
+    .from('question_tags')
+    .select('id, slug, name')
+    .eq('slug', slug)
+    .maybeSingle();
+
+  if (existing?.id && looksLikeUuidLocal(String(existing.id))) {
+    return {
+      id: String(existing.id),
+      slug: existing.slug as string,
+      name: existing.name as string,
+    };
+  }
+
+  const { data: inserted, error } = await admin
+    .from('question_tags')
+    .insert({ name, slug })
+    .select('id, slug, name')
+    .single();
+
+  if (error) {
+    const { data: again } = await admin
+      .from('question_tags')
+      .select('id, slug, name')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (again?.id) {
+      return {
+        id: String(again.id),
+        slug: again.slug as string,
+        name: again.name as string,
+      };
+    }
+    return null;
+  }
+
+  return inserted
+    ? { id: String(inserted.id), slug: inserted.slug as string, name: inserted.name as string }
+    : null;
 }
 
 /** PostgREST often caps page size (~1k rows); accumulate pages for large banks. */
@@ -35,8 +84,8 @@ async function getExcludedQuestionIds(
 
   const excluded = new Set<string>();
   for (const row of priorDraws ?? []) {
-    for (const id of (row.question_ids ?? []) as string[]) {
-      excluded.add(id);
+    for (const id of (row.question_ids ?? []) as unknown[]) {
+      excluded.add(normalizeQuestionId(id));
     }
   }
   return excluded;
@@ -57,7 +106,7 @@ async function questionIdsMatchingTagSlug(admin: SupabaseClient, tagSlug: string
     }
     const rows = data ?? [];
     for (const row of rows) {
-      if (row.id) out.push(row.id as string);
+      if (row.id != null) out.push(normalizeQuestionId(row.id));
     }
     if (rows.length < QUESTION_FETCH_PAGE) break;
     offset += QUESTION_FETCH_PAGE;
@@ -72,7 +121,7 @@ async function questionIdsForTag(
 ): Promise<string[]> {
   const ids = new Set<string>();
 
-  if (looksLikeUuid(tagId)) {
+  if (looksLikeUuidLocal(tagId)) {
     let linkOffset = 0;
     for (;;) {
       const { data: links, error } = await admin
@@ -83,7 +132,7 @@ async function questionIdsForTag(
       if (error) throw new Error(error.message);
       const rows = links ?? [];
       for (const row of rows) {
-        if (row.question_id) ids.add(row.question_id as string);
+        if (row.question_id != null) ids.add(normalizeQuestionId(row.question_id));
       }
       if (rows.length < QUESTION_FETCH_PAGE) break;
       linkOffset += QUESTION_FETCH_PAGE;
@@ -128,17 +177,44 @@ export async function resolveSyllabusTopicsForBuilder(
 
   const resolvedTags: ResolvedSyllabusTopic[] = [];
   for (const topicId of topicIds) {
-    const byId = (allTags ?? []).find((t) => t.id === topicId);
-    if (byId) {
-      resolvedTags.push({ id: byId.id as string, name: byId.name as string, slug: byId.slug as string });
+    const raw = String(topicId).trim();
+    if (!raw) continue;
+
+    if (looksLikeBigIntId(raw)) {
+      throw new Error(
+        `Invalid syllabus topic id "${raw}" (looks like a question number). Re-select topics using "Select syllabus topics".`,
+      );
+    }
+
+    const byId = (allTags ?? []).find((t) => String(t.id) === raw);
+    if (byId && looksLikeUuidLocal(String(byId.id))) {
+      resolvedTags.push({
+        id: String(byId.id),
+        name: byId.name as string,
+        slug: byId.slug as string,
+      });
       continue;
     }
-    const bySlug = (allTags ?? []).find((t) => t.slug === topicId);
-    if (bySlug) {
-      resolvedTags.push({ id: bySlug.id as string, name: bySlug.name as string, slug: bySlug.slug as string });
+
+    const bySlug = (allTags ?? []).find((t) => t.slug === raw);
+    if (bySlug && looksLikeUuidLocal(String(bySlug.id))) {
+      resolvedTags.push({
+        id: String(bySlug.id),
+        name: bySlug.name as string,
+        slug: bySlug.slug as string,
+      });
       continue;
     }
-    resolvedTags.push({ id: topicId, name: topicId, slug: topicId });
+
+    if (looksLikeUuidLocal(raw)) {
+      resolvedTags.push({ id: raw, name: raw, slug: raw });
+      continue;
+    }
+
+    const ensured = await upsertQuestionTag(admin, raw, raw);
+    if (ensured) {
+      resolvedTags.push(ensured);
+    }
   }
 
   if (!resolvedTags.length) {
@@ -212,7 +288,7 @@ export async function drawExamQuestionsFromTopics(
 
   const { data: questionRows } = await admin.from('questions').select('*').in('id', orderedIds);
 
-  const byId = new Map((questionRows ?? []).map((r) => [r.id as string, r]));
+  const byId = new Map((questionRows ?? []).map((r) => [normalizeQuestionId(r.id), r]));
   const questions: FacultyExamQuestion[] = [];
   for (const id of orderedIds) {
     const row = byId.get(id);
@@ -221,26 +297,37 @@ export async function drawExamQuestionsFromTopics(
     if (q) questions.push(q);
   }
 
+  const topicUuids = resolvedTags.map((t) => t.id).filter(looksLikeUuidLocal);
+  const questionIdKind = await detectQuestionsIdKind(admin);
+  const questionIdsForDraw =
+    questionIdKind === 'bigint'
+      ? orderedIds.map((id) => Number(id))
+      : orderedIds.filter(looksLikeUuidLocal);
+
+  const drawPayload: Record<string, unknown> = {
+    test_type: input.testType,
+    slot_key: input.slotKey,
+    topic_ids: topicUuids,
+    created_by: input.createdBy,
+    question_ids: questionIdsForDraw,
+  };
+
   const { data: drawRow, error: drawError } = await admin
     .from('exam_builder_draws')
-    .insert({
-      test_type: input.testType,
-      slot_key: input.slotKey,
-      topic_ids: input.topicIds,
-      question_ids: orderedIds,
-      created_by: input.createdBy,
-    })
+    .insert(drawPayload)
     .select('id')
     .single();
 
-  if (drawError || !drawRow?.id) {
-    throw new Error(drawError?.message ?? 'Could not record question draw for this slot');
+  if (drawError) {
+    warnings.push(
+      `Could not record draw history (${drawError.message}). Questions are still loaded — you can submit for approval.`,
+    );
   }
 
   return {
     questions,
     questionIds: orderedIds,
-    drawId: drawRow.id as string,
+    drawId: drawRow?.id ? String(drawRow.id) : '',
     topicsUsed,
     warnings,
   };

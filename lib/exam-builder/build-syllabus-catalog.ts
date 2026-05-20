@@ -1,8 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { syllabusUnitsForGroup, type SyllabusGroupKey } from '@/lib/exam-builder/syllabus';
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { looksLikeUuid } from '@/lib/exam-builder/id-utils';
 
 export type SyllabusCatalogTopic = {
   id: string;
@@ -16,7 +14,7 @@ async function countForSlug(
   slug: string,
   tagId?: string,
 ): Promise<number> {
-  if (tagId && UUID_RE.test(tagId)) {
+  if (tagId && looksLikeUuid(tagId)) {
     const { count, error } = await admin
       .from('question_tag_links')
       .select('*', { count: 'exact', head: true })
@@ -45,9 +43,10 @@ export async function buildSyllabusCatalogForGroup(
   return Promise.all(
     units.map(async (unit) => {
       const tag = tagBySlug.get(unit.slug);
-      const count = await countForSlug(admin, unit.slug, tag?.id as string | undefined);
+      const tagId = tag?.id != null ? String(tag.id) : null;
+      const count = await countForSlug(admin, unit.slug, tagId ?? undefined);
       return {
-        id: (tag?.id as string) ?? unit.slug,
+        id: tagId && looksLikeUuid(tagId) ? tagId : unit.slug,
         slug: unit.slug,
         name: (tag?.name as string) ?? unit.name,
         question_count: count,

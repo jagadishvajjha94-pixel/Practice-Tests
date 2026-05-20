@@ -7,6 +7,7 @@ import { postgresUrlSetupHint, resolvePostgresUrl, supabaseSqlEditorUrl } from '
 const MIGRATION_FILES = [
   '020_ensure_questions_table.sql',
   '021_questions_test_id_nullable.sql',
+  '022_exam_builder_draws_bigint_question_ids.sql',
 ];
 
 /** Full SQL to paste in Supabase SQL editor (020 + 021). */
