@@ -74,13 +74,21 @@ export default function UsersManagementPage() {
         }
         setIsAdmin(true);
 
-        // Fetch users
-        const { data: usersData } = await supabase
-          .from('users')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        setUsers(usersData || []);
+        const res = await fetch('/api/admin/users', { credentials: 'include' });
+        if (res.ok) {
+          const json = (await res.json()) as { students?: User[]; users?: User[] };
+          const rows = json.students ?? json.users ?? [];
+          setUsers(
+            rows.map((u) => ({
+              ...u,
+              branch: u.branch ?? null,
+              academic_year: (u as User & { academic_year?: string }).academic_year ?? null,
+            })) as User[],
+          );
+        } else {
+          const json = (await res.json().catch(() => ({}))) as { error?: string };
+          console.error('Admin users API:', json.error ?? res.status);
+        }
       } catch (error) {
         console.error('Error:', formatSupabaseError(error), error);
       } finally {

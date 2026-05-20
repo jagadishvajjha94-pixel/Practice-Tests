@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminSupabase } from '@/lib/admin-access';
 import {
   getPublicSupabaseAnonKey,
   getPublicSupabaseUrl,
   SUPABASE_PUBLIC_ENV_MESSAGE,
 } from '@/lib/supabase-public-env';
 import { isSignupDisabled } from '@/lib/auth-features';
+import { ensureStudentProfileRow, studentFieldsFromMetadata } from '@/lib/student-profile-sync';
 import {
   isPublicSignupEmailAllowed,
   isSignupRoleAllowed,
@@ -176,6 +178,16 @@ export async function POST(request: NextRequest) {
               userMetadata,
             );
             if (recovered) {
+              if (role === 'student') {
+                const admin = getAdminSupabase();
+                if (admin) {
+                  await ensureStudentProfileRow(
+                    admin,
+                    existing.id,
+                    studentFieldsFromMetadata(userMetadata, email),
+                  );
+                }
+              }
               return NextResponse.json({
                 ok: true,
                 user_id: existing.id,
@@ -196,7 +208,36 @@ export async function POST(request: NextRequest) {
       }
 
       const createdUser = adminPayload.user as { id?: string } | undefined;
-      return NextResponse.json({ ok: true, user_id: createdUser?.id ?? null, email_confirmed: true });
+      const userId = createdUser?.id ?? null;
+
+      if (userId && role === 'student') {
+        const admin = getAdminSupabase();
+        if (admin) {
+          await ensureStudentProfileRow(
+            admin,
+            userId,
+            studentFieldsFromMetadata(userMetadata, email),
+          );
+        }
+      }
+
+      if (userId && role === 'faculty' && metadata.department) {
+        const admin = getAdminSupabase();
+        if (admin) {
+          await admin.from('faculty_profiles').upsert(
+            {
+              user_id: userId,
+              department: metadata.department,
+              employee_id: metadata.employee_id ?? null,
+              full_name: fullName,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id' },
+          );
+        }
+      }
+
+      return NextResponse.json({ ok: true, user_id: userId, email_confirmed: true });
     }
 
     // Fallback path if service role key is unavailable: regular Supabase signup (may require confirmation).

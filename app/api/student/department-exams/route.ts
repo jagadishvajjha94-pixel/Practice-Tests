@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { academicYearInList } from '@/lib/academic-year-match';
 import { examMatchesDepartment } from '@/lib/faculty/department-match';
 import { isFacultyExamLiveForStudent } from '@/lib/exam-schedule';
 import type { ExamScheduleRow } from '@/lib/exam-schedule';
+import { resolveStudentTargeting } from '@/lib/student-profile-sync';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 
 export async function GET() {
@@ -13,14 +15,16 @@ export async function GET() {
     return NextResponse.json({ exams: [] });
   }
 
-  const { data: profile } = await admin
-    .from('users')
-    .select('branch, academic_year')
-    .eq('id', auth.ctx.resolved.id)
-    .maybeSingle();
+  const { data: authUser } = await admin.auth.admin.getUserById(auth.ctx.resolved.id);
+  const profile = await resolveStudentTargeting(
+    admin,
+    auth.ctx.resolved.id,
+    (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
+    auth.ctx.resolved.email,
+  );
 
-  const department = profile?.branch ?? auth.ctx.resolved.department;
-  const year = profile?.academic_year ?? auth.ctx.resolved.academicYear;
+  const department = profile.branch ?? auth.ctx.resolved.department;
+  const year = profile.academic_year ?? auth.ctx.resolved.academicYear;
 
   if (!department || !year) {
     return NextResponse.json({
@@ -44,7 +48,7 @@ export async function GET() {
 
   const exams = (requests ?? []).filter((r) => {
     const years = (r.target_years as string[]) ?? [];
-    if (!years.includes(year)) return false;
+    if (!academicYearInList(year, years)) return false;
     if (!examMatchesDepartment(r, department)) return false;
     return isFacultyExamLiveForStudent(r.id as string, schedules, department, year);
   });

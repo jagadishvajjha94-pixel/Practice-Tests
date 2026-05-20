@@ -1,3 +1,4 @@
+import { academicYearInList } from '@/lib/academic-year-match';
 import { departmentsMatch } from '@/lib/faculty/department-match';
 
 export type ExamScheduleStatus = 'scheduled' | 'live' | 'ended';
@@ -32,7 +33,7 @@ export function scheduleMatchesStudent(
   year: string,
 ): boolean {
   const years = schedule.target_years ?? [];
-  if (years.length > 0 && !years.includes(year)) return false;
+  if (years.length > 0 && !academicYearInList(year, years)) return false;
 
   const depts = schedule.target_departments ?? [];
   if (depts.length === 0) return true;
@@ -44,11 +45,12 @@ export function isScheduleLiveNow(
   now = Date.now(),
 ): boolean {
   if (schedule.status !== 'live') return false;
-  const start = new Date(schedule.starts_at).getTime();
-  if (Number.isNaN(start) || now < start) return false;
   if (!schedule.ends_at) return true;
   const end = new Date(schedule.ends_at).getTime();
-  return !Number.isNaN(end) && now <= end;
+  if (!Number.isNaN(end) && now > end) return false;
+  const start = new Date(schedule.starts_at).getTime();
+  if (Number.isNaN(start)) return true;
+  return now >= start;
 }
 
 export function isScheduleUpcoming(

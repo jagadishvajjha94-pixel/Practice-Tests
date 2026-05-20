@@ -79,12 +79,18 @@ export function AdminDashboard() {
 
         setIsAdmin(true);
 
-        const [{ data: users }, { data: attempts }, testsResult, categoryResult] = await Promise.all([
-          supabase.from('users').select('*'),
+        const [usersRes, { data: attempts }, testsResult, categoryResult] = await Promise.all([
+          fetch('/api/admin/users', { credentials: 'include' }),
           supabase.from('test_attempts').select('*'),
           supabase.from('tests').select('id, title, category_id'),
           supabase.from('test_categories').select('id, name, slug'),
         ]);
+
+        let users: Array<Record<string, unknown>> = [];
+        if (usersRes.ok) {
+          const usersJson = (await usersRes.json()) as { students?: Array<Record<string, unknown>> };
+          users = usersJson.students ?? [];
+        }
 
         let tests = testsResult.data;
         if (testsResult.error) {

@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { partitionEvaloraModulesForStudent, type EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
 import { partitionSchedulesForStudent, type ExamScheduleRow } from '@/lib/exam-schedule';
+import { listLiveFacultyExamsForStudent } from '@/lib/live-faculty-exams';
 import { buildStudentPortalPayload } from '@/lib/student-portal';
+import { resolveStudentTargeting } from '@/lib/student-profile-sync';
+import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 
 export async function GET() {
   const auth = await requireAuth(['student']);
@@ -22,14 +24,16 @@ export async function GET() {
     );
   }
 
-  const { data: profile } = await admin
-    .from('users')
-    .select('branch, academic_year, full_name')
-    .eq('id', auth.ctx.resolved.id)
-    .maybeSingle();
+  const { data: authUser } = await admin.auth.admin.getUserById(auth.ctx.resolved.id);
+  const profile = await resolveStudentTargeting(
+    admin,
+    auth.ctx.resolved.id,
+    (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
+    auth.ctx.resolved.email,
+  );
 
-  const department = profile?.branch ?? auth.ctx.resolved.department ?? null;
-  const year = profile?.academic_year ?? auth.ctx.resolved.academicYear ?? null;
+  const department = profile.branch ?? auth.ctx.resolved.department ?? null;
+  const year = profile.academic_year ?? auth.ctx.resolved.academicYear ?? null;
 
   if (!department || !year) {
     return NextResponse.json(
@@ -45,14 +49,31 @@ export async function GET() {
     );
   }
 
-  const [{ data: evaloraRows }, { data: scheduleRows }] = await Promise.all([
-    admin.from('evalora_module_schedules').select('*').neq('status', 'ended').order('starts_at', { ascending: true }),
-    admin.from('exam_schedules').select('*').neq('status', 'ended').order('starts_at', { ascending: true }),
-  ]);
+  const [{ data: evaloraRows }, { data: scheduleRows }, { data: approvedRequests }] =
+    await Promise.all([
+      admin
+        .from('evalora_module_schedules')
+        .select('*')
+        .neq('status', 'ended')
+        .order('starts_at', { ascending: true }),
+      admin
+        .from('exam_schedules')
+        .select('*')
+        .neq('status', 'ended')
+        .order('starts_at', { ascending: true }),
+      admin
+        .from('faculty_exam_requests')
+        .select(
+          'id, title, topic, description, duration_minutes, target_years, target_branches, published_test_id, department',
+        )
+        .eq('status', 'approved')
+        .not('published_test_id', 'is', null),
+    ]);
 
+  const schedules = (scheduleRows ?? []) as ExamScheduleRow[];
   const facultyIds = [
     ...new Set(
-      (scheduleRows ?? [])
+      schedules
         .map((s) => s.faculty_exam_request_id as string | null)
         .filter(Boolean) as string[],
     ),
@@ -77,22 +98,31 @@ export async function GET() {
     department,
     year,
   );
-  const faculty = partitionSchedulesForStudent(
-    (scheduleRows ?? []) as ExamScheduleRow[],
+  const faculty = partitionSchedulesForStudent(schedules, department, year, extras);
+
+  const supplementalLive = listLiveFacultyExamsForStudent(
+    (approvedRequests ?? []) as Parameters<typeof listLiveFacultyExamsForStudent>[0],
+    schedules,
     department,
     year,
     extras,
   );
 
+  const mergedLiveByTest = new Map<string, (typeof faculty.live)[0]>();
+  for (const exam of [...faculty.live, ...supplementalLive]) {
+    mergedLiveByTest.set(String(exam.test_id), exam);
+  }
+  const facultyLive = Array.from(mergedLiveByTest.values());
+
   return NextResponse.json({
     ...buildStudentPortalPayload({
       evaloraLive: evalora.live,
       evaloraUpcoming: evalora.upcoming,
-      facultyLive: faculty.live,
+      facultyLive,
       facultyUpcoming: faculty.upcoming,
       department,
       year,
     }),
-    studentName: profile?.full_name ?? auth.ctx.user.email ?? null,
+    studentName: profile.full_name ?? auth.ctx.user.email ?? null,
   });
 }

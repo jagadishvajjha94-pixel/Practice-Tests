@@ -12,6 +12,7 @@ const MIGRATION_FILES = [
   '023_faculty_department_group_id.sql',
   '024_published_test_id_text.sql',
   '025_test_categories_order_column.sql',
+  '026_users_profile_columns.sql',
 ];
 
 /** Full SQL to paste in Supabase SQL editor (020 + 021). */

@@ -48,6 +48,9 @@ export default function StudentHomePage() {
         router.replace('/admin/dashboard');
         return;
       }
+      await fetch('/api/student/sync-profile', { method: 'POST', credentials: 'include' }).catch(
+        () => null,
+      );
       const res = await fetch('/api/student/portal');
       if (res.ok) {
         setData((await res.json()) as PortalResponse);
