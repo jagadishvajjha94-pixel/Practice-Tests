@@ -39,9 +39,12 @@ export function LiveExamDashboard() {
   const [live, setLive] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
 
-  const load = useCallback(async (scheduleId?: string) => {
+  const load = useCallback(async (scheduleId: string) => {
     const q = scheduleId ? `?scheduleId=${encodeURIComponent(scheduleId)}` : '';
-    const res = await fetch(`/api/admin/live-dashboard${q}`, { credentials: 'include' });
+    const res = await fetch(`/api/admin/live-dashboard${q}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    });
     if (!res.ok) return;
     const json = (await res.json()) as {
       live?: boolean;
@@ -53,16 +56,22 @@ export function LiveExamDashboard() {
     setSchedules(json.schedules ?? []);
     setBoard(json.board ?? null);
     setRefreshedAt(json.refreshed_at ?? new Date().toISOString());
-    if (!selectedId && json.schedules?.[0]?.id) {
-      setSelectedId(json.schedules[0].id);
-    }
-  }, [selectedId]);
+  }, []);
 
   useEffect(() => {
-    void load(selectedId || undefined);
-    const timer = setInterval(() => {
-      void load(selectedId || undefined);
-    }, 2500);
+    void load('');
+  }, [load]);
+
+  useEffect(() => {
+    if (schedules.length > 0 && !selectedId) {
+      setSelectedId(schedules[0].id);
+    }
+  }, [schedules, selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    void load(selectedId);
+    const timer = setInterval(() => void load(selectedId), 2500);
     return () => clearInterval(timer);
   }, [load, selectedId]);
 

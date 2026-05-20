@@ -220,17 +220,19 @@ function isUuid(value: string): boolean {
 function shouldOmitTestId(testId: string): boolean {
   if (!testId || testId.startsWith('fallback-')) return true;
   if (testId === 'programming-assessment-v1') return true;
-  return !isUuid(testId);
+  return false;
 }
 
 async function resolveTestIdForInsert(
   supabase: SupabaseClient,
   testId: string,
 ): Promise<string | null> {
-  if (!shouldOmitTestId(testId)) return testId;
-  const { data } = await supabase.from('tests').select('id').limit(1).maybeSingle();
-  if (data?.id != null) return String(data.id);
-  return null;
+  if (shouldOmitTestId(testId)) {
+    const { data } = await supabase.from('tests').select('id').limit(1).maybeSingle();
+    if (data?.id != null) return String(data.id);
+    return null;
+  }
+  return testId.trim();
 }
 
 export async function persistTestAttempt(
