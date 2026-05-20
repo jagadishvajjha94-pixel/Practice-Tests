@@ -4,6 +4,8 @@ import { Question } from '@/lib/types';
 import { useTest } from './test-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CodingQuestionPanel } from '@/components/exam/coding-question-panel';
+import { isCodingQuestion } from '@/lib/practice-mappers';
 
 interface QuestionDisplayProps {
   question: Question;
@@ -19,6 +21,35 @@ export default function QuestionDisplay({ question, speedMode }: QuestionDisplay
   const handleAnswerChange = (value: string) => {
     setAnswer(question.id, value);
   };
+
+  const coding = isCodingQuestion(question);
+
+  if (coding) {
+    return (
+      <div>
+        <CodingQuestionPanel
+          question={question}
+          answer={typeof currentAnswer === 'string' ? currentAnswer : null}
+          onAnswerChange={handleAnswerChange}
+        />
+        {!speedMode ? (
+          <div className="flex gap-2 pt-4 mt-4 border-t border-gray-200">
+            <Button
+              onClick={() => markForReview(question.id, !isMarked)}
+              variant="ghost"
+              className={`flex-1 border-2 font-bold ${
+                isMarked
+                  ? 'border-amber-950 bg-amber-900 text-amber-50'
+                  : 'border-amber-800 bg-amber-100 text-amber-950'
+              }`}
+            >
+              {isMarked ? '⚑ Marked for Review' : '○ Mark for Review'}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   const stemIsVisual =
     /\n/.test(question.question_text) || /[■□▲▼●○◆◇◤◣◥◢◇]/.test(question.question_text);

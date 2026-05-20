@@ -9,6 +9,7 @@ import {
   SyllabusPickerDialog,
   type SyllabusTopicOption,
 } from '@/components/exam-builder/syllabus-picker-dialog';
+import { slugLooksLikeProgramming } from '@/lib/exam-builder/programming-syllabus';
 import {
   EXAM_BUILDER_SLOTS,
   EXAM_BUILDER_TEST_TYPES,
@@ -72,6 +73,14 @@ export function ExamBuilderControls({
       syllabusTopics
         .filter((t) => selectedTopicIds.includes(t.id))
         .map((t) => t.name),
+    [syllabusTopics, selectedTopicIds],
+  );
+
+  const includesProgrammingSyllabus = useMemo(
+    () =>
+      syllabusTopics
+        .filter((t) => selectedTopicIds.includes(t.id))
+        .some((t) => slugLooksLikeProgramming(t.slug)),
     [syllabusTopics, selectedTopicIds],
   );
 
@@ -302,6 +311,13 @@ export function ExamBuilderControls({
             <span className="font-mono text-[10px]">docs/OLLAMA.md</span>), or set cloud keys / HF token.
           </p>
         </>
+      ) : null}
+
+      {includesProgrammingSyllabus ? (
+        <StatusAlert variant="info">
+          Programming syllabus selected — this exam will include coding questions with the in-test
+          Monaco editor (alongside MCQs) when you submit or publish.
+        </StatusAlert>
       ) : null}
 
       {error ? <StatusAlert variant="error">{error}</StatusAlert> : null}

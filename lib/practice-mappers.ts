@@ -58,7 +58,13 @@ export function adaptQuestionRow(row: Record<string, unknown>): Question {
   const qa = typeof row.question_type === 'string' ? row.question_type : row.type;
 
   let type: Question['type'] =
-    qa === 'numeric' ? 'numeric' : qa === 'verbal' ? 'verbal' : 'MCQ';
+    qa === 'coding'
+      ? 'coding'
+      : qa === 'numeric'
+        ? 'numeric'
+        : qa === 'verbal'
+          ? 'verbal'
+          : 'MCQ';
 
   const optsFromJson = Array.isArray(row.options)
     ? row.options.map(String)
@@ -93,7 +99,31 @@ export function adaptQuestionRow(row: Record<string, unknown>): Question {
       typeof row.option_c === 'string' || row.option_c == null ? (row.option_c as string | null) : String(row.option_c),
     option_d:
       typeof row.option_d === 'string' || row.option_d == null ? (row.option_d as string | null) : String(row.option_d),
+    coding_problem_id:
+      typeof row.coding_problem_id === 'string' ? row.coding_problem_id : null,
+    coding_title: typeof row.title === 'string' ? row.title : null,
+    coding_sample_input:
+      typeof row.sample_input === 'string' ? row.sample_input : null,
+    coding_sample_output:
+      typeof row.sample_output === 'string' ? row.sample_output : null,
+    coding_input_format:
+      typeof row.input_format === 'string' ? row.input_format : null,
+    coding_output_format:
+      typeof row.output_format === 'string' ? row.output_format : null,
+    coding_hint: typeof row.hint === 'string' ? row.hint : null,
   };
+}
+
+export function isCodingQuestion(question: {
+  type?: string;
+  question_type?: string;
+  coding_problem_id?: string | null;
+}): boolean {
+  return (
+    question.type === 'coding' ||
+    question.question_type === 'coding' ||
+    Boolean(question.coding_problem_id)
+  );
 }
 
 /** Row from `test_questions` select with `question:questions(*)`. */

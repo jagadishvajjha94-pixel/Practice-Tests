@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { loadQuestionsForTake, loadTestRowForTake } from '@/lib/load-test-for-take';
 import { loadTestSections } from '@/lib/exam-v2/load-sections';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { findCompletedAttemptForTest } from '@/lib/test-attempts';
 
 type RouteContext = { params: Promise<{ testId: string }> };
 
@@ -24,6 +25,8 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Test not found' }, { status: 404 });
   }
 
+  const priorAttempt = await findCompletedAttemptForTest(admin, auth.ctx.user.id, testId.trim());
+
   const questions = await loadQuestionsForTake(admin, testId.trim());
   const sections = await loadTestSections(admin, testId.trim());
 
@@ -43,5 +46,7 @@ export async function GET(_request: Request, context: RouteContext) {
     test: { ...test, total_questions: questions.length },
     questions,
     sections,
+    alreadySubmitted: Boolean(priorAttempt),
+    priorAttempt,
   });
 }

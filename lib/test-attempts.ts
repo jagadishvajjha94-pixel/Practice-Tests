@@ -68,6 +68,59 @@ function toNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+export type CompletedAttemptSummary = {
+  id: string;
+  score: number;
+  completed_at: string | null;
+};
+
+export function testIdsMatch(stored: unknown, target: string): boolean {
+  const s = String(stored ?? '').trim();
+  const t = target.trim();
+  if (!s || !t) return false;
+  if (s === t) return true;
+  if (/^\d+$/.test(s) && /^\d+$/.test(t) && Number(s) === Number(t)) return true;
+  return false;
+}
+
+export function isAttemptRowCompleted(row: AttemptRow): boolean {
+  const status = String(row.status ?? '').toLowerCase();
+  if (status === 'completed' || status === 'submitted') return true;
+  return Boolean(row.completed_at);
+}
+
+/** Returns a prior completed submission for this test, if any. */
+export async function findCompletedAttemptForTest(
+  supabase: SupabaseClient,
+  userId: string,
+  testId: string,
+): Promise<CompletedAttemptSummary | null> {
+  const rows = await queryAttempts(supabase, userId);
+  for (const row of rows) {
+    if (!testIdsMatch(row.test_id, testId)) continue;
+    if (!isAttemptRowCompleted(row)) continue;
+    const attempt = normalizeAttemptRow(row);
+    return {
+      id: attempt.id,
+      score: attempt.score,
+      completed_at: attempt.completed_at,
+    };
+  }
+
+  const stats = await fetchStudentDashboardStats(supabase, userId);
+  for (const entry of stats) {
+    if (!testIdsMatch(entry.test_id, testId)) continue;
+    if (entry.status !== 'completed' && !entry.completed_at) continue;
+    return {
+      id: entry.id,
+      score: entry.score,
+      completed_at: entry.completed_at,
+    };
+  }
+
+  return null;
+}
+
 export function normalizeAttemptRow(row: AttemptRow): TestAttempt {
   const created = String(row.created_at ?? row.started_at ?? new Date().toISOString());
   return {

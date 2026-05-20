@@ -1,4 +1,4 @@
-import { answersMatchMcq } from '@/lib/practice-mappers';
+import { answersMatchMcq, isCodingQuestion } from '@/lib/practice-mappers';
 import type { Question } from '@/lib/types';
 import type { TestSectionConfig } from '@/lib/exam-v2/section-timer';
 
@@ -23,6 +23,20 @@ export function scoreMcqWithNegativeMarking(
 
   for (const q of questions) {
     const ua = answers[q.id]?.userAnswer;
+    if (isCodingQuestion(q)) {
+      let attempted = false;
+      if (ua != null && String(ua).trim() !== '') {
+        try {
+          const parsed = JSON.parse(String(ua)) as { sourceCode?: string };
+          attempted = Boolean(parsed.sourceCode?.trim());
+        } catch {
+          attempted = true;
+        }
+      }
+      if (attempted) correct++;
+      else skipped++;
+      continue;
+    }
     if (ua === null || ua === undefined || ua === '') {
       skipped++;
       continue;

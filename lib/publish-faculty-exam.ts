@@ -6,7 +6,8 @@ import {
   isUuidTypeMismatchError,
   normalizeTestId,
 } from '@/lib/exam-builder/id-utils';
-import { parseQuestionsJson, type FacultyExamQuestion } from '@/lib/faculty-exams';
+import { isFacultyCodingQuestion } from '@/lib/exam-builder/programming-syllabus';
+import { parseQuestionsJson, type FacultyExamQuestion, type FacultyMcqQuestion } from '@/lib/faculty-exams';
 
 const DEPT_EXAMS_SLUG = 'department-exams';
 
@@ -85,7 +86,9 @@ export async function publishFacultyExamRequest(
   const testId = normalizeTestId(testRow.id, testsIdKind);
   const testIdStr = String(testId);
 
-  const questionRows = questions.map((q) => {
+  const mcqQuestions = questions.filter((q): q is FacultyMcqQuestion => !isFacultyCodingQuestion(q));
+
+  const questionRows = mcqQuestions.map((q) => {
     const row: Record<string, unknown> = {
       question_text: q.question_text,
       question_type: 'mcq',

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
+import { augmentExamQuestionsWithCoding } from '@/lib/exam-builder/programming-syllabus';
 import { resolveSyllabusTopicsForBuilder } from '@/lib/exam-builder/draw-questions';
 import { looksLikeUuid } from '@/lib/exam-builder/id-utils';
 import { getGroupDepartments, resolveExamBranchTargeting } from '@/lib/department-groups';
@@ -59,13 +60,21 @@ export async function createFacultyExamRequestRecord(
   }
 
   let syllabusTopicUuids: string[] = [];
+  let syllabusTopicSlugs: string[] = [];
   if (input.syllabusTopicIds?.length) {
     const resolved = await resolveSyllabusTopicsForBuilder(admin, input.syllabusTopicIds);
     syllabusTopicUuids = resolved.map((t) => t.id).filter(looksLikeUuid);
+    syllabusTopicSlugs = resolved.map((t) => t.slug);
     if (!syllabusTopicUuids.length && input.syllabusTopicIds.length) {
       throw new Error('Could not resolve syllabus topics to tag UUIDs. Re-select topics and try again.');
     }
   }
+
+  const examQuestions = augmentExamQuestionsWithCoding(
+    input.questions,
+    syllabusTopicSlugs.length ? syllabusTopicSlugs : input.syllabusTopicIds ?? [],
+    input.testType,
+  );
 
   const insertPayload: Record<string, unknown> = {
     faculty_user_id: input.creatorUserId,
@@ -76,7 +85,7 @@ export async function createFacultyExamRequestRecord(
     target_years: input.targetYears,
     target_branches,
     duration_minutes: input.durationMinutes,
-    questions_json: input.questions,
+    questions_json: examQuestions,
     status: 'pending',
     test_type: input.testType?.trim() || null,
     slot_key: input.slotKey?.trim() || null,

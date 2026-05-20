@@ -33,6 +33,11 @@ import { ProctorConsentGate } from '@/components/proctor/proctor-consent-gate';
 import { createProctorSessionId } from '@/lib/exam-v2/proctoring';
 import { RmsetExamIntro } from '@/components/rmset/rmset-exam-intro';
 import { isRmsetTestCategorySlug } from '@/lib/rmset/student-exam-intro';
+import {
+  getAttemptIndexForUser,
+  testIdsMatch,
+  type CompletedAttemptSummary,
+} from '@/lib/test-attempts';
 
 /** `pending` = waiting on Supabase session; avoid starting the test until resolved (prevents full-paper race). */
 type PracticeAccessState = 'pending' | 'guest' | 'full';
@@ -60,6 +65,7 @@ export default function TakeTestPage({
   const [practiceAccess, setPracticeAccess] = useState<PracticeAccessState>('pending');
   const [examSections, setExamSections] = useState<TestSectionConfig[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [priorAttempt, setPriorAttempt] = useState<CompletedAttemptSummary | null>(null);
 
   useLayoutEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -137,6 +143,8 @@ export default function TakeTestPage({
         }
 
         const { data: sessionData } = await supabase.auth.getSession();
+        let detectedPrior: CompletedAttemptSummary | null = null;
+
         if (sessionData.session?.user) {
           const res = await fetch(`/api/student/tests/${encodeURIComponent(testId)}`, {
             credentials: 'include',
@@ -146,9 +154,20 @@ export default function TakeTestPage({
             questions?: Question[];
             sections?: TestSectionConfig[];
             error?: string;
+            alreadySubmitted?: boolean;
+            priorAttempt?: CompletedAttemptSummary | null;
           };
+          if (json.priorAttempt) {
+            detectedPrior = json.priorAttempt;
+          }
           if (json.test) {
             setTest(json.test);
+          }
+          if (json.alreadySubmitted && json.priorAttempt) {
+            setPriorAttempt(json.priorAttempt);
+            if (json.questions?.length) setQuestions(json.questions);
+            if (json.sections?.length) setExamSections(json.sections);
+            return;
           }
           if (res.ok && json.questions?.length) {
             setQuestions(json.questions);
@@ -206,6 +225,25 @@ export default function TakeTestPage({
 
         const sections = await loadTestSections(supabase, testId);
         setExamSections(sections);
+
+        const userId = sessionData.session?.user?.id;
+        if (userId && !detectedPrior) {
+          const localHit = getAttemptIndexForUser(userId).find(
+            (a) =>
+              testIdsMatch(a.test_id, testId) &&
+              (a.status === 'completed' || Boolean(a.completed_at)),
+          );
+          if (localHit) {
+            detectedPrior = {
+              id: localHit.id,
+              score: localHit.score,
+              completed_at: localHit.completed_at,
+            };
+          }
+        }
+        if (detectedPrior) {
+          setPriorAttempt(detectedPrior);
+        }
       } catch (error) {
         if (isSchemaMissingError(error)) {
           const fallbackTest = getFallbackTestById(testId);
@@ -298,6 +336,30 @@ export default function TakeTestPage({
 
   const isRmsetPaper =
     isRmsetTestCategorySlug(test.category_slug) || /\bRMSET\b/i.test(test.name ?? '');
+
+  if (priorAttempt && practiceAccess === 'full') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="p-8 text-center max-w-md">
+          <h1 className="text-lg font-semibold text-[#0c2340] mb-2">{test.name}</h1>
+          <p className="text-muted-foreground mb-2">
+            You have already submitted this test. Each student may attempt it only once.
+          </p>
+          <p className="text-sm font-medium text-emerald-800 mb-6">
+            Score: {Math.round(priorAttempt.score)}%
+          </p>
+          <div className="flex flex-col gap-2">
+            <Button asChild>
+              <Link href={`/tests/result/${priorAttempt.id}`}>View result</Link>
+            </Button>
+            <Button variant="outline" onClick={() => router.back()}>
+              Go back
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (!testStarted) {
     if (practiceAccess === 'full') {

@@ -1,4 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  augmentExamQuestionsWithCoding,
+  examShouldIncludeCodingQuestions,
+  isFacultyCodingQuestion,
+} from '@/lib/exam-builder/programming-syllabus';
 import { parseQuestionsJson, type FacultyExamQuestion } from '@/lib/faculty-exams';
 import { adaptQuestionRow, adaptTestRow, extractJoinedQuestion } from '@/lib/practice-mappers';
 import type { Question, Test } from '@/lib/types';
@@ -17,23 +22,82 @@ export function facultyQuestionsToUiQuestions(
   testId: string,
 ): Question[] {
   const now = new Date().toISOString();
-  return items.map((q, index) => ({
-    id: `${testId}-q${index + 1}`,
-    category_id: '',
-    difficulty: 'medium' as const,
-    question_text: q.question_text,
-    type: 'MCQ' as const,
-    options: [q.option_a, q.option_b, q.option_c, q.option_d],
-    correct_answer: q.correct_answer,
-    explanation: q.explanation ?? null,
-    tags: null,
-    created_at: now,
-    updated_at: now,
-    option_a: q.option_a,
-    option_b: q.option_b,
-    option_c: q.option_c,
-    option_d: q.option_d,
-  }));
+  return items.map((q, index) => {
+    const id = `${testId}-q${index + 1}`;
+    if (isFacultyCodingQuestion(q)) {
+      return {
+        id,
+        category_id: '',
+        difficulty: 'medium' as const,
+        question_text: q.question_text,
+        type: 'coding' as const,
+        options: null,
+        correct_answer: '',
+        explanation: null,
+        tags: ['technical-programming'],
+        created_at: now,
+        updated_at: now,
+        question_type: 'coding',
+        coding_problem_id: q.coding_problem_id,
+        coding_title: q.title ?? null,
+        coding_sample_input: q.sample_input ?? null,
+        coding_sample_output: q.sample_output ?? null,
+        coding_input_format: q.input_format ?? null,
+        coding_output_format: q.output_format ?? null,
+        coding_hint: q.hint ?? null,
+      };
+    }
+    return {
+      id,
+      category_id: '',
+      difficulty: 'medium' as const,
+      question_text: q.question_text,
+      type: 'MCQ' as const,
+      options: [q.option_a, q.option_b, q.option_c, q.option_d],
+      correct_answer: q.correct_answer,
+      explanation: q.explanation ?? null,
+      tags: null,
+      created_at: now,
+      updated_at: now,
+      question_type: 'mcq',
+      option_a: q.option_a,
+      option_b: q.option_b,
+      option_c: q.option_c,
+      option_d: q.option_d,
+    };
+  });
+}
+
+async function resolveSyllabusSlugs(
+  client: SupabaseClient,
+  topicIds: unknown,
+): Promise<string[]> {
+  if (!Array.isArray(topicIds) || !topicIds.length) return [];
+  const slugs: string[] = [];
+  for (const raw of topicIds) {
+    const id = String(raw).trim();
+    if (!id) continue;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      slugs.push(id);
+      continue;
+    }
+    const { data } = await client.from('question_tags').select('slug').eq('id', id).maybeSingle();
+    if (data?.slug) slugs.push(data.slug as string);
+  }
+  return slugs;
+}
+
+function facultyQuestionsForTake(
+  rawJson: unknown,
+  topicSlugs: string[],
+  testType: string | null | undefined,
+): FacultyExamQuestion[] {
+  const parsed = parseQuestionsJson(rawJson);
+  const hasCoding = parsed.some(isFacultyCodingQuestion);
+  if (hasCoding || !examShouldIncludeCodingQuestions(testType, topicSlugs)) {
+    return parsed;
+  }
+  return augmentExamQuestionsWithCoding(parsed, topicSlugs, testType);
 }
 
 /** Load a test row (legacy schemas: bigint id, title vs name, optional category embed). */
@@ -163,15 +227,22 @@ export async function loadQuestionsForTake(
     const publishedId = String(id);
     const { data: fer } = await client
       .from('faculty_exam_requests')
-      .select('questions_json')
+      .select('questions_json, test_type, syllabus_topic_ids')
       .eq('published_test_id', publishedId)
       .eq('status', 'approved')
       .limit(1)
       .maybeSingle();
 
-    const parsed = parseQuestionsJson(fer?.questions_json);
-    if (parsed.length) {
-      return facultyQuestionsToUiQuestions(parsed, String(testId));
+    if (fer?.questions_json) {
+      const topicSlugs = await resolveSyllabusSlugs(client, fer.syllabus_topic_ids);
+      const items = facultyQuestionsForTake(
+        fer.questions_json,
+        topicSlugs,
+        (fer.test_type as string | null) ?? null,
+      );
+      if (items.length) {
+        return facultyQuestionsToUiQuestions(items, String(testId));
+      }
     }
   }
 

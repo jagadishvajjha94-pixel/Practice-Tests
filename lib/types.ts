@@ -30,12 +30,17 @@ export interface TestCategory {
   created_at: string;
 }
 
+export type CodingAnswerMeta = {
+  language: string;
+  sourceCode: string;
+};
+
 export interface Question {
   id: string;
   category_id: string;
   difficulty: 'easy' | 'medium' | 'hard';
   question_text: string;
-  type: 'MCQ' | 'numeric' | 'verbal';
+  type: 'MCQ' | 'numeric' | 'verbal' | 'coding';
   options: string[] | null;
   correct_answer: string;
   explanation: string | null;
@@ -48,6 +53,14 @@ export interface Question {
   option_b?: string | null;
   option_c?: string | null;
   option_d?: string | null;
+  /** Coding items (Monaco editor in take-test UI). */
+  coding_problem_id?: string | null;
+  coding_title?: string | null;
+  coding_sample_input?: string | null;
+  coding_sample_output?: string | null;
+  coding_input_format?: string | null;
+  coding_output_format?: string | null;
+  coding_hint?: string | null;
 }
 
 export interface Test {

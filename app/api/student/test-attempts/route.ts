@@ -3,6 +3,7 @@ import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import {
   ensureStudentUserRow,
   fetchAttemptsForUser,
+  findCompletedAttemptForTest,
   persistTestAttempt,
   fallbackTestForAttempt,
   normalizeAttemptRow,
@@ -93,6 +94,21 @@ export async function POST(request: Request) {
     id: userId,
     email: auth.ctx.user.email,
   });
+
+  const testId = String(body.testId ?? '').trim();
+  if (testId) {
+    const prior = await findCompletedAttemptForTest(service, userId, testId);
+    if (prior) {
+      return NextResponse.json(
+        {
+          error: 'You have already submitted this test and cannot take it again.',
+          attemptId: prior.id,
+          priorAttempt: prior,
+        },
+        { status: 409 },
+      );
+    }
+  }
 
   const statEntry = buildStatEntry({
     id: `pending-${Date.now()}`,

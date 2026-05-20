@@ -13,7 +13,7 @@ import QuestionDisplay from './question-display';
 import QuestionNavigation from './question-navigation';
 import TestTimer from './test-timer';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { answersMatchMcq } from '@/lib/practice-mappers';
+import { answersMatchMcq, isCodingQuestion } from '@/lib/practice-mappers';
 import { formatSupabaseError } from '@/lib/utils';
 import { isSchemaMissingError } from '@/lib/fallback-question-bank';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -268,6 +268,7 @@ export default function TestInterface({
   }, [fullAccess, unlockedCount, currentQuestionIndex, setCurrentQuestionIndex]);
 
   const currentQuestion = activeSectionQuestions[currentQuestionIndex];
+  const isCodingItem = currentQuestion ? isCodingQuestion(currentQuestion) : false;
 
   const scopeQuestions = fullAccess ? activeSectionQuestions : activeSectionQuestions.slice(0, unlockedCount);
   const answeredCount = scopeQuestions.filter(
@@ -441,6 +442,17 @@ export default function TestInterface({
             submitReason,
           }),
         });
+        if (apiRes.status === 409) {
+          const json = (await apiRes.json().catch(() => ({}))) as {
+            error?: string;
+            attemptId?: string;
+          };
+          alert(json.error ?? 'You have already submitted this test.');
+          if (json.attemptId) {
+            router.replace(`/tests/result/${json.attemptId}`);
+          }
+          return;
+        }
         if (apiRes.ok) {
           const json = (await apiRes.json()) as {
             id?: string;
@@ -656,18 +668,17 @@ export default function TestInterface({
       ) : null}
 
       <div
-        aria-hidden
-        className={
-          proctorActive && violationCount > 0
-            ? 'h-[6.25rem] shrink-0 md:h-[6.5rem]'
-            : 'h-[4.75rem] shrink-0 md:h-20'
-        }
-      />
-
-      <div className="flex-1 max-w-7xl mx-auto w-full grid md:grid-cols-4 gap-4 p-4 pb-8">
-        {/* Question Display */}
-        <div className="md:col-span-3">
-          <Card className="p-6 mb-4 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
+        className={`flex-1 max-w-7xl mx-auto w-full gap-4 p-4 pb-8 ${
+          isCodingItem ? 'flex flex-col' : 'grid md:grid-cols-4'
+        }`}
+      >
+        {/* Question Display — full width when coding editor is active */}
+        <div className={isCodingItem ? 'w-full min-w-0' : 'md:col-span-3'}>
+          <Card
+            className={`mb-4 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none ${
+              isCodingItem ? 'p-4 sm:p-5' : 'p-6'
+            }`}
+          >
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-700">
@@ -739,7 +750,7 @@ export default function TestInterface({
         </div>
 
         {/* Sidebar */}
-        <div className="md:col-span-1">
+        <div className={isCodingItem ? 'w-full lg:w-72 shrink-0 lg:ml-auto' : 'md:col-span-1'}>
           <Card className="p-4 md:sticky md:top-24 bg-white border-gray-200 text-gray-900 shadow-sm backdrop-blur-none">
             <h3 className="font-semibold text-gray-900 mb-4">Test Status</h3>
 

@@ -2,7 +2,10 @@ import { ACADEMIC_YEARS } from '@/lib/college-brand';
 
 export type FacultyExamStatus = 'pending' | 'approved' | 'rejected';
 
-export type FacultyExamQuestion = {
+import type { FacultyCodingQuestion } from '@/lib/exam-builder/programming-syllabus';
+
+export type FacultyMcqQuestion = {
+  question_type?: 'mcq';
   question_text: string;
   option_a: string;
   option_b: string;
@@ -11,6 +14,8 @@ export type FacultyExamQuestion = {
   correct_answer: 'A' | 'B' | 'C' | 'D';
   explanation?: string;
 };
+
+export type FacultyExamQuestion = FacultyMcqQuestion | FacultyCodingQuestion;
 
 export type FacultyExamRequest = {
   id: string;
@@ -46,9 +51,27 @@ export function parseQuestionsJson(raw: unknown): FacultyExamQuestion[] {
     const q = item as Record<string, unknown>;
     const text = String(q.question_text ?? '').trim();
     if (!text) continue;
+
+    if (q.question_type === 'coding') {
+      const problemId = String(q.coding_problem_id ?? 'double-number').trim();
+      out.push({
+        question_type: 'coding',
+        question_text: text,
+        coding_problem_id: problemId,
+        title: q.title ? String(q.title) : undefined,
+        sample_input: q.sample_input ? String(q.sample_input) : undefined,
+        sample_output: q.sample_output ? String(q.sample_output) : undefined,
+        input_format: q.input_format ? String(q.input_format) : undefined,
+        output_format: q.output_format ? String(q.output_format) : undefined,
+        hint: q.hint ? String(q.hint) : undefined,
+      });
+      continue;
+    }
+
     const letter = String(q.correct_answer ?? 'A').toUpperCase();
     const correct = ['A', 'B', 'C', 'D'].includes(letter) ? (letter as 'A' | 'B' | 'C' | 'D') : 'A';
     out.push({
+      question_type: 'mcq',
       question_text: text,
       option_a: String(q.option_a ?? '').trim(),
       option_b: String(q.option_b ?? '').trim(),
