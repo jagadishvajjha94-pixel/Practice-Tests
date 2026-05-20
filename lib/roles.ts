@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isAllowlistedAdminEmail } from '@/lib/admin-defaults';
 import { DEPARTMENTS, ACADEMIC_YEARS, type Department, type AcademicYear } from '@/lib/college-brand';
 
 export type AppRole = 'student' | 'faculty' | 'admin' | 'guest';
@@ -91,10 +92,7 @@ export async function resolveAppUserFromAuthUser(
     };
   }
 
-  const allowlisted =
-    user.email?.trim().toLowerCase() === 'admin@prepindia.local' ||
-    user.email?.trim().toLowerCase() ===
-      process.env.PREPINDIA_ADMIN_EMAIL?.trim().toLowerCase();
+  const allowlisted = isAllowlistedAdminEmail(user.email);
 
   if (allowlisted && adminError) {
     const errMsg = String(adminError.message ?? '').toLowerCase();

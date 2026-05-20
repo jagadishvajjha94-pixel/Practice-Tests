@@ -1,16 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-
-function getAllowlistedAdminEmails(): string[] {
-  const fromEnv = process.env.PREPINDIA_ADMIN_EMAIL?.trim().toLowerCase();
-  const defaults = ['admin@prepindia.local'];
-  return [...new Set([...defaults, ...(fromEnv ? [fromEnv] : [])])];
-}
-
-function isAllowlistedAdminEmail(email: string | undefined | null): boolean {
-  if (!email) return false;
-  const normalized = email.trim().toLowerCase();
-  return getAllowlistedAdminEmails().includes(normalized);
-}
+import { isAllowlistedAdminEmail } from '@/lib/admin-defaults';
 
 function isMissingAdminTableError(message: string): boolean {
   const m = message.toLowerCase();

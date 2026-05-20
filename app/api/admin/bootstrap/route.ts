@@ -9,6 +9,10 @@ import {
   upsertPublicUser,
 } from '@/lib/admin-access';
 import { ensureAdminAccess } from '@/lib/admin-verify';
+import {
+  getConfiguredAdminEmail,
+  getConfiguredAdminPassword,
+} from '@/lib/admin-defaults';
 
 type BootstrapBody = {
   email?: string;
@@ -42,17 +46,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const email =
-    body.email?.trim().toLowerCase() ||
-    process.env.PREPINDIA_ADMIN_EMAIL?.trim().toLowerCase() ||
-    'admin@prepindia.local';
-  const password =
-    body.password || process.env.PREPINDIA_ADMIN_PASSWORD || 'PrepIndia@Admin2026';
-  const fullName = body.fullName?.trim() || 'PrepIndia Admin';
+  const email = body.email?.trim().toLowerCase() || getConfiguredAdminEmail();
+  const password = body.password || getConfiguredAdminPassword();
+  const fullName = body.fullName?.trim() || 'RCE Training & Placement Admin';
 
-  if (!email || password.length < 8) {
+  if (!email || password.length < 6) {
     return NextResponse.json(
-      { error: 'Email required and password must be at least 8 characters.' },
+      { error: 'Email required and password must be at least 6 characters.' },
       { status: 400 },
     );
   }
