@@ -11,7 +11,7 @@ export async function GET() {
 
   const admin = getServiceSupabase();
   if (!admin) {
-    return NextResponse.json({ live: [], upcoming: [], department, year: null });
+    return NextResponse.json({ live: [], upcoming: [], department: null, year: null });
   }
 
   const { data: profile } = await admin

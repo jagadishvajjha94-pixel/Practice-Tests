@@ -16,7 +16,7 @@ export function ExamStatusPanel({
 }) {
   if (live.length === 0 && upcoming.length === 0) {
     return (
-      <Card className="p-4 border-slate-200 bg-slate-50/80">
+      <Card className="p-4 border-slate-200/80 lux-surface rounded-xl bg-white/90">
         <p className="text-sm font-semibold text-slate-800">No scheduled tests</p>
         <p className="text-xs text-slate-600 mt-1">
           Check back when your examination cell publishes a schedule.
@@ -26,7 +26,7 @@ export function ExamStatusPanel({
   }
 
   return (
-    <Card className="p-4 border-slate-200 space-y-4">
+    <Card className="p-4 border-slate-200/80 lux-surface rounded-xl space-y-4 bg-white/90">
       <div>
         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Exam status</p>
         <h2 className="text-lg font-bold text-[#0c2340] mt-0.5">Live & upcoming</h2>

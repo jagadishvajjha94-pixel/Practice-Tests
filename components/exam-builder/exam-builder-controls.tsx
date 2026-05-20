@@ -84,7 +84,56 @@ export function ExamBuilderControls({
     }
   };
 
-  const generateQuestions = async () => {
+  const generateQuestionsWithAi = async () => {
+    setError(null);
+    setInfo(null);
+    if (!testDef?.requiresSyllabus) return;
+    if (!selectedTopicIds.length) {
+      setError('Select syllabus topics first.');
+      setSyllabusOpen(true);
+      return;
+    }
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/exam-builder/ai-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          testType,
+          topicIds: selectedTopicIds,
+          questionsPerTopic,
+          difficulty: 'medium',
+        }),
+      });
+      const json = (await res.json()) as {
+        questions?: FacultyExamQuestion[];
+        warnings?: string[];
+        error?: string;
+        total?: number;
+        rawPreview?: string;
+      };
+      if (!res.ok) {
+        const hint =
+          json.rawPreview && json.error
+            ? `${json.error} (preview: ${json.rawPreview.slice(0, 120)}…) `
+            : json.error ?? '';
+        throw new Error(hint || 'Could not generate MCQs');
+      }
+      onQuestionsGenerated(json.questions ?? [], json.warnings ?? []);
+      let msg = `AI generated ${json.total ?? json.questions?.length ?? 0} MCQs across selected syllabus topics.`;
+      if (json.warnings?.length) {
+        msg = `${json.warnings.join(' ')} ${msg}`;
+      }
+      setInfo(msg);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Generation failed');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  /** Legacy: pull unused questions from the campus question bank (requires populated bank). */
+  const drawQuestionsFromBank = async () => {
     setError(null);
     setInfo(null);
     if (!testDef?.requiresSyllabus) return;
@@ -111,16 +160,15 @@ export function ExamBuilderControls({
         error?: string;
         total?: number;
       };
-      if (!res.ok) throw new Error(json.error ?? 'Could not generate paper');
+      if (!res.ok) throw new Error(json.error ?? 'Could not draw from question bank');
       onQuestionsGenerated(json.questions ?? [], json.warnings ?? []);
-      setInfo(
-        `Generated ${json.total ?? 0} questions for ${slotKey.replace('-', ' ')} — topics stay fresh per slot.`,
-      );
+      let msg = `Drew ${json.total ?? 0} questions from the bank for ${slotKey.replace('-', ' ')} (slot keeps sets fresh).`;
       if (json.warnings?.length) {
-        setInfo(`${json.warnings.join(' ')} Generated ${json.total ?? 0} questions.`);
+        msg = `${json.warnings.join(' ')} ${msg}`;
       }
+      setInfo(msg);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
+      setError(err instanceof Error ? err.message : 'Draw failed');
     } finally {
       setGenerating(false);
     }
@@ -130,7 +178,13 @@ export function ExamBuilderControls({
   const slots = catalog?.slots ?? EXAM_BUILDER_SLOTS;
 
   return (
-    <div className={compact ? 'space-y-4' : 'space-y-5 rounded-xl border border-slate-200 bg-slate-50/60 p-5'}>
+    <div
+      className={
+        compact
+          ? 'space-y-4'
+          : 'space-y-5 rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/80 to-slate-100/40 p-5 lux-surface shadow-lg shadow-slate-900/5'
+      }
+    >
       <div>
         <h3 className="text-sm font-bold text-[#0c2340]">Test type & slot</h3>
         {!compact ? (
@@ -202,10 +256,18 @@ export function ExamBuilderControls({
               <Button
                 type="button"
                 disabled={generating}
-                onClick={() => void generateQuestions()}
-                className="bg-[#1e3a5f] hover:bg-[#16304f]"
+                onClick={() => void generateQuestionsWithAi()}
+                className="bg-gradient-to-r from-[#1e3a5f] to-[#2563eb] hover:from-[#16304f] hover:to-[#1d4ed8] text-white shadow-md shadow-slate-900/15"
               >
-                {generating ? 'Building paper…' : 'Generate question paper'}
+                {generating ? 'Generating with AI…' : 'Generate with AI'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={generating}
+                onClick={() => void drawQuestionsFromBank()}
+              >
+                Draw from bank
               </Button>
             </div>
           </div>
@@ -223,6 +285,13 @@ export function ExamBuilderControls({
               No syllabus selected yet — click &quot;Select syllabus topics&quot; to choose units.
             </p>
           )}
+
+          <p className="text-[10px] leading-relaxed text-slate-500">
+            AI MCQs use your selected topics in the prompt. Configure{' '}
+            <span className="font-mono text-[10px]">LOCAL_LLM_URL</span> or{' '}
+            <span className="font-mono text-[10px]">OLLAMA_HOST</span> for Ollama (see{' '}
+            <span className="font-mono text-[10px]">docs/OLLAMA.md</span>), or set cloud keys / HF token.
+          </p>
         </>
       ) : null}
 

@@ -75,6 +75,41 @@ function rowToFacultyQuestion(row: Record<string, unknown>): FacultyExamQuestion
   };
 }
 
+export type ResolvedSyllabusTopic = { id: string; name: string; slug: string };
+
+/** Resolve picker topic ids (UUID or slug) to tag rows for prompts and bank draws. */
+export async function resolveSyllabusTopicsForBuilder(
+  admin: SupabaseClient,
+  topicIds: string[],
+): Promise<ResolvedSyllabusTopic[]> {
+  if (!topicIds.length) {
+    throw new Error('Select at least one syllabus topic');
+  }
+
+  const { data: allTags } = await admin.from('question_tags').select('id, name, slug');
+
+  const resolvedTags: ResolvedSyllabusTopic[] = [];
+  for (const topicId of topicIds) {
+    const byId = (allTags ?? []).find((t) => t.id === topicId);
+    if (byId) {
+      resolvedTags.push({ id: byId.id as string, name: byId.name as string, slug: byId.slug as string });
+      continue;
+    }
+    const bySlug = (allTags ?? []).find((t) => t.slug === topicId);
+    if (bySlug) {
+      resolvedTags.push({ id: bySlug.id as string, name: bySlug.name as string, slug: bySlug.slug as string });
+      continue;
+    }
+    resolvedTags.push({ id: topicId, name: topicId, slug: topicId });
+  }
+
+  if (!resolvedTags.length) {
+    throw new Error('Selected syllabus topics not found');
+  }
+
+  return resolvedTags;
+}
+
 export type DrawExamQuestionsInput = {
   testType: string;
   topicIds: string[];
@@ -102,24 +137,7 @@ export async function drawExamQuestionsFromTopics(
   const excluded = await getExcludedQuestionIds(admin, input.testType, input.slotKey);
   const warnings: string[] = [];
 
-  const { data: allTags } = await admin.from('question_tags').select('id, name, slug');
-
-  const resolvedTags: { id: string; name: string; slug: string }[] = [];
-  for (const topicId of input.topicIds) {
-    const byId = (allTags ?? []).find((t) => t.id === topicId);
-    if (byId) {
-      resolvedTags.push({ id: byId.id as string, name: byId.name as string, slug: byId.slug as string });
-      continue;
-    }
-    const bySlug = (allTags ?? []).find((t) => t.slug === topicId);
-    if (bySlug) {
-      resolvedTags.push({ id: bySlug.id as string, name: bySlug.name as string, slug: bySlug.slug as string });
-      continue;
-    }
-    resolvedTags.push({ id: topicId, name: topicId, slug: topicId });
-  }
-
-  if (!resolvedTags.length) throw new Error('Selected syllabus topics not found');
+  const resolvedTags = await resolveSyllabusTopicsForBuilder(admin, input.topicIds);
 
   const usedInPaper = new Set<string>();
   const orderedIds: string[] = [];

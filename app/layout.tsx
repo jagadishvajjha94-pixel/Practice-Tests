@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Geist, Geist_Mono, Playfair_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import GlobalBackButton from '@/components/global-back-button'
@@ -8,6 +8,11 @@ import CollegeSiteHeader from '@/components/college-site-header'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' });
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' });
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Ramachandra College — Training & Placement Department',
@@ -29,7 +34,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-scroll-behavior="smooth"
-      className={`${geist.variable} ${geistMono.variable}`}
+      className={`${geist.variable} ${geistMono.variable} ${playfair.variable}`}
     >
       <body className={`${geist.className} font-sans antialiased bg-background text-foreground min-h-dvh`}>
         <CollegeSiteHeader />

@@ -1,4 +1,4 @@
-export type AiProviderId = 'openai' | 'gemini' | 'claude' | 'local';
+export type AiProviderId = 'openai' | 'gemini' | 'claude' | 'huggingface' | 'local' | 'mock';
 
 export type AiTaskType =
   | 'mcq_generate'

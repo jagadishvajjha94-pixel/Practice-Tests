@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatusAlert } from '@/components/ui/status-alert';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { ExamBuilderControls } from '@/components/exam-builder/exam-builder-controls';
+import { QuestionBankUploadPanel } from '@/components/exam-builder/question-bank-upload-panel';
 import { DepartmentGroupPicker } from '@/components/exam-builder/department-group-picker';
 import { ACADEMIC_YEARS, DEPARTMENTS } from '@/lib/college-brand';
 import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
@@ -23,7 +24,7 @@ export default function AdminExamBuilderPage() {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [department, setDepartment] = useState(DEPARTMENTS[0]);
+  const [department, setDepartment] = useState<string>(DEPARTMENTS[0] ?? '');
   const [departmentGroupId, setDepartmentGroupId] = useState('');
   const [targetYears, setTargetYears] = useState<string[]>([...ACADEMIC_YEARS]);
   const [duration, setDuration] = useState(45);
@@ -165,11 +166,13 @@ export default function AdminExamBuilderPage() {
           onSelectedTopicIdsChange={setSyllabusTopicIds}
           questionsPerTopic={questionsPerTopic}
           onQuestionsPerTopicChange={setQuestionsPerTopic}
-          onQuestionsGenerated={(qs, w) => {
+            onQuestionsGenerated={(qs, w) => {
             setQuestions(qs);
             setWarnings(w);
           }}
         />
+
+        <QuestionBankUploadPanel tagIds={syllabusTopicIds} />
 
         <div className="grid md:grid-cols-2 gap-4">
           <div>

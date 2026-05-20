@@ -78,10 +78,11 @@ export function buildStudentPortalPayload(input: {
     ...input.evaloraUpcoming.map(fromEvalora),
   ].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
 
+  /** Featured card is only for tests that are live now (admin-triggered / window open). */
   let featured: PortalExamItem | null = null;
-  if (input.facultyLive.length) featured = fromFaculty(input.facultyLive[0]);
-  else if (input.evaloraLive.length) featured = fromEvalora(input.evaloraLive[0]);
-  else if (upcoming.length) featured = upcoming[0];
+  if (live.length > 0) {
+    featured = live[0];
+  }
 
   return {
     featured,

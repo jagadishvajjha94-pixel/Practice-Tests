@@ -12,6 +12,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 import { cn } from '@/lib/utils';
 import { ExamBuilderControls } from '@/components/exam-builder/exam-builder-controls';
+import { QuestionBankUploadPanel } from '@/components/exam-builder/question-bank-upload-panel';
 import { DepartmentGroupPicker } from '@/components/exam-builder/department-group-picker';
 import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
 
@@ -267,6 +268,8 @@ export default function FacultyUploadPage() {
             }}
           />
 
+          <QuestionBankUploadPanel tagIds={syllabusTopicIds} />
+
           <div>
             <h3 className="app-section-title">Exam details</h3>
             <p className="app-muted mt-0.5">Branches, years, title, and duration.</p>
@@ -408,21 +411,21 @@ export default function FacultyUploadPage() {
                 Syllabus paper mode — use <strong>Generate question paper</strong> below or on the
                 details step, then edit MCQs before submitting.
               </p>
-              <ExamBuilderControls
-                compact
-                testType={testType}
-                onTestTypeChange={setTestType}
-                slotKey={slotKey}
-                onSlotKeyChange={setSlotKey}
-                selectedTopicIds={syllabusTopicIds}
-                onSelectedTopicIdsChange={setSyllabusTopicIds}
-                questionsPerTopic={questionsPerTopic}
-                onQuestionsPerTopicChange={setQuestionsPerTopic}
-                onQuestionsGenerated={(qs, warnings) => {
-                  setQuestions(qs.length ? qs : [emptyQuestion()]);
-                  setPaperWarnings(warnings);
-                }}
-              />
+          <ExamBuilderControls
+            compact
+            testType={testType}
+            onTestTypeChange={setTestType}
+            slotKey={slotKey}
+            onSlotKeyChange={setSlotKey}
+            selectedTopicIds={syllabusTopicIds}
+            onSelectedTopicIdsChange={setSyllabusTopicIds}
+            questionsPerTopic={questionsPerTopic}
+            onQuestionsPerTopicChange={setQuestionsPerTopic}
+            onQuestionsGenerated={(qs, warnings) => {
+              setQuestions(qs.length ? qs : [emptyQuestion()]);
+              setPaperWarnings(warnings);
+            }}
+          />
             </Card>
           ) : (
             <Card className="p-6 sm:p-8 space-y-4 border-dashed border-slate-300 bg-slate-50/50">
