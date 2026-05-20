@@ -48,6 +48,8 @@ export default function AdminExamSchedulesPage() {
   const [endsAt, setEndsAt] = useState('');
   const [creating, setCreating] = useState(false);
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
+  const [rosterCounts, setRosterCounts] = useState<Record<string, number>>({});
+  const [uploadingRosterFor, setUploadingRosterFor] = useState<string | null>(null);
 
   const load = async () => {
     const res = await fetch('/api/admin/exam-schedules');
@@ -57,9 +59,23 @@ export default function AdminExamSchedulesPage() {
         approvedExams?: ApprovedExam[];
         warnings?: string[];
       };
-      setSchedules(json.schedules ?? []);
+      const list = json.schedules ?? [];
+      setSchedules(list);
       setApprovedExams(json.approvedExams ?? []);
       setLoadWarning(json.warnings?.join(' ') ?? null);
+      const counts: Record<string, number> = {};
+      await Promise.all(
+        list.map(async (s) => {
+          const r = await fetch(`/api/admin/exam-schedules/${s.id}/roster`, {
+            credentials: 'include',
+          });
+          if (r.ok) {
+            const body = (await r.json()) as { count?: number };
+            counts[s.id] = body.count ?? 0;
+          }
+        }),
+      );
+      setRosterCounts(counts);
       if (!facultyExamRequestId && json.approvedExams?.length) {
         setFacultyExamRequestId(json.approvedExams[0].id);
       }
@@ -96,6 +112,31 @@ export default function AdminExamSchedulesPage() {
       await load();
     } finally {
       setActing(null);
+    }
+  };
+
+  const uploadRoster = async (scheduleId: string, file: File) => {
+    setUploadingRosterFor(scheduleId);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('replace', 'true');
+      const res = await fetch(`/api/admin/exam-schedules/${scheduleId}/roster`, {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      });
+      const json = (await res.json()) as { error?: string; imported?: number; parseErrors?: string[] };
+      if (!res.ok) {
+        alert(json.error ?? 'Roster upload failed');
+        return;
+      }
+      alert(
+        `Imported ${json.imported ?? 0} students.${json.parseErrors?.length ? ` ${json.parseErrors.length} row warnings.` : ''} Only these roll numbers can take the exam while it is live.`,
+      );
+      await load();
+    } finally {
+      setUploadingRosterFor(null);
     }
   };
 
@@ -233,8 +274,16 @@ export default function AdminExamSchedulesPage() {
               </Button>
             </div>
             <p className="text-xs text-slate-500">
-              Departments/years default from the faculty exam. Students see <strong>Live test</strong>{' '}
-              when you go live, and <strong>Upcoming</strong> with your notice before the start time.
+              Departments/years default from the faculty exam. Upload a student roster CSV on each
+              schedule so <strong>only listed roll numbers</strong> can open the test — others see a
+              locked screen even with the link.
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              CSV columns: <code className="bg-slate-100 px-1 rounded">roll_number</code>,{' '}
+              <code className="bg-slate-100 px-1 rounded">full_name</code>,{' '}
+              <code className="bg-slate-100 px-1 rounded">department</code>,{' '}
+              <code className="bg-slate-100 px-1 rounded">year</code> (aliases like roll, name, dept
+              also work).
             </p>
           </>
         )}
@@ -254,6 +303,7 @@ export default function AdminExamSchedulesPage() {
                   <th className="py-2 pr-3">Starts</th>
                   <th className="py-2 pr-3">Ends</th>
                   <th className="py-2 pr-3">Notice</th>
+                  <th className="py-2 pr-3">Roster</th>
                   <th className="py-2">Actions</th>
                 </tr>
               </thead>
@@ -283,6 +333,27 @@ export default function AdminExamSchedulesPage() {
                     </td>
                     <td className="py-3 pr-3 text-slate-500 max-w-[12rem] truncate">
                       {s.notice ?? '—'}
+                    </td>
+                    <td className="py-3 pr-3">
+                      <p className="text-xs font-medium text-slate-700 tabular-nums">
+                        {rosterCounts[s.id] ?? 0} students
+                      </p>
+                      <label className="mt-1 inline-block">
+                        <input
+                          type="file"
+                          accept=".csv,text/csv"
+                          className="hidden"
+                          disabled={uploadingRosterFor === s.id}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) void uploadRoster(s.id, f);
+                            e.target.value = '';
+                          }}
+                        />
+                        <span className="text-xs font-semibold text-[#1e3a5f] cursor-pointer hover:underline">
+                          {uploadingRosterFor === s.id ? 'Uploading…' : 'Upload CSV'}
+                        </span>
+                      </label>
                     </td>
                     <td className="py-3">
                       <div className="flex flex-wrap gap-1">

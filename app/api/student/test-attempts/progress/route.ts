@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { ensureStudentUserRow, testIdsMatch } from '@/lib/test-attempts';
+import { assertStudentCanTakeTest } from '@/lib/exam-roster/roster-access';
+import { resolveStudentTargeting } from '@/lib/student-profile-sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +33,30 @@ export async function POST(request: Request) {
     id: userId,
     email: auth.ctx.user.email,
   });
+
+  const { data: authUser } = await service.auth.admin.getUserById(userId);
+  const profile = await resolveStudentTargeting(
+    service,
+    userId,
+    (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
+    authUser?.user?.email ?? auth.ctx.user.email,
+  );
+  const access = await assertStudentCanTakeTest(
+    service,
+    {
+      id: userId,
+      email: authUser?.user?.email ?? auth.ctx.user.email,
+      user_metadata: (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
+    },
+    testId,
+    profile,
+  );
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: access.message, code: access.code, locked: true },
+      { status: 403 },
+    );
+  }
 
   const nowIso = new Date().toISOString();
   const testName = typeof body.testName === 'string' ? body.testName : 'Live exam';

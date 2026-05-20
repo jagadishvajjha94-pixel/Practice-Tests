@@ -3,6 +3,9 @@ import { loadQuestionsForTake, loadTestRowForTake } from '@/lib/load-test-for-ta
 import { loadTestSections } from '@/lib/exam-v2/load-sections';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { findCompletedAttemptForTest } from '@/lib/test-attempts';
+import { rollFromAuthUser } from '@/lib/exam-roster/normalize-roll';
+import { checkStudentExamAccess } from '@/lib/exam-roster/roster-access';
+import { resolveStudentTargeting } from '@/lib/student-profile-sync';
 
 type RouteContext = { params: Promise<{ testId: string }> };
 
@@ -23,6 +26,34 @@ export async function GET(_request: Request, context: RouteContext) {
   const test = await loadTestRowForTake(admin, testId.trim());
   if (!test) {
     return NextResponse.json({ error: 'Test not found' }, { status: 404 });
+  }
+
+  const { data: authUser } = await admin.auth.admin.getUserById(auth.ctx.resolved.id);
+  const profile = await resolveStudentTargeting(
+    admin,
+    auth.ctx.resolved.id,
+    (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
+    auth.ctx.resolved.email ?? auth.ctx.user.email,
+  );
+  const access = await checkStudentExamAccess(admin, {
+    testId: testId.trim(),
+    rollNumber: rollFromAuthUser({
+      email: authUser?.user?.email ?? auth.ctx.user.email,
+      user_metadata: (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
+    }),
+    department: profile.branch ?? auth.ctx.resolved.department ?? '',
+    year: profile.academic_year ?? auth.ctx.resolved.academicYear ?? '',
+  });
+
+  if (!access.allowed) {
+    return NextResponse.json(
+      {
+        error: access.message,
+        code: access.code,
+        locked: true,
+      },
+      { status: 403 },
+    );
   }
 
   const priorAttempt = await findCompletedAttemptForTest(admin, auth.ctx.user.id, testId.trim());

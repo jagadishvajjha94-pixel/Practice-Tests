@@ -63,6 +63,7 @@ export default function TakeTestPage({
   const [examSections, setExamSections] = useState<TestSectionConfig[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [priorAttempt, setPriorAttempt] = useState<CompletedAttemptSummary | null>(null);
+  const [accessLocked, setAccessLocked] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -127,6 +128,7 @@ export default function TakeTestPage({
   useEffect(() => {
     const fetchTest = async () => {
       setLoadError(null);
+      setAccessLocked(null);
       try {
         const supabase = getSupabaseBrowserClient();
         if (!supabase) {
@@ -142,6 +144,23 @@ export default function TakeTestPage({
         const { data: sessionData } = await supabase.auth.getSession();
         let detectedPrior: CompletedAttemptSummary | null = null;
 
+        const policyRes = await fetch(`/api/tests/${encodeURIComponent(testId)}/access-policy`);
+        if (policyRes.ok) {
+          const policy = (await policyRes.json()) as {
+            loginRequired?: boolean;
+            rosterEnforced?: boolean;
+            liveExamTitle?: string | null;
+          };
+          if (policy.loginRequired && !sessionData.session?.user) {
+            setAccessLocked(
+              policy.rosterEnforced
+                ? `Sign in with your college roll number to take “${policy.liveExamTitle ?? 'this live examination'}”. Only students on the official roster can proceed.`
+                : `Sign in with your roll number to take “${policy.liveExamTitle ?? 'this live examination'}”.`,
+            );
+            return;
+          }
+        }
+
         if (sessionData.session?.user) {
           const res = await fetch(`/api/student/tests/${encodeURIComponent(testId)}`, {
             credentials: 'include',
@@ -151,9 +170,18 @@ export default function TakeTestPage({
             questions?: Question[];
             sections?: TestSectionConfig[];
             error?: string;
+            code?: string;
+            locked?: boolean;
             alreadySubmitted?: boolean;
             priorAttempt?: CompletedAttemptSummary | null;
           };
+          if (res.status === 403 && json.locked) {
+            setAccessLocked(
+              json.error ??
+                'You are not authorized to take this examination. Contact the examination cell.',
+            );
+            return;
+          }
           if (json.priorAttempt) {
             detectedPrior = json.priorAttempt;
           }
@@ -265,6 +293,27 @@ export default function TakeTestPage({
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-muted-foreground">Loading test...</p>
+      </div>
+    );
+  }
+
+  if (accessLocked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
+        <Card className="p-8 text-center max-w-md border-amber-200 bg-amber-50/80">
+          <p className="text-xs font-bold uppercase tracking-wider text-amber-800 mb-2">
+            Examination locked
+          </p>
+          <h1 className="text-lg font-semibold text-[#0c2340] mb-3">Access not permitted</h1>
+          <p className="text-sm text-amber-950 mb-6">{accessLocked}</p>
+          <p className="text-xs text-slate-600 mb-6">
+            Only students on the official roster uploaded by the admin may attempt this live test.
+            Sharing the link does not grant access.
+          </p>
+          <Button asChild className="w-full">
+            <Link href="/home">Return to dashboard</Link>
+          </Button>
+        </Card>
       </div>
     );
   }

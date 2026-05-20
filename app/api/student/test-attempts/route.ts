@@ -15,6 +15,8 @@ import {
   fetchStudentDashboardStats,
 } from '@/lib/student-dashboard-stats';
 import type { TestAttempt } from '@/lib/types';
+import { assertStudentCanTakeTest } from '@/lib/exam-roster/roster-access';
+import { resolveStudentTargeting } from '@/lib/student-profile-sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,6 +99,30 @@ export async function POST(request: Request) {
 
   const testId = String(body.testId ?? '').trim();
   if (testId) {
+    const { data: authUser } = await service.auth.admin.getUserById(userId);
+    const profile = await resolveStudentTargeting(
+      service,
+      userId,
+      (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
+      authUser?.user?.email ?? auth.ctx.user.email,
+    );
+    const access = await assertStudentCanTakeTest(
+      service,
+      {
+        id: userId,
+        email: authUser?.user?.email ?? auth.ctx.user.email,
+        user_metadata: (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
+      },
+      testId,
+      profile,
+    );
+    if (!access.allowed) {
+      return NextResponse.json(
+        { error: access.message, code: access.code, locked: true },
+        { status: 403 },
+      );
+    }
+
     const prior = await findCompletedAttemptForTest(service, userId, testId);
     if (prior) {
       return NextResponse.json(
