@@ -20,12 +20,19 @@ Deleting rows with **`seed-demo-v1`** cleanly removes **all** seeded demo MCQs b
 
 ## Apply (first time)
 
+**Order matters.** If you see `Could not find the table 'public.questions' in the schema cache`, run **`020_ensure_questions_table.sql` first**, then **`019_demo_question_bank_seed.sql`**.
+
 ```bash
 cd apps/prepindia-web
 supabase db push
 ```
 
-Or paste the migration into the Supabase SQL editor (**may take tens of seconds**).
+Or in the **Supabase SQL editor** (Dashboard → SQL):
+
+1. Paste and run **`supabase/migrations/020_ensure_questions_table.sql`**
+2. Paste and run **`supabase/migrations/019_demo_question_bank_seed.sql`**
+
+Wait ~30 seconds after step 1 so the API schema cache reloads (migration ends with `NOTIFY pgrst, 'reload schema'`).
 
 ## Already ran an older seed (`12` items per topic)?
 
@@ -44,6 +51,18 @@ WHERE COALESCE(tags, '[]'::jsonb) @> '["seed-demo-v1"]'::jsonb;
 DELETE FROM public.questions
 WHERE COALESCE(tags, '[]'::jsonb) @> '["seed-demo-v1"]'::jsonb;
 ```
+
+## Troubleshooting: “No unused questions … slot-1”
+
+1. **Nothing in the bank for that topic** — Apply seed migration `019_demo_question_bank_seed.sql` or upload MCQs tagged with that syllabus slug.
+
+2. **Every question for that topic was already drawn in this slot** — Draws are tracked in `exam_builder_draws` for **`test_type` + `slot_key`** (last **250** papers are considered). Use **slot-2**, or clear draws for that combo, e.g.:
+
+   ```sql
+   DELETE FROM exam_builder_draws WHERE slot_key = 'slot-1' AND test_type = 'aptitude';
+   ```
+
+The exam builder now loads tag pools with **paginated** queries (no more “only first ~1000 rows” from an unfiltered `questions` scan).
 
 ## Note
 

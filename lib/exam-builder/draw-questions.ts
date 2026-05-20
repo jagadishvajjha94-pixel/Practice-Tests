@@ -10,6 +10,16 @@ function shuffle<T>(items: T[]): T[] {
   return copy;
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function looksLikeUuid(s: string): boolean {
+  return UUID_RE.test(s.trim());
+}
+
+/** PostgREST often caps page size (~1k rows); accumulate pages for large banks. */
+const QUESTION_FETCH_PAGE = 900;
+
 async function getExcludedQuestionIds(
   admin: SupabaseClient,
   testType: string,
@@ -21,7 +31,7 @@ async function getExcludedQuestionIds(
     .eq('test_type', testType)
     .eq('slot_key', slotKey)
     .order('created_at', { ascending: false })
-    .limit(50);
+    .limit(250);
 
   const excluded = new Set<string>();
   for (const row of priorDraws ?? []) {
@@ -32,6 +42,26 @@ async function getExcludedQuestionIds(
   return excluded;
 }
 
+async function questionIdsMatchingTagSlug(admin: SupabaseClient, tagSlug: string): Promise<string[]> {
+  const out: string[] = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await admin
+      .from('questions')
+      .select('id')
+      .contains('tags', [tagSlug])
+      .range(offset, offset + QUESTION_FETCH_PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    for (const row of rows) {
+      if (row.id) out.push(row.id as string);
+    }
+    if (rows.length < QUESTION_FETCH_PAGE) break;
+    offset += QUESTION_FETCH_PAGE;
+  }
+  return out;
+}
+
 async function questionIdsForTag(
   admin: SupabaseClient,
   tagId: string,
@@ -39,21 +69,26 @@ async function questionIdsForTag(
 ): Promise<string[]> {
   const ids = new Set<string>();
 
-  const { data: links } = await admin
-    .from('question_tag_links')
-    .select('question_id')
-    .eq('tag_id', tagId);
-
-  for (const row of links ?? []) {
-    if (row.question_id) ids.add(row.question_id as string);
+  if (looksLikeUuid(tagId)) {
+    let linkOffset = 0;
+    for (;;) {
+      const { data: links, error } = await admin
+        .from('question_tag_links')
+        .select('question_id')
+        .eq('tag_id', tagId)
+        .range(linkOffset, linkOffset + QUESTION_FETCH_PAGE - 1);
+      if (error) throw new Error(error.message);
+      const rows = links ?? [];
+      for (const row of rows) {
+        if (row.question_id) ids.add(row.question_id as string);
+      }
+      if (rows.length < QUESTION_FETCH_PAGE) break;
+      linkOffset += QUESTION_FETCH_PAGE;
+    }
   }
 
-  const { data: rows } = await admin.from('questions').select('id, tags, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation');
-  for (const row of rows ?? []) {
-    const tags = Array.isArray(row.tags) ? (row.tags as string[]) : [];
-    if (tags.some((t) => t === tagSlug || t === tagId)) {
-      ids.add(row.id as string);
-    }
+  for (const id of await questionIdsMatchingTagSlug(admin, tagSlug)) {
+    ids.add(id);
   }
 
   return [...ids];
@@ -144,9 +179,8 @@ export async function drawExamQuestionsFromTopics(
   const topicsUsed: { id: string; name: string; count: number }[] = [];
 
   for (const tag of resolvedTags) {
-    const pool = shuffle(await questionIdsForTag(admin, tag.id as string, tag.slug as string)).filter(
-      (id) => !excluded.has(id) && !usedInPaper.has(id),
-    );
+    const fullForTag = await questionIdsForTag(admin, tag.id as string, tag.slug as string);
+    const pool = shuffle(fullForTag).filter((id) => !excluded.has(id) && !usedInPaper.has(id));
 
     if (pool.length < input.questionsPerTopic) {
       warnings.push(
@@ -156,8 +190,13 @@ export async function drawExamQuestionsFromTopics(
 
     const picked = pool.slice(0, input.questionsPerTopic);
     if (picked.length === 0) {
+      if (fullForTag.length === 0) {
+        throw new Error(
+          `No questions in the bank for "${tag.name}" (slug: ${tag.slug}). Ensure your Supabase has question_tags + MCQs (e.g. run migration 019 or upload questions for this topic).`,
+        );
+      }
       throw new Error(
-        `No unused questions for "${tag.name}" in ${input.slotKey}. Try another slot or add more bank questions.`,
+        `Every question for "${tag.name}" in this bank is already marked as used for test type "${input.testType}" + slot "${input.slotKey}". Pick another slot (e.g. slot-2), or delete rows for that slot in table exam_builder_draws, or add more MCQs.`,
       );
     }
 

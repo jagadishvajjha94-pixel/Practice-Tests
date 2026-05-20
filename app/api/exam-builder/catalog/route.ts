@@ -10,26 +10,19 @@ import { syllabusUnitsForGroup, type SyllabusGroupKey } from '@/lib/exam-builder
 async function countForSlug(
   admin: NonNullable<ReturnType<typeof getServiceSupabase>>,
   slug: string,
-  tagId?: string,
+  _tagId?: string,
 ): Promise<number> {
-  const ids = new Set<string>();
-  if (tagId) {
-    const { data: links } = await admin
-      .from('question_tag_links')
-      .select('question_id')
-      .eq('tag_id', tagId);
-    for (const row of links ?? []) {
-      if (row.question_id) ids.add(row.question_id as string);
-    }
+  const { count, error } = await admin
+    .from('questions')
+    .select('id', { count: 'exact', head: true })
+    .contains('tags', [slug]);
+
+  if (error) {
+    console.warn('[exam-builder/catalog] countForSlug', slug, error.message);
+    return 0;
   }
-  const { data: rows } = await admin.from('questions').select('id, tags');
-  for (const row of rows ?? []) {
-    const tags = Array.isArray(row.tags) ? (row.tags as string[]) : [];
-    if (tags.includes(slug) || (tagId && tags.includes(tagId))) {
-      ids.add(row.id as string);
-    }
-  }
-  return ids.size;
+
+  return count ?? 0;
 }
 
 export async function GET() {
