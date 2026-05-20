@@ -572,14 +572,20 @@ export default function TestInterface({
       }
 
       if (!attemptId.startsWith('local-') && proctorSummary?.sessionId) {
+        const authHeaders = await getSupabaseAuthHeaders(supabase);
         void fetch('/api/v2/proctor/ingest', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
             testId: test.id,
             sessionId: proctorSummary.sessionId,
             attemptId,
             linkAttempt: true,
+            batch: proctorSummary.violations.map((v) => ({
+              type: v.type,
+              metadata: { at: v.at },
+            })),
           }),
           keepalive: true,
         });

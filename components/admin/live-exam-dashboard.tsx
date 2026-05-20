@@ -78,14 +78,11 @@ export function LiveExamDashboard() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-6">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-amber-300">
-              Live examination · KBC board
+              Leaderboard
             </p>
             <h2 className="text-2xl sm:text-3xl font-black mt-1 text-amber-100">
-              {board?.test_title ?? 'Live test'}
+              {board?.test_title ?? board?.schedule?.title ?? 'Live exam'}
             </h2>
-            <p className="text-sm text-violet-200/90 mt-1">
-              Scores update as students answer · sorted by score, then submission time
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {schedules.length > 1 ? (

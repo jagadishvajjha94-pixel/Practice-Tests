@@ -31,7 +31,7 @@ export default function FacultyProctoringPage() {
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch('/api/faculty/proctoring');
+      const res = await fetch('/api/faculty/proctoring', { credentials: 'include' });
       if (res.ok) {
         const json = (await res.json()) as {
           department?: string;
@@ -45,6 +45,8 @@ export default function FacultyProctoringPage() {
       setLoading(false);
     };
     void load();
+    const timer = setInterval(() => void load(), 10000);
+    return () => clearInterval(timer);
   }, []);
 
   if (loading) {

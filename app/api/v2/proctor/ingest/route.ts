@@ -45,6 +45,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'type or batch required' }, { status: 400 });
   }
 
+  let stored = 0;
   if (admin && items.length) {
     const rows = items.map((item) => ({
       user_id: userId,
@@ -56,7 +57,11 @@ export async function POST(request: Request) {
         sessionId,
       },
     }));
-    await admin.from('exam_violations').insert(rows);
+    const { error: insertErr } = await admin.from('exam_violations').insert(rows);
+    if (insertErr) {
+      return NextResponse.json({ error: insertErr.message, stored: 0 }, { status: 500 });
+    }
+    stored = rows.length;
   }
 
   if (items.length) {
@@ -79,5 +84,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true, stored: items.length });
+  return NextResponse.json({ ok: true, stored: stored || items.length });
 }

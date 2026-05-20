@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { listStudentsInDepartment } from '@/lib/faculty/performance-data';
+import { loadProctoringViolations } from '@/lib/proctoring/proctoring-data';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const auth = await requireAuth(['faculty']);
@@ -25,38 +28,29 @@ export async function GET() {
   const students = await listStudentsInDepartment(admin, department);
   const studentIds = students.map((s) => s.id);
   if (studentIds.length === 0) {
-    return NextResponse.json({ department, violations: [], summary: { total: 0 } });
+    return NextResponse.json({
+      department,
+      violations: [],
+      summary: { total: 0, byType: {}, studentsFlagged: 0, autoSubmits: 0 },
+    });
   }
 
-  const { data: violations } = await admin
-    .from('exam_violations')
-    .select('id, user_id, test_id, attempt_id, violation_type, metadata, created_at')
-    .in('user_id', studentIds)
-    .order('created_at', { ascending: false })
-    .limit(200);
+  const { violations, summary } = await loadProctoringViolations(admin, {
+    userIds: studentIds,
+  });
 
   const emailById = new Map(students.map((s) => [s.id, s.email]));
   const nameById = new Map(students.map((s) => [s.id, s.full_name]));
 
-  const rows = (violations ?? []).map((row) => ({
+  const rows = violations.map((row) => ({
     ...row,
-    email: emailById.get(row.user_id as string) ?? null,
-    full_name: nameById.get(row.user_id as string) ?? null,
+    email: emailById.get(row.user_id) ?? null,
+    full_name: nameById.get(row.user_id) ?? null,
   }));
-
-  const byType = rows.reduce<Record<string, number>>((acc, row) => {
-    const t = String(row.violation_type);
-    acc[t] = (acc[t] ?? 0) + 1;
-    return acc;
-  }, {});
 
   return NextResponse.json({
     department,
     violations: rows,
-    summary: {
-      total: rows.length,
-      byType,
-      studentsFlagged: new Set(rows.map((r) => r.user_id)).size,
-    },
+    summary,
   });
 }

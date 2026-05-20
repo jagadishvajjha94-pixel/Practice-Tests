@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { loadProctoringViolations } from '@/lib/proctoring/proctoring-data';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const auth = await requireAuth(['admin']);
@@ -10,21 +13,36 @@ export async function GET() {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }
 
-  const { data: violations } = await admin
-    .from('exam_violations')
-    .select('id, user_id, test_id, attempt_id, violation_type, metadata, created_at')
-    .order('created_at', { ascending: false })
-    .limit(300);
+  const { violations, summary } = await loadProctoringViolations(admin);
 
-  const userIds = [...new Set((violations ?? []).map((v) => v.user_id).filter(Boolean))] as string[];
+  const userIds = [...new Set(violations.map((v) => v.user_id).filter(Boolean))];
   const { data: users } = userIds.length
     ? await admin.from('users').select('id, email, full_name, branch').in('id', userIds)
     : { data: [] };
 
   const userMap = new Map((users ?? []).map((u) => [u.id as string, u]));
 
-  const rows = (violations ?? []).map((row) => {
-    const u = userMap.get(row.user_id as string);
+  for (const uid of userIds) {
+    if (userMap.has(uid)) continue;
+    const { data: authUser } = await admin.auth.admin.getUserById(uid);
+    if (authUser?.user) {
+      userMap.set(uid, {
+        id: uid,
+        email: authUser.user.email ?? '',
+        full_name:
+          (authUser.user.user_metadata?.full_name as string | undefined) ??
+          (authUser.user.user_metadata?.name as string | undefined) ??
+          null,
+        branch:
+          (authUser.user.user_metadata?.branch as string | undefined) ??
+          (authUser.user.user_metadata?.department as string | undefined) ??
+          null,
+      });
+    }
+  }
+
+  const rows = violations.map((row) => {
+    const u = userMap.get(row.user_id);
     return {
       ...row,
       email: (u?.email as string) ?? null,
@@ -33,19 +51,8 @@ export async function GET() {
     };
   });
 
-  const byType = rows.reduce<Record<string, number>>((acc, row) => {
-    const t = String(row.violation_type);
-    acc[t] = (acc[t] ?? 0) + 1;
-    return acc;
-  }, {});
-
   return NextResponse.json({
     violations: rows,
-    summary: {
-      total: rows.length,
-      byType,
-      studentsFlagged: userIds.length,
-      autoSubmits: byType.auto_submit_violations ?? 0,
-    },
+    summary,
   });
 }

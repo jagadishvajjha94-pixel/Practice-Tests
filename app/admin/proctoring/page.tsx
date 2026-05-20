@@ -32,7 +32,7 @@ export default function AdminProctoringPage() {
   const [live, setLive] = useState(true);
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/admin/proctoring');
+    const res = await fetch('/api/admin/proctoring', { credentials: 'include' });
     if (res.ok) {
       const json = (await res.json()) as { violations?: ViolationRow[]; summary?: Summary };
       setRows(json.violations ?? []);
@@ -90,10 +90,11 @@ export default function AdminProctoringPage() {
         </Card>
         <Card className="p-4 lux-surface">
           <p className="text-xs text-muted-foreground uppercase">Auto-submits</p>
-          <p className="text-2xl font-bold text-amber-700">{summary.autoSubmits ?? 0}</p>
+          <p className="text-2xl font-bold text-amber-700">{summary.autoSubmits ?? summary.byType?.auto_submit_violations ?? 0}</p>
         </Card>
         {Object.entries(summary.byType ?? {})
-          .filter(([t]) => ['tab_switch', 'face_absent', 'face_suspicious'].includes(t))
+          .filter(([t]) => !['proctor_summary'].includes(t))
+          .slice(0, 3)
           .map(([type, count]) => (
             <Card key={type} className="p-4 lux-surface">
               <p className="text-xs text-muted-foreground uppercase">{type.replace(/_/g, ' ')}</p>
