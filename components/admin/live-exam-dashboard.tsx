@@ -45,6 +45,7 @@ export function LiveExamDashboard() {
   const [schedules, setSchedules] = useState<LiveSchedule[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [board, setBoard] = useState<LiveBoard | null>(null);
+  const [writingNow, setWritingNow] = useState<LiveWritingEntry[]>([]);
   const [live, setLive] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,6 +86,7 @@ export function LiveExamDashboard() {
     }
 
     setBoard(json.board ?? null);
+    setWritingNow(json.writing_now ?? []);
   }, []);
 
   useEffect(() => {
