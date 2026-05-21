@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import {
   PLACEMENT_EXAM_TAGLINE,
   PLACEMENT_SECTIONS,
   PLACEMENT_TOTAL_MARKS,
+  PLACEMENT_TOTAL_SEC,
 } from '@/lib/placement/config';
 import {
   buildPlacementSession,
@@ -38,13 +39,7 @@ export default function PlacementAssessmentStartPage() {
     setResumeAvailable(Boolean(draft));
   }, []);
 
-  const totalMinutes = useMemo(
-    () =>
-      Math.round(
-        PLACEMENT_SECTIONS.reduce((acc, s) => acc + s.durationSec, 0) / 60,
-      ),
-    [],
-  );
+  const totalMinutes = Math.round(PLACEMENT_TOTAL_SEC / 60);
 
   const canStart = fullName.trim().length > 1 && hallTicket.trim().length > 0;
 
@@ -208,7 +203,7 @@ export default function PlacementAssessmentStartPage() {
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-900 truncate">{s.name}</p>
                     <p className="text-xs text-slate-500 truncate">
-                      {s.marks} marks · {Math.round(s.durationSec / 60)} min
+                      {s.marks} marks
                       {s.questionCount ? ` · ${s.questionCount} Q` : ''}
                     </p>
                   </div>
@@ -217,8 +212,8 @@ export default function PlacementAssessmentStartPage() {
             ))}
           </ul>
           <p className="text-xs text-slate-500 mt-4">
-            Section timers run independently; when a section&apos;s timer expires, the platform auto-advances. The
-            global 60-minute timer caps the whole sitting.
+            One 60-minute timer for the full exam. You may switch sections at any time until time runs out or you
+            submit.
           </p>
         </Card>
       </div>

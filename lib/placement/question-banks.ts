@@ -5,13 +5,9 @@ import {
 } from '@/lib/competitive-exam/generators';
 import { remixMcqOptions } from '@/lib/competitive-exam/question-factory';
 import { forkRng, shuffleInPlace } from '@/lib/competitive-exam/seed-rng';
-import {
-  PSYCHOMETRIC_POOL_SIZE,
-  hashStringToSeed,
-  psychometricQuestionFromIndex,
-  sampleUniqueIndices,
-} from '@/lib/psychometric-question-gen';
 import { findDepartment, getPlacementSection } from '@/lib/placement/config';
+import { placementIntelligenceBank } from '@/lib/placement/intelligence-bank';
+import { placementLogicBank } from '@/lib/placement/logic-bank';
 import { placementPsychometricBank } from '@/lib/placement/psychometric-bank';
 import { technicalBankForDepartment } from '@/lib/placement/technical-banks';
 import type { PlacementSectionId } from '@/lib/placement/types';
@@ -58,27 +54,37 @@ function buildAptitude(seed: string, count: number): Question[] {
 }
 
 function buildLogic(seed: string, count: number): Question[] {
-  const rng = forkRng(seed, 'logic-gen');
-  const list = generateLogicalQuestions(rng, count, `placement-logic-${seed.slice(0, 6)}`);
-  list.forEach((q, i) => {
-    q.id = `placement-logic-${i + 1}`;
+  const pool = placementLogicBank();
+  const rng = forkRng(seed, 'logic-pick');
+  const picked = takeN(pool, count, rng);
+  for (let i = 0; i < picked.length; i++) {
+    picked[i] = remixMcqOptions(picked[i], forkRng(seed, `logic-remix-${i}`));
+    picked[i] = { ...picked[i], id: `placement-logic-${i + 1}` };
+  }
+  if (picked.length >= count) return picked;
+
+  const rngGen = forkRng(seed, 'logic-gen-fallback');
+  const generated = generateLogicalQuestions(
+    rngGen,
+    count - picked.length,
+    `placement-logic-${seed.slice(0, 6)}`,
+  );
+  generated.forEach((q, i) => {
+    q.id = `placement-logic-${picked.length + i + 1}`;
     q.category_id = 'placement-logic';
   });
-  return list;
+  return [...picked, ...generated];
 }
 
 function buildIntelligence(seed: string, count: number): Question[] {
-  const base = hashStringToSeed(`placement-iq:${seed}`);
-  const indices = sampleUniqueIndices(base, count, PSYCHOMETRIC_POOL_SIZE);
-  return indices.map((idx, i) => {
-    const q = psychometricQuestionFromIndex(idx);
-    return {
-      ...q,
-      id: `placement-iq-${i + 1}`,
-      category_id: 'placement-intelligence',
-      tags: ['placement', 'iq', ...(q.tags ?? [])],
-    } as Question;
-  });
+  const pool = placementIntelligenceBank();
+  const rng = forkRng(seed, 'iq-pick');
+  const picked = takeN(pool, count, rng);
+  for (let i = 0; i < picked.length; i++) {
+    picked[i] = remixMcqOptions(picked[i], forkRng(seed, `iq-remix-${i}`));
+    picked[i] = { ...picked[i], id: `placement-iq-${i + 1}` };
+  }
+  return picked;
 }
 
 /** Build all MCQ pools for one placement session. Speaking section has no MCQs. */

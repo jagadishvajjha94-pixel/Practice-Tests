@@ -11,6 +11,8 @@ import {
   PLACEMENT_EXAM_NAME,
   PLACEMENT_SECTIONS,
   PLACEMENT_TOTAL_MARKS,
+  PLACEMENT_TOTAL_SEC,
+  SPEAKING_TASKS,
   findDepartment,
 } from '@/lib/placement/config';
 import { computePlacementScorecard } from '@/lib/placement/scoring';
@@ -42,17 +44,24 @@ function formatHms(totalSec: number): string {
 }
 
 function McqRunner({
+  sectionId,
   questions,
   answers,
   onAnswerChange,
 }: {
+  sectionId: PlacementSectionId;
   questions: Question[];
   answers: PlacementMcqAnswerMap;
   onAnswerChange: (questionId: string, value: string | null) => void;
 }) {
   const [index, setIndex] = useState(0);
 
-  const current = questions[index];
+  useEffect(() => {
+    setIndex(0);
+  }, [sectionId, questions.length]);
+
+  const safeIndex = questions.length ? Math.min(index, questions.length - 1) : 0;
+  const current = questions[safeIndex];
   if (!current) {
     return (
       <Card className="p-6 text-center text-slate-600">
@@ -83,7 +92,7 @@ function McqRunner({
             <span className="text-xs font-semibold text-slate-500">Unanswered</span>
           )}
         </div>
-        <Progress value={((index + 1) / questions.length) * 100} className="h-1 mb-4" />
+        <Progress value={((safeIndex + 1) / questions.length) * 100} className="h-1 mb-4" />
         <h2 className="text-lg font-bold text-slate-900 mb-4 whitespace-pre-wrap leading-snug">
           {current.question_text}
         </h2>
@@ -122,7 +131,7 @@ function McqRunner({
           <Button
             variant="outline"
             onClick={() => setIndex((i) => Math.max(0, i - 1))}
-            disabled={index === 0}
+            disabled={safeIndex === 0}
             className="flex-1"
           >
             ← Previous
@@ -138,7 +147,7 @@ function McqRunner({
           ) : null}
           <Button
             onClick={() => setIndex((i) => Math.min(questions.length - 1, i + 1))}
-            disabled={index >= questions.length - 1}
+            disabled={safeIndex >= questions.length - 1}
             className="flex-1"
           >
             Next →
@@ -152,7 +161,7 @@ function McqRunner({
         </p>
         <div className="grid grid-cols-10 gap-1.5">
           {questions.map((q, i) => {
-            const isCurrent = i === index;
+            const isCurrent = i === safeIndex;
             const isAnswered = Boolean(answers[q.id]);
             return (
               <button
@@ -282,49 +291,20 @@ export default function PlacementTakePage() {
     handleSubmitRef.current = handleSubmit;
   }, [handleSubmit]);
 
-  // Section / global timer — runs once after hydration, drives state via updaters.
+  // Overall exam timer only (no per-section countdown).
   useEffect(() => {
     if (!hydrated) return;
     const id = window.setInterval(() => {
       setSession((prev) => {
         if (!prev || prev.submitted) return prev;
-        const nextSection = Math.max(0, prev.sectionTimeLeftSec - 1);
         const nextGlobal = Math.max(0, prev.globalTimeLeftSec - 1);
 
         if (nextGlobal <= 0 && !submitGuardRef.current) {
           window.setTimeout(() => void handleSubmitRef.current('timeout'), 0);
         }
 
-        if (nextSection <= 0) {
-          let nextIndex = prev.currentSectionIndex + 1;
-          while (
-            nextIndex < PLACEMENT_SECTIONS.length &&
-            prev.sectionStates[PLACEMENT_SECTIONS[nextIndex].id as PlacementSectionId]?.completed
-          ) {
-            nextIndex += 1;
-          }
-          if (nextIndex >= PLACEMENT_SECTIONS.length) {
-            if (!submitGuardRef.current) {
-              window.setTimeout(() => void handleSubmitRef.current('timeout'), 0);
-            }
-            return {
-              ...prev,
-              sectionTimeLeftSec: 0,
-              globalTimeLeftSec: nextGlobal,
-              currentSectionIndex: PLACEMENT_SECTIONS.length - 1,
-            };
-          }
-          return {
-            ...prev,
-            sectionTimeLeftSec: PLACEMENT_SECTIONS[nextIndex].durationSec,
-            globalTimeLeftSec: nextGlobal,
-            currentSectionIndex: nextIndex,
-          };
-        }
-
         return {
           ...prev,
-          sectionTimeLeftSec: nextSection,
           globalTimeLeftSec: nextGlobal,
         };
       });
@@ -336,16 +316,10 @@ export default function PlacementTakePage() {
     setSession((prev) => {
       if (!prev) return prev;
       if (newIndex === prev.currentSectionIndex) return prev;
-      const newSection = PLACEMENT_SECTIONS[newIndex];
-      if (!newSection) return prev;
-      const remainingForThisSection =
-        prev.sectionStates[newSection.id as PlacementSectionId]?.completed
-          ? Math.min(prev.sectionTimeLeftSec, newSection.durationSec)
-          : Math.min(newSection.durationSec, Math.max(60, prev.globalTimeLeftSec));
+      if (!PLACEMENT_SECTIONS[newIndex]) return prev;
       return {
         ...prev,
         currentSectionIndex: newIndex,
-        sectionTimeLeftSec: remainingForThisSection,
       };
     });
   };
@@ -378,7 +352,6 @@ export default function PlacementTakePage() {
         ...prev,
         sectionStates: updatedStates,
         currentSectionIndex: nextIndex,
-        sectionTimeLeftSec: PLACEMENT_SECTIONS[nextIndex].durationSec,
       };
     });
   };
@@ -432,7 +405,7 @@ export default function PlacementTakePage() {
         total += state.questions.length;
         answered += Object.values(state.answers).filter(Boolean).length;
       } else if (cfg.kind === 'speaking' && state?.kind === 'speaking') {
-        total += 3;
+        total += SPEAKING_TASKS.length;
         answered += state.responses.length;
       }
     }
@@ -472,23 +445,17 @@ export default function PlacementTakePage() {
             <span className="opacity-70 font-mono">{session.candidate.hallTicket} · {dept?.name ?? 'Custom'}</span>
           </div>
           <div className="flex items-center gap-2 sm:ml-3">
-            <div className="rounded-md bg-white/10 px-3 py-1.5 text-center">
-              <p className="text-[10px] uppercase opacity-70 leading-none">Total</p>
-              <p className="font-mono text-lg font-bold tabular-nums leading-none mt-1">
-                {formatHms(session.globalTimeLeftSec)}
-              </p>
-            </div>
             <div
               className={cn(
                 'rounded-md px-3 py-1.5 text-center transition',
-                session.sectionTimeLeftSec <= 30
-                  ? 'bg-red-500 animate-pulse'
-                  : 'bg-emerald-500/20',
+                session.globalTimeLeftSec <= 300
+                  ? 'bg-red-500/90 animate-pulse'
+                  : 'bg-white/10',
               )}
             >
-              <p className="text-[10px] uppercase opacity-80 leading-none">Section</p>
+              <p className="text-[10px] uppercase opacity-80 leading-none">Time left</p>
               <p className="font-mono text-lg font-bold tabular-nums leading-none mt-1">
-                {formatHms(session.sectionTimeLeftSec)}
+                {formatHms(session.globalTimeLeftSec)}
               </p>
             </div>
           </div>
@@ -533,7 +500,7 @@ export default function PlacementTakePage() {
               state?.kind === 'mcq'
                 ? `${Object.values(state.answers).filter(Boolean).length}/${state.questions.length}`
                 : state?.kind === 'speaking'
-                  ? `${state.responses.length}/3`
+                  ? `${state.responses.length}/${SPEAKING_TASKS.length}`
                   : '';
             return (
               <button
@@ -554,9 +521,7 @@ export default function PlacementTakePage() {
                   <p className="text-sm font-semibold text-slate-900 truncate">
                     {i + 1}. {s.short}
                   </p>
-                  <p className="text-[11px] text-slate-500 truncate">
-                    {s.marks} marks · {Math.round(s.durationSec / 60)} min
-                  </p>
+                  <p className="text-[11px] text-slate-500 truncate">{s.marks} marks</p>
                   <p className="text-[11px] text-slate-700 mt-1 font-mono">{counter}</p>
                 </div>
                 {isDone ? (
@@ -566,8 +531,8 @@ export default function PlacementTakePage() {
             );
           })}
           <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
-            You can move between sections, but the section timer keeps running. Auto-advance happens when the
-            section timer reaches zero.
+            Move between sections freely. Only the overall {Math.round(PLACEMENT_TOTAL_SEC / 60)}-minute exam timer
+            applies; submit before it reaches zero.
           </p>
         </aside>
 
@@ -590,6 +555,8 @@ export default function PlacementTakePage() {
 
           {sectionState?.kind === 'mcq' ? (
             <McqRunner
+              key={currentSection.id}
+              sectionId={currentSection.id}
               questions={sectionState.questions}
               answers={sectionState.answers}
               onAnswerChange={setMcqAnswer}

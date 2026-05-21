@@ -1,4 +1,4 @@
-import { PLACEMENT_SECTIONS, PLACEMENT_TOTAL_SEC } from '@/lib/placement/config';
+import { PLACEMENT_SECTIONS, PLACEMENT_TOTAL_SEC, getPlacementSection } from '@/lib/placement/config';
 import { buildPlacementQuestions } from '@/lib/placement/question-banks';
 import type {
   PlacementCandidate,
@@ -6,6 +6,46 @@ import type {
   PlacementSectionState,
   PlacementSession,
 } from '@/lib/placement/types';
+
+type McqSectionId = Exclude<PlacementSectionId, 'speaking'>;
+
+/** Fill missing/empty MCQ pools (e.g. resumed sessions or older drafts). */
+export function repairPlacementSession(session: PlacementSession): PlacementSession {
+  const banks = buildPlacementQuestions(session.candidate.seed, session.candidate.departmentId);
+  const sectionStates = { ...session.sectionStates };
+  let changed = false;
+
+  for (const cfg of PLACEMENT_SECTIONS) {
+    if (cfg.kind !== 'mcq') continue;
+    const sectionId = cfg.id as McqSectionId;
+    const expected = getPlacementSection(sectionId).questionCount ?? 0;
+    const state = sectionStates[sectionId];
+    const needsRepair =
+      !state ||
+      state.kind !== 'mcq' ||
+      !Array.isArray(state.questions) ||
+      state.questions.length < Math.min(expected, 1);
+
+    if (!needsRepair) continue;
+
+    const existingAnswers = state?.kind === 'mcq' ? state.answers : {};
+    const completed = state?.kind === 'mcq' ? state.completed : false;
+    sectionStates[sectionId] = {
+      kind: 'mcq',
+      questions: banks[sectionId] ?? [],
+      answers: existingAnswers,
+      completed,
+    };
+    changed = true;
+  }
+
+  if (!sectionStates.speaking || sectionStates.speaking.kind !== 'speaking') {
+    sectionStates.speaking = { kind: 'speaking', responses: [], completed: false };
+    changed = true;
+  }
+
+  return changed ? { ...session, sectionStates } : session;
+}
 
 export const PLACEMENT_DRAFT_CANDIDATE_KEY = 'placement:candidate';
 export const PLACEMENT_DRAFT_SESSION_KEY = 'placement:session';
@@ -39,7 +79,7 @@ export function buildPlacementSession(candidate: PlacementCandidate): PlacementS
     candidate,
     sectionStates,
     currentSectionIndex: 0,
-    sectionTimeLeftSec: PLACEMENT_SECTIONS[0].durationSec,
+    sectionTimeLeftSec: 0,
     globalTimeLeftSec: PLACEMENT_TOTAL_SEC,
     submitted: false,
   };
@@ -79,30 +119,27 @@ export function saveSession(session: PlacementSession): void {
   }
 }
 
-export function loadSession(): PlacementSession | null {
-  if (typeof window === 'undefined') return null;
+function parseStoredSession(raw: string | null): PlacementSession | null {
+  if (!raw) return null;
   try {
-    const raw = window.sessionStorage.getItem(PLACEMENT_DRAFT_SESSION_KEY);
-    if (!raw) return null;
     const parsed = JSON.parse(raw) as PlacementSession;
     if (parsed?.version !== 1) return null;
-    return parsed;
+    return repairPlacementSession(parsed);
   } catch {
     return null;
   }
 }
 
+export function loadSession(): PlacementSession | null {
+  if (typeof window === 'undefined') return null;
+  return parseStoredSession(window.sessionStorage.getItem(PLACEMENT_DRAFT_SESSION_KEY));
+}
+
 export function loadSessionByHallTicket(hallTicket: string): PlacementSession | null {
   if (typeof window === 'undefined' || !hallTicket) return null;
-  try {
-    const raw = window.localStorage.getItem(`${PLACEMENT_DRAFT_SESSION_KEY}:${hallTicket}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as PlacementSession;
-    if (parsed?.version !== 1) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+  return parseStoredSession(
+    window.localStorage.getItem(`${PLACEMENT_DRAFT_SESSION_KEY}:${hallTicket}`),
+  );
 }
 
 export function clearPlacementDrafts(hallTicket?: string): void {
