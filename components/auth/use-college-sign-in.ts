@@ -52,12 +52,12 @@ export function useCollegeSignIn() {
 
         router.push(redirectTo);
       } catch (err) {
-        let msg = err instanceof Error ? err.message : 'Sign in failed';
-        if (/invalid login credentials/i.test(msg)) {
-          msg =
-            'Invalid roll number or password. For ElevateX sample accounts use roll EX26001–EX26015 and password ElevateX2026. If this is a deployed site, an admin must run POST /api/setup/seed-elevatex-sample once on that environment.';
-        }
-        setError(msg);
+        const msg = err instanceof Error ? err.message : 'Sign in failed';
+        setError(
+          /invalid login credentials/i.test(msg)
+            ? 'Invalid roll number or password.'
+            : msg,
+        );
       } finally {
         setLoading(false);
       }

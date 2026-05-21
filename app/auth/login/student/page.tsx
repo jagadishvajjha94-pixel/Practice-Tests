@@ -32,7 +32,6 @@ import { useCollegeSignIn } from '@/components/auth/use-college-sign-in';
 import { isSupabasePublicEnvConfigured, SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { isSignupDisabled } from '@/lib/auth-features';
 import { StatusAlert } from '@/components/ui/status-alert';
-import { ELEVATEX_SAMPLE_PASSWORD } from '@/lib/elevatex-sample-credentials';
 
 const REMEMBER_KEY = 'rce_student_remember';
 
@@ -119,12 +118,6 @@ function StudentLoginForm() {
               New registrations are closed. Sign in with credentials issued by your department.
             </StatusAlert>
           ) : null}
-
-          <StatusAlert variant="info">
-            ElevateX sample: roll <strong>EX26001</strong> (or EX26002–EX26015), password{' '}
-            <strong>{ELEVATEX_SAMPLE_PASSWORD}</strong>. Select matching department and III Year.
-            On production, seed accounts once via <code className="text-xs">POST /api/setup/seed-elevatex-sample</code>.
-          </StatusAlert>
 
           {error ? <StatusAlert variant="error">{error}</StatusAlert> : null}
 
