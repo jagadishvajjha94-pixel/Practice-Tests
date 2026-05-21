@@ -4,6 +4,11 @@ import { loadAllAttemptsRollup } from '@/lib/admin/attempts-rollup';
 import { resolveStoredPercent } from '@/lib/test-attempts';
 import { answersMatchMcq } from '@/lib/practice-mappers';
 import { adaptQuestionRow } from '@/lib/practice-mappers';
+import {
+  isElevateXAttemptMeta,
+  parseElevateXScorecardFromAnswers,
+} from '@/lib/placement/scorecard-payload';
+import type { PlacementScorecard } from '@/lib/placement/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,15 +36,26 @@ export async function GET(
         .eq('id', attempt.id)
         .maybeSingle();
 
+      const testId = attempt.test_id ?? '';
+      const testTitle =
+        attempt.test_name ??
+        (row?.test as { name?: string; title?: string } | null | undefined)?.title ??
+        (row?.test as { name?: string; title?: string } | null | undefined)?.name ??
+        `Test ${testId}`;
+
+      const isElevateX = isElevateXAttemptMeta(testId, testTitle);
+      const elevatexScorecard: PlacementScorecard | null = isElevateX
+        ? parseElevateXScorecardFromAnswers(row?.answers)
+        : null;
+
       const answers =
-        row && typeof row.answers === 'object'
+        row && typeof row.answers === 'object' && !elevatexScorecard
           ? (row.answers as Record<string, { userAnswer?: unknown }>)
           : {};
 
-      const testId = attempt.test_id ?? '';
       let questions: ReturnType<typeof adaptQuestionRow>[] = [];
 
-      if (testId) {
+      if (testId && !elevatexScorecard) {
         const { data: linked } = await admin
           .from('test_questions')
           .select('question:questions(*)')
@@ -82,23 +98,27 @@ export async function GET(
             )
           : attempt.score;
 
-      const testRow = row?.test as { name?: string; title?: string } | null | undefined;
-
       return {
         id: attempt.id,
-        testName:
-          attempt.test_name ??
-          testRow?.title ??
-          testRow?.name ??
-          `Test ${testId}`,
-        score,
+        testName: testTitle,
+        score: elevatexScorecard?.percentage ?? score,
         status: attempt.status,
         date: attempt.created_at,
-        timeTakenSec: attempt.time_taken ?? 0,
-        answeredCount: questionRows.filter((q) => q.userAnswer.trim().length > 0).length,
-        correctCount: questionRows.filter((q) => q.isCorrect).length,
-        totalQuestions: questionRows.length,
+        timeTakenSec: elevatexScorecard?.totalElapsedSec ?? attempt.time_taken ?? 0,
+        answeredCount: elevatexScorecard
+          ? elevatexScorecard.sections.reduce(
+              (n, s) => n + (s.correct ?? 0) + (s.wrong ?? 0),
+              0,
+            )
+          : questionRows.filter((q) => q.userAnswer.trim().length > 0).length,
+        correctCount: elevatexScorecard
+          ? elevatexScorecard.sections.reduce((n, s) => n + (s.correct ?? 0), 0)
+          : questionRows.filter((q) => q.isCorrect).length,
+        totalQuestions: elevatexScorecard?.totalMarks ?? questionRows.length,
         questions: questionRows,
+        isElevateX,
+        elevatexScorecard,
+        hasElevateXScorecard: Boolean(elevatexScorecard),
       };
     }),
   );

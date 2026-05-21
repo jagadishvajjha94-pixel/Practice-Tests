@@ -14,6 +14,9 @@ import { adaptQuestionRow, answersMatchMcq, extractJoinedQuestion } from '@/lib/
 import { formatSupabaseError } from '@/lib/utils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { ElevateXScorecardView } from '@/components/placement/elevatex-scorecard-view';
+import { downloadElevateXScorecardPdf } from '@/lib/placement/elevatex-scorecard-pdf';
+import type { PlacementScorecard } from '@/lib/placement/types';
 
 type AttemptRow = TestAttempt & {
   test?: {
@@ -41,6 +44,9 @@ type AttemptReport = {
   correctCount: number;
   totalQuestions: number;
   questions: AttemptQuestionRow[];
+  isElevateX?: boolean;
+  elevatexScorecard?: PlacementScorecard | null;
+  hasElevateXScorecard?: boolean;
 };
 
 type StudentReport = {
@@ -61,6 +67,8 @@ export default function UsersManagementPage() {
   const [reportLoadingUserId, setReportLoadingUserId] = useState<string | null>(null);
   const [selectedReport, setSelectedReport] = useState<StudentReport | null>(null);
   const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
+  const [scorecardLoading, setScorecardLoading] = useState(false);
+  const [fetchedScorecard, setFetchedScorecard] = useState<PlacementScorecard | null>(null);
   const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
 
   useEffect(() => {
@@ -167,8 +175,10 @@ export default function UsersManagementPage() {
     setReportLoadingUserId(student.id);
     try {
       const report = await buildStudentReport(student);
+      setFetchedScorecard(null);
       setSelectedReport(report);
-      setSelectedAttemptId(report.attempts[0]?.id ?? null);
+      const elevatexFirst = report.attempts.find((a) => a.isElevateX);
+      setSelectedAttemptId(elevatexFirst?.id ?? report.attempts[0]?.id ?? null);
     } catch (error) {
       alert(`Failed to build report: ${formatSupabaseError(error)}`);
     } finally {
@@ -293,6 +303,42 @@ export default function UsersManagementPage() {
 
   const selectedAttempt =
     selectedReport?.attempts.find((a) => a.id === selectedAttemptId) ?? null;
+
+  const elevatexScorecard =
+    fetchedScorecard ?? selectedAttempt?.elevatexScorecard ?? null;
+
+  useEffect(() => {
+    if (!selectedAttempt?.isElevateX || !selectedAttemptId) {
+      setFetchedScorecard(null);
+      return;
+    }
+    if (selectedAttempt.elevatexScorecard) {
+      setFetchedScorecard(null);
+      return;
+    }
+
+    let cancelled = false;
+    setScorecardLoading(true);
+    void fetch(`/api/admin/elevatex/scorecard/${encodeURIComponent(selectedAttemptId)}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const json = (await res.json()) as { scorecard?: PlacementScorecard };
+        return json.scorecard ?? null;
+      })
+      .then((card) => {
+        if (!cancelled) setFetchedScorecard(card);
+      })
+      .finally(() => {
+        if (!cancelled) setScorecardLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAttemptId, selectedAttempt?.isElevateX, selectedAttempt?.elevatexScorecard]);
 
   if (loading) {
     return (
@@ -486,66 +532,106 @@ export default function UsersManagementPage() {
               </Card>
 
               {selectedAttempt ? (
-                <Card className="p-4 sm:p-5 overflow-hidden">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 mb-4 text-sm">
-                    <p className="min-w-0">
-                      <strong>Test:</strong>{' '}
-                      <span className="text-gray-800">{selectedAttempt.testName}</span>
-                    </p>
-                    <p>
-                      <strong>Status:</strong> {selectedAttempt.status}
-                    </p>
-                    <p>
-                      <strong>Score:</strong> {Math.round(selectedAttempt.score)}%
-                    </p>
-                    <p>
-                      <strong>Answered:</strong> {selectedAttempt.answeredCount}/
-                      {selectedAttempt.totalQuestions}
-                    </p>
-                    <p>
-                      <strong>Correct:</strong> {selectedAttempt.correctCount}/
-                      {selectedAttempt.totalQuestions}
-                    </p>
+                selectedAttempt.isElevateX ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm text-gray-600">
+                        ElevateX full scorecard — section breakdown, readiness, and recommendations.
+                      </p>
+                      {elevatexScorecard ? (
+                        <Button
+                          size="sm"
+                          className="bg-[#1e3a5f] hover:bg-[#16304f]"
+                          onClick={() =>
+                            downloadElevateXScorecardPdf(
+                              elevatexScorecard,
+                              `elevatex-${selectedReport.student.email.replace(/[^a-zA-Z0-9]/g, '_')}-${selectedAttempt.id}.pdf`,
+                            )
+                          }
+                        >
+                          Download scorecard (PDF)
+                        </Button>
+                      ) : null}
+                    </div>
+                    {scorecardLoading ? (
+                      <Card className="p-8 text-center text-gray-600">Loading ElevateX scorecard…</Card>
+                    ) : elevatexScorecard ? (
+                      <ElevateXScorecardView scorecard={elevatexScorecard} compact />
+                    ) : (
+                      <Card className="p-6 text-center text-amber-900 bg-amber-50 border-amber-200">
+                        <p className="font-medium">ElevateX scorecard not stored for this attempt</p>
+                        <p className="text-sm mt-2 text-amber-800/90">
+                          The student completed ElevateX before scorecard storage was enabled, or only a
+                          summary score was saved. New submissions include the full scorecard in View Report.
+                        </p>
+                        <p className="text-sm mt-3 text-gray-700">
+                          Overall score: {Math.round(selectedAttempt.score)}%
+                        </p>
+                      </Card>
+                    )}
                   </div>
-                  <div className="rounded-lg border border-slate-200 overflow-x-auto">
-                    <table className="w-full min-w-[640px] text-sm table-fixed">
-                      <colgroup>
-                        <col className="w-[42%]" />
-                        <col className="w-[22%]" />
-                        <col className="w-[22%]" />
-                        <col className="w-[14%]" />
-                      </colgroup>
-                      <thead>
-                        <tr className="border-b border-gray-200 bg-gray-50">
-                          <th className="text-left py-3 px-3 font-semibold text-gray-700">Question</th>
-                          <th className="text-left py-3 px-3 font-semibold text-gray-700">Student answer</th>
-                          <th className="text-left py-3 px-3 font-semibold text-gray-700">Correct answer</th>
-                          <th className="text-left py-3 px-3 font-semibold text-gray-700">Result</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedAttempt.questions.map((q, idx) => (
-                          <tr key={idx} className="border-b border-gray-100 align-top">
-                            <td className="py-3 px-3 text-gray-900 break-words whitespace-pre-wrap">
-                              {q.questionText}
-                            </td>
-                            <td className="py-3 px-3 text-gray-700 break-words">
-                              {q.userAnswer || 'Not answered'}
-                            </td>
-                            <td className="py-3 px-3 text-gray-700 break-words">{q.correctAnswer}</td>
-                            <td
-                              className={`py-3 px-3 font-medium whitespace-nowrap ${
-                                q.isCorrect ? 'text-green-600' : 'text-red-600'
-                              }`}
-                            >
-                              {q.isCorrect ? 'Correct' : 'Incorrect'}
-                            </td>
+                ) : (
+                  <Card className="p-4 sm:p-5 overflow-hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 mb-4 text-sm">
+                      <p className="min-w-0">
+                        <strong>Test:</strong>{' '}
+                        <span className="text-gray-800">{selectedAttempt.testName}</span>
+                      </p>
+                      <p>
+                        <strong>Status:</strong> {selectedAttempt.status}
+                      </p>
+                      <p>
+                        <strong>Score:</strong> {Math.round(selectedAttempt.score)}%
+                      </p>
+                      <p>
+                        <strong>Answered:</strong> {selectedAttempt.answeredCount}/
+                        {selectedAttempt.totalQuestions}
+                      </p>
+                      <p>
+                        <strong>Correct:</strong> {selectedAttempt.correctCount}/
+                        {selectedAttempt.totalQuestions}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 overflow-x-auto">
+                      <table className="w-full min-w-[640px] text-sm table-fixed">
+                        <colgroup>
+                          <col className="w-[42%]" />
+                          <col className="w-[22%]" />
+                          <col className="w-[22%]" />
+                          <col className="w-[14%]" />
+                        </colgroup>
+                        <thead>
+                          <tr className="border-b border-gray-200 bg-gray-50">
+                            <th className="text-left py-3 px-3 font-semibold text-gray-700">Question</th>
+                            <th className="text-left py-3 px-3 font-semibold text-gray-700">Student answer</th>
+                            <th className="text-left py-3 px-3 font-semibold text-gray-700">Correct answer</th>
+                            <th className="text-left py-3 px-3 font-semibold text-gray-700">Result</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
+                        </thead>
+                        <tbody>
+                          {selectedAttempt.questions.map((q, idx) => (
+                            <tr key={idx} className="border-b border-gray-100 align-top">
+                              <td className="py-3 px-3 text-gray-900 break-words whitespace-pre-wrap">
+                                {q.questionText}
+                              </td>
+                              <td className="py-3 px-3 text-gray-700 break-words">
+                                {q.userAnswer || 'Not answered'}
+                              </td>
+                              <td className="py-3 px-3 text-gray-700 break-words">{q.correctAnswer}</td>
+                              <td
+                                className={`py-3 px-3 font-medium whitespace-nowrap ${
+                                  q.isCorrect ? 'text-green-600' : 'text-red-600'
+                                }`}
+                              >
+                                {q.isCorrect ? 'Correct' : 'Incorrect'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                )
               ) : (
                 <Card className="p-6 text-center text-gray-600">No attempts found for this student.</Card>
               )}

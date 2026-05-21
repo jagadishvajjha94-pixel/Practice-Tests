@@ -17,6 +17,8 @@ export type RecordDashboardAttemptInput = {
   rawNetScore?: number;
   elapsedSec?: number;
   examKind?: ExamKind;
+  /** Stored on test_attempts.answers (e.g. ElevateX scorecard JSON). */
+  answers?: Record<string, unknown>;
   /** Minimal test row for local result / dashboard merge */
   test?: Pick<Test, 'id' | 'name' | 'category_id' | 'duration' | 'total_questions'>;
 };
@@ -116,6 +118,7 @@ export async function recordDashboardAttempt(
         startedAtIso: nowIso,
         completedAtIso: nowIso,
         examKind: input.examKind,
+        answers: input.answers,
       }),
     });
 

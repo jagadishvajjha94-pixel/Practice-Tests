@@ -17,6 +17,7 @@ import {
 } from '@/lib/placement/config';
 import { computePlacementScorecard } from '@/lib/placement/scoring';
 import { fetchElevateXAttemptStatus, getElevateXTestId } from '@/lib/placement/elevatex-attempt';
+import { encodeElevateXScorecardAnswers } from '@/lib/placement/scorecard-payload';
 import {
   clearPlacementDrafts,
   loadSession,
@@ -295,6 +296,7 @@ export default function PlacementTakePage() {
         rawNetScore: scorecard.earnedMarks,
         elapsedSec: scorecard.totalElapsedSec,
         examKind: 'practice',
+        answers: encodeElevateXScorecardAnswers(scorecard),
         test: {
           id: elevateXTestId,
           name: testName,
