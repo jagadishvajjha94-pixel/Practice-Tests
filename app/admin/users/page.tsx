@@ -414,87 +414,142 @@ export default function UsersManagementPage() {
       </div>
 
       {selectedReport && (
-        <div className="fixed inset-0 bg-black/40 z-50 p-4 overflow-auto">
-          <div className="max-w-6xl mx-auto bg-white rounded-lg p-6">
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Student Report: {selectedReport.student.full_name || selectedReport.student.email}
-                </h2>
-                <p className="text-gray-600">{selectedReport.student.email}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => downloadExcelCsv(selectedReport)}>
-                  Export CSV
-                </Button>
-                <Button onClick={() => downloadPdf(selectedReport)} className="bg-blue-600 hover:bg-blue-700 text-white">
-                  Download PDF
-                </Button>
-                <Button variant="outline" onClick={() => setSelectedReport(null)}>
-                  Close
-                </Button>
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/50 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="student-report-title"
+        >
+          <div className="flex w-full max-w-6xl max-h-[min(100dvh-1.5rem,920px)] flex-col rounded-xl bg-white shadow-2xl overflow-hidden border border-slate-200">
+            <div className="shrink-0 border-b border-slate-200 bg-slate-50/90 px-4 sm:px-6 py-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <h2
+                    id="student-report-title"
+                    className="text-xl sm:text-2xl font-bold text-gray-900 break-words"
+                  >
+                    Student report: {selectedReport.student.full_name || selectedReport.student.email}
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1 break-all">{selectedReport.student.email}</p>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => downloadExcelCsv(selectedReport)}>
+                    Export CSV
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => downloadPdf(selectedReport)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Download PDF
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setSelectedReport(null)}>
+                    Close
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <div className="grid md:grid-cols-4 gap-4 mb-6">
-              <Card className="p-4"><p className="text-sm text-gray-600">Total Attempts</p><p className="text-2xl font-bold text-blue-600">{selectedReport.totalAttempts}</p></Card>
-              <Card className="p-4"><p className="text-sm text-gray-600">Completed</p><p className="text-2xl font-bold text-green-600">{selectedReport.completedAttempts}</p></Card>
-              <Card className="p-4"><p className="text-sm text-gray-600">Average Score</p><p className="text-2xl font-bold text-[#1e3a5f]">{selectedReport.avgScore}%</p></Card>
-              <Card className="p-4"><p className="text-sm text-gray-600">Best Score</p><p className="text-2xl font-bold text-orange-600">{selectedReport.bestScore}%</p></Card>
-            </div>
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 min-h-0">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+                <Card className="p-4">
+                  <p className="text-sm text-gray-600">Total attempts</p>
+                  <p className="text-2xl font-bold text-blue-600">{selectedReport.totalAttempts}</p>
+                </Card>
+                <Card className="p-4">
+                  <p className="text-sm text-gray-600">Completed</p>
+                  <p className="text-2xl font-bold text-green-600">{selectedReport.completedAttempts}</p>
+                </Card>
+                <Card className="p-4">
+                  <p className="text-sm text-gray-600">Average score</p>
+                  <p className="text-2xl font-bold text-[#1e3a5f]">{selectedReport.avgScore}%</p>
+                </Card>
+                <Card className="p-4">
+                  <p className="text-sm text-gray-600">Best score</p>
+                  <p className="text-2xl font-bold text-orange-600">{selectedReport.bestScore}%</p>
+                </Card>
+              </div>
 
-            <Card className="p-4 mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Select attempted test</label>
-              <select
-                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                value={selectedAttemptId ?? ''}
-                onChange={(e) => setSelectedAttemptId(e.target.value)}
-              >
-                {selectedReport.attempts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.testName} - {new Date(a.date).toLocaleString()} - {Math.round(a.score)}%
-                  </option>
-                ))}
-              </select>
-            </Card>
-
-            {selectedAttempt ? (
-              <Card className="p-4">
-                <div className="flex flex-wrap gap-4 mb-4 text-sm">
-                  <p><strong>Test:</strong> {selectedAttempt.testName}</p>
-                  <p><strong>Status:</strong> {selectedAttempt.status}</p>
-                  <p><strong>Score:</strong> {Math.round(selectedAttempt.score)}%</p>
-                  <p><strong>Answered:</strong> {selectedAttempt.answeredCount}/{selectedAttempt.totalQuestions}</p>
-                  <p><strong>Correct:</strong> {selectedAttempt.correctCount}/{selectedAttempt.totalQuestions}</p>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200 bg-gray-50">
-                        <th className="text-left py-2 px-3">Question</th>
-                        <th className="text-left py-2 px-3">Student Answer</th>
-                        <th className="text-left py-2 px-3">Correct Answer</th>
-                        <th className="text-left py-2 px-3">Result</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedAttempt.questions.map((q, idx) => (
-                        <tr key={idx} className="border-b border-gray-100">
-                          <td className="py-2 px-3 text-gray-900">{q.questionText}</td>
-                          <td className="py-2 px-3 text-gray-700">{q.userAnswer || 'Not answered'}</td>
-                          <td className="py-2 px-3 text-gray-700">{q.correctAnswer}</td>
-                          <td className={`py-2 px-3 font-medium ${q.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-                            {q.isCorrect ? 'Correct' : 'Incorrect'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <Card className="p-4 mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select attempted test</label>
+                <select
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white"
+                  value={selectedAttemptId ?? ''}
+                  onChange={(e) => setSelectedAttemptId(e.target.value)}
+                >
+                  {selectedReport.attempts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.testName} — {new Date(a.date).toLocaleString()} — {Math.round(a.score)}%
+                    </option>
+                  ))}
+                </select>
               </Card>
-            ) : (
-              <Card className="p-6 text-center text-gray-600">No attempts found for this student.</Card>
-            )}
+
+              {selectedAttempt ? (
+                <Card className="p-4 sm:p-5 overflow-hidden">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 mb-4 text-sm">
+                    <p className="min-w-0">
+                      <strong>Test:</strong>{' '}
+                      <span className="text-gray-800">{selectedAttempt.testName}</span>
+                    </p>
+                    <p>
+                      <strong>Status:</strong> {selectedAttempt.status}
+                    </p>
+                    <p>
+                      <strong>Score:</strong> {Math.round(selectedAttempt.score)}%
+                    </p>
+                    <p>
+                      <strong>Answered:</strong> {selectedAttempt.answeredCount}/
+                      {selectedAttempt.totalQuestions}
+                    </p>
+                    <p>
+                      <strong>Correct:</strong> {selectedAttempt.correctCount}/
+                      {selectedAttempt.totalQuestions}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-sm table-fixed">
+                      <colgroup>
+                        <col className="w-[42%]" />
+                        <col className="w-[22%]" />
+                        <col className="w-[22%]" />
+                        <col className="w-[14%]" />
+                      </colgroup>
+                      <thead>
+                        <tr className="border-b border-gray-200 bg-gray-50">
+                          <th className="text-left py-3 px-3 font-semibold text-gray-700">Question</th>
+                          <th className="text-left py-3 px-3 font-semibold text-gray-700">Student answer</th>
+                          <th className="text-left py-3 px-3 font-semibold text-gray-700">Correct answer</th>
+                          <th className="text-left py-3 px-3 font-semibold text-gray-700">Result</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedAttempt.questions.map((q, idx) => (
+                          <tr key={idx} className="border-b border-gray-100 align-top">
+                            <td className="py-3 px-3 text-gray-900 break-words whitespace-pre-wrap">
+                              {q.questionText}
+                            </td>
+                            <td className="py-3 px-3 text-gray-700 break-words">
+                              {q.userAnswer || 'Not answered'}
+                            </td>
+                            <td className="py-3 px-3 text-gray-700 break-words">{q.correctAnswer}</td>
+                            <td
+                              className={`py-3 px-3 font-medium whitespace-nowrap ${
+                                q.isCorrect ? 'text-green-600' : 'text-red-600'
+                              }`}
+                            >
+                              {q.isCorrect ? 'Correct' : 'Incorrect'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              ) : (
+                <Card className="p-6 text-center text-gray-600">No attempts found for this student.</Card>
+              )}
+            </div>
           </div>
         </div>
       )}

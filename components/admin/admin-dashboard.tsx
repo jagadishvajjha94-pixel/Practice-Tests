@@ -169,7 +169,7 @@ export function AdminDashboard() {
     };
 
     void checkAdminAccess();
-    const refreshTimer = setInterval(() => void reloadStats(), 20000);
+    const refreshTimer = setInterval(() => void reloadStats(), 5000);
     return () => clearInterval(refreshTimer);
   }, [router]);
 

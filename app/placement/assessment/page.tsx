@@ -1,15 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { ElevateXLiveInfo } from '@/components/elevatex/elevatex-live-info';
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { COLLEGE } from '@/lib/college-brand';
 import {
-  PLACEMENT_DEPARTMENTS,
   PLACEMENT_EXAM_NAME,
   PLACEMENT_EXAM_TAGLINE,
   PLACEMENT_SECTIONS,
@@ -17,62 +16,104 @@ import {
   PLACEMENT_TOTAL_SEC,
 } from '@/lib/placement/config';
 import {
+  buildElevateXCandidateFromStudent,
+  studentElevateXProfileFromAuth,
+  type StudentElevateXProfile,
+} from '@/lib/placement/student-candidate';
+import {
   buildPlacementSession,
   loadSessionByHallTicket,
   saveCandidateDraft,
   saveSession,
 } from '@/lib/placement/session';
-import { buildCandidate } from '@/lib/placement/scoring';
 
 export default function PlacementAssessmentStartPage() {
   const router = useRouter();
-  const [fullName, setFullName] = useState('');
-  const [hallTicket, setHallTicket] = useState('');
-  const [departmentId, setDepartmentId] = useState('cse');
-  const [collegeName, setCollegeName] = useState('');
+  const [profile, setProfile] = useState<StudentElevateXProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [resumeAvailable, setResumeAvailable] = useState(false);
-
-  useEffect(() => {
-    // Show "Resume previous attempt" CTA only if a session exists for this device.
-    if (typeof window === 'undefined') return;
-    const draft = window.sessionStorage.getItem('placement:session');
-    setResumeAvailable(Boolean(draft));
-  }, []);
+  const [starting, setStarting] = useState(false);
 
   const totalMinutes = Math.round(PLACEMENT_TOTAL_SEC / 60);
 
-  const canStart = fullName.trim().length > 1 && hallTicket.trim().length > 0;
+  const loadStudent = useCallback(async () => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      router.replace('/auth/login/student?redirect=/placement/assessment');
+      return;
+    }
+
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData.user) {
+      router.replace('/auth/login/student?redirect=/placement/assessment');
+      return;
+    }
+
+    let branch: string | null = null;
+    let full_name: string | null = null;
+    let college: string | null = null;
+
+    const profileRes = await fetch('/api/student/profile', { credentials: 'include' });
+    if (profileRes.ok) {
+      const json = (await profileRes.json()) as {
+        profile?: { full_name?: string | null; branch?: string | null; college?: string | null };
+      };
+      branch = json.profile?.branch ?? null;
+      full_name = json.profile?.full_name ?? null;
+      college = json.profile?.college ?? null;
+    }
+
+    const studentProfile = studentElevateXProfileFromAuth(
+      authData.user.email ?? '',
+      authData.user.user_metadata as Record<string, unknown>,
+      { full_name, branch, college },
+    );
+    setProfile(studentProfile);
+
+    const existing = loadSessionByHallTicket(studentProfile.hallTicket);
+    setResumeAvailable(Boolean(existing && !existing.submitted));
+    setLoading(false);
+  }, [router]);
+
+  useEffect(() => {
+    void loadStudent();
+  }, [loadStudent]);
 
   const handleStart = () => {
-    const finalDept = departmentId;
+    if (!profile || starting) return;
+    setStarting(true);
 
-    // If a saved session matches this hall ticket, ask to resume; otherwise build fresh.
-    const existing = loadSessionByHallTicket(hallTicket.trim());
+    const existing = loadSessionByHallTicket(profile.hallTicket);
     if (existing && !existing.submitted) {
       const proceed = window.confirm(
-        'A previous in-progress attempt was found for this hall ticket on this device. Resume it?',
+        'A previous in-progress ElevateX attempt was found on this device. Resume it?',
       );
       if (proceed) {
         saveCandidateDraft(existing.candidate);
-        // Re-mirror to sessionStorage so /placement/take loads it.
         saveSession(existing);
         router.push('/placement/take');
         return;
       }
     }
 
-    const candidate = buildCandidate({
-      fullName,
-      hallTicket,
-      departmentId: finalDept,
-      collegeName: collegeName.trim() || null,
-      examName: PLACEMENT_EXAM_NAME,
-    });
+    const candidate = buildElevateXCandidateFromStudent(profile);
     const session = buildPlacementSession(candidate);
     saveCandidateDraft(candidate);
     saveSession(session);
     router.push('/placement/take');
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-slate-600">Loading your ElevateX session…</p>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -89,14 +130,14 @@ export default function PlacementAssessmentStartPage() {
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/85">
-                {collegeName.trim() || 'Your College'}
+                {profile.collegeName ?? COLLEGE.shortName}
               </p>
               <h1 className="text-3xl sm:text-4xl font-black tracking-tight bg-gradient-to-r from-white via-fuchsia-100 to-cyan-200 bg-clip-text text-transparent">
-                {PLACEMENT_EXAM_NAME} · Full assessment
+                {PLACEMENT_EXAM_NAME} · Instructions
               </h1>
               <p className="text-sm text-white/85 mt-1">
-                {PLACEMENT_EXAM_TAGLINE} · {PLACEMENT_SECTIONS.length} sections · {PLACEMENT_TOTAL_MARKS} marks ·{' '}
-                {totalMinutes} minutes total
+                {PLACEMENT_EXAM_TAGLINE} · {PLACEMENT_SECTIONS.length} sections · {PLACEMENT_TOTAL_MARKS}{' '}
+                marks · {totalMinutes} minutes
               </p>
             </div>
           </div>
@@ -105,86 +146,47 @@ export default function PlacementAssessmentStartPage() {
 
       <div className="max-w-5xl mx-auto px-4 py-10 grid md:grid-cols-5 gap-8">
         <Card className="md:col-span-3 p-6 sm:p-8 shadow-sm border-slate-200">
-          <h2 className="text-xl font-bold text-slate-900 mb-1">Candidate details</h2>
-          <p className="text-sm text-slate-600 mb-6">
-            Enter your hall ticket and department to begin. The exam runs on a single 60-minute timer across all
-            sections.
+          <h2 className="text-xl font-bold text-slate-900 mb-1">Before you begin</h2>
+          <p className="text-sm text-slate-600 mb-4">
+            You are signed in — no need to re-enter your details. Read the instructions below, then start when
+            you are ready.
           </p>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 mb-6 text-sm">
+            <p className="font-semibold text-slate-900">{profile.fullName}</p>
+            <p className="text-slate-600 mt-1">
+              Roll: <span className="font-mono font-medium text-slate-800">{profile.hallTicket}</span>
+            </p>
+            <p className="text-slate-600">{profile.departmentName}</p>
+          </div>
 
           <ElevateXLiveInfo className="mb-6" />
 
-          <div className="space-y-5">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="fullName">Full name</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. Ramachandra K"
-                  className="mt-1"
-                  autoComplete="off"
-                />
-              </div>
-              <div>
-                <Label htmlFor="hallTicket">Hall ticket / Student ID</Label>
-                <Input
-                  id="hallTicket"
-                  value={hallTicket}
-                  onChange={(e) => setHallTicket(e.target.value.toUpperCase())}
-                  placeholder="e.g. 22ABC1234"
-                  className="mt-1 font-mono"
-                  autoComplete="off"
-                />
-              </div>
-            </div>
+          <ul className="list-disc pl-5 text-sm text-slate-700 space-y-2 mb-6">
+            <li>One {totalMinutes}-minute timer covers all six sections.</li>
+            <li>You may switch sections freely until time runs out or you submit.</li>
+            <li>Speaking section uses your microphone — allow access when prompted.</li>
+            <li>Do not refresh or leave the tab during the exam.</li>
+            <li>Click <strong>Submit assessment</strong> when you finish all sections.</li>
+          </ul>
 
-            <div>
-              <Label htmlFor="college">College name (optional)</Label>
-              <Input
-                id="college"
-                value={collegeName}
-                onChange={(e) => setCollegeName(e.target.value)}
-                placeholder="e.g. RCE Institute of Technology"
-                className="mt-1"
-                autoComplete="off"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="department">Department</Label>
-              <select
-                id="department"
-                value={departmentId}
-                onChange={(e) => setDepartmentId(e.target.value)}
-                className="mt-1 w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
-              >
-                {PLACEMENT_DEPARTMENTS.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Button
-                size="lg"
-                disabled={!canStart}
-                onClick={handleStart}
-                className="bg-[#1e3a5f] hover:bg-[#16304f]"
-              >
-                Begin assessment
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              size="lg"
+              disabled={starting}
+              onClick={handleStart}
+              className="bg-[#1e3a5f] hover:bg-[#16304f]"
+            >
+              {starting ? 'Starting…' : 'Start ElevateX exam'}
+            </Button>
+            {resumeAvailable ? (
+              <Button variant="outline" asChild>
+                <Link href="/placement/take">Resume saved session</Link>
               </Button>
-              {resumeAvailable ? (
-                <Button variant="outline" asChild>
-                  <Link href="/placement/take">Resume saved session</Link>
-                </Button>
-              ) : null}
-              <Button variant="ghost" asChild>
-                <Link href="/dashboard">Cancel</Link>
-              </Button>
-            </div>
+            ) : null}
+            <Button variant="ghost" asChild>
+              <Link href="/home">Back to home</Link>
+            </Button>
           </div>
         </Card>
 
@@ -212,8 +214,7 @@ export default function PlacementAssessmentStartPage() {
             ))}
           </ul>
           <p className="text-xs text-slate-500 mt-4">
-            One 60-minute timer for the full exam. You may switch sections at any time until time runs out or you
-            submit.
+            Technical questions are aligned to your department ({profile.departmentName}).
           </p>
         </Card>
       </div>

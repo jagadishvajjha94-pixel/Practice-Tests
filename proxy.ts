@@ -96,6 +96,10 @@ export async function proxy(request: NextRequest) {
     const resolved = await resolveAppUser(supabase)
     const role = resolved?.role ?? 'student'
 
+    if (pathname === '/') {
+      return NextResponse.redirect(new URL(defaultRedirectForRole(role), request.url))
+    }
+
     if (role === 'faculty') {
       if (isAdminRoute(pathname) || isStudentExperienceRoute(pathname)) {
         return NextResponse.redirect(new URL(defaultRedirectForRole('faculty'), request.url))
@@ -110,9 +114,6 @@ export async function proxy(request: NextRequest) {
 
     if (role === 'student') {
       if (isFacultyRoute(pathname) || isAdminRoute(pathname)) {
-        return NextResponse.redirect(new URL('/home', request.url))
-      }
-      if (pathname === '/') {
         return NextResponse.redirect(new URL('/home', request.url))
       }
       if (pathname === '/tests') {

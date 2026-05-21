@@ -24,6 +24,38 @@ export type LiveExamBoard = {
   in_progress_count: number;
 };
 
+/** Student currently in an exam (not yet submitted), tagged with which live test. */
+export type LiveWritingEntry = LiveBoardEntry & {
+  schedule_id: string;
+  schedule_title: string;
+  test_title: string;
+};
+
+export async function buildAllLiveWritingActivity(
+  admin: SupabaseClient,
+  schedules: ExamScheduleRow[],
+  preloadedAttempts?: RollupAttempt[],
+): Promise<LiveWritingEntry[]> {
+  const rows: LiveWritingEntry[] = [];
+
+  for (const schedule of schedules) {
+    const board = await buildLiveExamBoard(admin, schedule, preloadedAttempts);
+    for (const entry of board.entries) {
+      if (entry.submitted_at) continue;
+      rows.push({
+        ...entry,
+        schedule_id: schedule.id,
+        schedule_title: schedule.title,
+        test_title: board.test_title,
+      });
+    }
+  }
+
+  return rows.sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+  );
+}
+
 function normalizeTitle(value: string): string {
   return value
     .toLowerCase()
