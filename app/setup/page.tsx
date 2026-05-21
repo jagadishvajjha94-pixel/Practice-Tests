@@ -9,6 +9,26 @@ export default function SetupPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
+  const [elevatexStatus, setElevatexStatus] = useState<string | null>(null);
+  const [elevatexLoading, setElevatexLoading] = useState(false);
+
+  const handleSeedElevateX = async () => {
+    setElevatexLoading(true);
+    setElevatexStatus(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/setup/seed-elevatex-sample', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'ElevateX seed failed');
+      setElevatexStatus(
+        `ElevateX ready on Supabase project "${json.supabaseProject}". Password: ${json.password}. Try roll EX26001.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ElevateX seed failed');
+    } finally {
+      setElevatexLoading(false);
+    }
+  };
 
   const handleInitialize = async () => {
     setLoading(true);
@@ -91,6 +111,28 @@ export default function SetupPage() {
           >
             {loading ? 'Initializing...' : completed ? 'Completed' : 'Start Setup'}
           </Button>
+
+          <div className="mt-6 pt-6 border-t border-gray-200 space-y-3">
+            <h2 className="font-semibold text-gray-900">ElevateX sample logins</h2>
+            <p className="text-sm text-gray-600">
+              Creates EX26001–EX26015 on <strong>this deployment&apos;s</strong> Supabase project (fixes
+              &quot;Invalid login credentials&quot; on production).
+            </p>
+            {elevatexStatus ? (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                {elevatexStatus}
+              </div>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleSeedElevateX()}
+              disabled={elevatexLoading}
+              className="w-full"
+            >
+              {elevatexLoading ? 'Seeding ElevateX…' : 'Seed ElevateX sample students'}
+            </Button>
+          </div>
 
           <p className="mt-6 text-center text-sm text-gray-600">
             You only need to do this once. After that, you can{' '}
