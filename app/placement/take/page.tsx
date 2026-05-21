@@ -16,9 +16,11 @@ import {
   findDepartment,
 } from '@/lib/placement/config';
 import { computePlacementScorecard } from '@/lib/placement/scoring';
+import { fetchElevateXAttemptStatus, getElevateXTestId } from '@/lib/placement/elevatex-attempt';
 import {
   clearPlacementDrafts,
   loadSession,
+  markPlacementCompleted,
   saveScorecardForAttempt,
   saveSession,
 } from '@/lib/placement/session';
@@ -193,19 +195,41 @@ export default function PlacementTakePage() {
   const [hydrated, setHydrated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [tabSwitches, setTabSwitches] = useState(0);
+  const [blocked, setBlocked] = useState(false);
 
   const submitGuardRef = useRef(false);
   const handleSubmitRef = useRef<(reason: 'manual' | 'timeout') => Promise<void>>(async () => {});
 
-  // Hydrate session.
+  // Hydrate session and block repeat attempts.
   useEffect(() => {
-    const loaded = loadSession();
-    if (!loaded) {
-      router.replace('/placement');
-      return;
-    }
-    setSession(loaded);
-    setHydrated(true);
+    let cancelled = false;
+
+    const run = async () => {
+      const status = await fetchElevateXAttemptStatus();
+      if (cancelled) return;
+      if (status.completed && status.attemptId) {
+        setBlocked(true);
+        router.replace(`/placement/result/${status.attemptId}`);
+        return;
+      }
+
+      const loaded = loadSession();
+      if (!loaded) {
+        router.replace('/placement/assessment');
+        return;
+      }
+      if (loaded.submitted) {
+        router.replace('/placement/assessment');
+        return;
+      }
+      setSession(loaded);
+      setHydrated(true);
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   // Autosave (every 5s) of the session.
@@ -263,15 +287,16 @@ export default function PlacementTakePage() {
       const dept = findDepartment(scorecard.candidate.departmentId);
       const testName = `ElevateX · ${dept?.name ?? 'Department'}${reason === 'timeout' ? ' (auto-submit)' : ''}`;
 
+      const elevateXTestId = getElevateXTestId();
       const res = await recordDashboardAttempt({
-        testId: `placement-${scorecard.candidate.departmentId}`,
+        testId: elevateXTestId,
         testName,
         scorePercent: scorecard.percentage,
         rawNetScore: scorecard.earnedMarks,
         elapsedSec: scorecard.totalElapsedSec,
         examKind: 'practice',
         test: {
-          id: `placement-${scorecard.candidate.departmentId}`,
+          id: elevateXTestId,
           name: testName,
           category_id: 'placement',
           duration: 60,
@@ -281,7 +306,12 @@ export default function PlacementTakePage() {
 
       const attemptId = res?.attemptId ?? `placement-${Date.now()}`;
       saveScorecardForAttempt(attemptId, { ...scorecard, attemptId });
+      markPlacementCompleted(scorecard.candidate.hallTicket, attemptId);
       clearPlacementDrafts(scorecard.candidate.hallTicket);
+      if (res?.alreadyCompleted) {
+        router.replace(`/placement/result/${attemptId}`);
+        return;
+      }
       router.replace(`/placement/result/${attemptId}`);
     },
     [session, router],
@@ -412,10 +442,12 @@ export default function PlacementTakePage() {
     return total > 0 ? Math.round((answered / total) * 100) : 0;
   }, [session]);
 
-  if (!hydrated || !session || !currentSection) {
+  if (blocked || !hydrated || !session || !currentSection) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-slate-600">Preparing your placement session…</p>
+        <p className="text-slate-600">
+          {blocked ? 'Redirecting to your ElevateX result…' : 'Preparing your placement session…'}
+        </p>
       </div>
     );
   }

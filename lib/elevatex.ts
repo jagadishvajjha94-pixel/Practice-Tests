@@ -27,6 +27,21 @@ export const ELEVATEX_TEST_COMPONENTS = [
 
 export const ELEVATEX_MODULE_KEY = 'placement_full' as const;
 
+/** Canonical test id — one completed ElevateX attempt per student (all branches). */
+export const ELEVATEX_TEST_ID = ELEVATEX_MODULE_KEY;
+
 export function isElevateXModule(moduleKey: string | undefined | null): boolean {
   return moduleKey === ELEVATEX_MODULE_KEY;
+}
+
+/** Legacy rows used `placement-{department}`; treat those as the same exam. */
+export function isElevateXTestId(testId: string | null | undefined): boolean {
+  const id = String(testId ?? '').trim().toLowerCase();
+  if (!id) return false;
+  if (id === ELEVATEX_TEST_ID) return true;
+  return id.startsWith('placement-');
+}
+
+export function isElevateXAttemptTitle(title: string | null | undefined): boolean {
+  return /\belevatex\b/i.test(String(title ?? ''));
 }

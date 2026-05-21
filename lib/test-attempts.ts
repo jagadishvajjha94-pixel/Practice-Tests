@@ -8,6 +8,7 @@ import {
   type DashboardStatEntry,
 } from '@/lib/student-dashboard-stats';
 import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
+import { isElevateXAttemptTitle, isElevateXTestId } from '@/lib/elevatex';
 
 export { getBrowserDashboardAttempts, getDashboardFeedAttempts };
 
@@ -110,6 +111,45 @@ export async function findCompletedAttemptForTest(
   const stats = await fetchStudentDashboardStats(supabase, userId);
   for (const entry of stats) {
     if (!testIdsMatch(entry.test_id, testId)) continue;
+    if (entry.status !== 'completed' && !entry.completed_at) continue;
+    return {
+      id: entry.id,
+      score: entry.score,
+      completed_at: entry.completed_at,
+    };
+  }
+
+  return null;
+}
+
+function rowMatchesElevateX(row: {
+  test_id?: unknown;
+  test_title?: unknown;
+}): boolean {
+  if (isElevateXTestId(String(row.test_id ?? ''))) return true;
+  return isElevateXAttemptTitle(String(row.test_title ?? ''));
+}
+
+/** Any prior completed ElevateX paper for this student (canonical or legacy test ids). */
+export async function findCompletedElevateXAttempt(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<CompletedAttemptSummary | null> {
+  const rows = await queryAttempts(supabase, userId);
+  for (const row of rows) {
+    if (!rowMatchesElevateX(row)) continue;
+    if (!isAttemptRowCompleted(row)) continue;
+    const attempt = normalizeAttemptRow(row);
+    return {
+      id: attempt.id,
+      score: attempt.score,
+      completed_at: attempt.completed_at,
+    };
+  }
+
+  const stats = await fetchStudentDashboardStats(supabase, userId);
+  for (const entry of stats) {
+    if (!rowMatchesElevateX(entry)) continue;
     if (entry.status !== 'completed' && !entry.completed_at) continue;
     return {
       id: entry.id,

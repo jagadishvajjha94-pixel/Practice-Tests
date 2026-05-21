@@ -4,6 +4,7 @@ import {
   ensureStudentUserRow,
   fetchAttemptsForUser,
   findCompletedAttemptForTest,
+  findCompletedElevateXAttempt,
   persistTestAttempt,
   fallbackTestForAttempt,
   normalizeAttemptRow,
@@ -16,6 +17,7 @@ import {
 } from '@/lib/student-dashboard-stats';
 import type { TestAttempt } from '@/lib/types';
 import { assertStudentCanTakeTest } from '@/lib/exam-access';
+import { isElevateXTestId } from '@/lib/elevatex';
 import { resolveStudentTargeting } from '@/lib/student-profile-sync';
 
 export const dynamic = 'force-dynamic';
@@ -123,11 +125,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const prior = await findCompletedAttemptForTest(service, userId, testId);
+    const prior = isElevateXTestId(testId)
+      ? await findCompletedElevateXAttempt(service, userId)
+      : await findCompletedAttemptForTest(service, userId, testId);
     if (prior) {
       return NextResponse.json(
         {
-          error: 'You have already submitted this test and cannot take it again.',
+          error: isElevateXTestId(testId)
+            ? 'You have already completed ElevateX. Each student may attempt it only once.'
+            : 'You have already submitted this test and cannot take it again.',
           attemptId: prior.id,
           priorAttempt: prior,
         },

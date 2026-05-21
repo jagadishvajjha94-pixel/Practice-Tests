@@ -50,6 +50,31 @@ export function repairPlacementSession(session: PlacementSession): PlacementSess
 export const PLACEMENT_DRAFT_CANDIDATE_KEY = 'placement:candidate';
 export const PLACEMENT_DRAFT_SESSION_KEY = 'placement:session';
 export const PLACEMENT_LAST_SCORECARD_PREFIX = 'placement:scorecard:';
+export const PLACEMENT_COMPLETED_PREFIX = 'placement:completed:';
+
+export function markPlacementCompleted(hallTicket: string, attemptId: string): void {
+  if (typeof window === 'undefined' || !hallTicket || !attemptId) return;
+  try {
+    window.localStorage.setItem(
+      `${PLACEMENT_COMPLETED_PREFIX}${hallTicket}`,
+      JSON.stringify({ attemptId, at: new Date().toISOString() }),
+    );
+  } catch {
+    // ignore
+  }
+}
+
+export function getPlacementCompletedAttemptId(hallTicket: string): string | null {
+  if (typeof window === 'undefined' || !hallTicket) return null;
+  try {
+    const raw = window.localStorage.getItem(`${PLACEMENT_COMPLETED_PREFIX}${hallTicket}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { attemptId?: string };
+    return parsed.attemptId?.trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 /** Build the initial session given a candidate. Resets if storage already has one. */
 export function buildPlacementSession(candidate: PlacementCandidate): PlacementSession {

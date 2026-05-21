@@ -1,13 +1,5 @@
-import {
-  buildFeedEntry,
-  pushDashboardFeedEntry,
-  removeDashboardFeedEntry,
-} from '@/lib/dashboard-feed';
-import {
-  LOCAL_ATTEMPT_GUEST_USER_ID,
-  removeLocalTestAttempt,
-  saveLocalTestAttempt,
-} from '@/lib/local-test-attempts';
+import { buildFeedEntry, pushDashboardFeedEntry } from '@/lib/dashboard-feed';
+import { LOCAL_ATTEMPT_GUEST_USER_ID, saveLocalTestAttempt } from '@/lib/local-test-attempts';
 import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import type { Test } from '@/lib/types';
@@ -32,6 +24,7 @@ export type RecordDashboardAttemptInput = {
 export type RecordDashboardAttemptResult = {
   attemptId: string;
   savedToServer: boolean;
+  alreadyCompleted?: boolean;
 };
 
 function minimalTest(input: RecordDashboardAttemptInput): Test {
@@ -67,46 +60,43 @@ export async function recordDashboardAttempt(
   const ownerId = user?.id ?? LOCAL_ATTEMPT_GUEST_USER_ID;
   const nowIso = new Date().toISOString();
   const elapsedSec = input.elapsedSec ?? 0;
-  const localAttemptId = `local-${input.examKind ?? 'practice'}-${Date.now()}`;
-  let attemptId = localAttemptId;
-
   const test = minimalTest(input);
 
-  const localPayload = {
-    attempt: {
-      id: attemptId,
-      user_id: ownerId,
-      test_id: input.testId,
-      started_at: nowIso,
-      completed_at: nowIso,
-      score: input.scorePercent,
-      answers: null,
-      time_taken: elapsedSec,
-      status: 'completed' as const,
-      created_at: nowIso,
-    },
-    test,
-  };
-
-  saveLocalTestAttempt(ownerId, attemptId, localPayload);
-  pushDashboardFeedEntry(
-    ownerId,
-    buildFeedEntry({
-      id: attemptId,
-      userId: ownerId,
-      testId: input.testId,
-      testName: input.testName,
-      scorePercent: input.scorePercent,
-      elapsedSec,
-      completedAtIso: nowIso,
-    }),
-  );
-
   if (!user) {
-    return { attemptId, savedToServer: false };
+    const localAttemptId = `local-${input.examKind ?? 'practice'}-${Date.now()}`;
+    const localPayload = {
+      attempt: {
+        id: localAttemptId,
+        user_id: ownerId,
+        test_id: input.testId,
+        started_at: nowIso,
+        completed_at: nowIso,
+        score: input.scorePercent,
+        answers: null,
+        time_taken: elapsedSec,
+        status: 'completed' as const,
+        created_at: nowIso,
+      },
+      test,
+    };
+    saveLocalTestAttempt(ownerId, localAttemptId, localPayload);
+    pushDashboardFeedEntry(
+      ownerId,
+      buildFeedEntry({
+        id: localAttemptId,
+        userId: ownerId,
+        testId: input.testId,
+        testName: input.testName,
+        scorePercent: input.scorePercent,
+        elapsedSec,
+        completedAtIso: nowIso,
+      }),
+    );
+    return { attemptId: localAttemptId, savedToServer: false };
   }
 
   let savedToServer = false;
+  let attemptId = `local-${input.examKind ?? 'practice'}-${Date.now()}`;
 
   try {
     const authHeaders = await getSupabaseAuthHeaders(supabase);
@@ -129,6 +119,17 @@ export async function recordDashboardAttempt(
       }),
     });
 
+    if (res.status === 409) {
+      const json = (await res.json()) as {
+        attemptId?: string;
+        priorAttempt?: { id?: string };
+      };
+      const priorId = String(json.attemptId ?? json.priorAttempt?.id ?? '').trim();
+      if (priorId) {
+        return { attemptId: priorId, savedToServer: true, alreadyCompleted: true };
+      }
+    }
+
     if (res.ok) {
       savedToServer = true;
       const json = (await res.json()) as {
@@ -141,10 +142,22 @@ export async function recordDashboardAttempt(
       } else if (json.attempt) {
         cacheApiAttempts(user.id, [json.attempt]);
       }
-      if (json.id && json.id !== localAttemptId) {
+      if (json.id) {
+        attemptId = json.id;
         saveLocalTestAttempt(user.id, json.id, {
-          ...localPayload,
-          attempt: { ...localPayload.attempt, id: json.id },
+          attempt: {
+            id: json.id,
+            user_id: user.id,
+            test_id: input.testId,
+            started_at: nowIso,
+            completed_at: nowIso,
+            score: input.scorePercent,
+            answers: null,
+            time_taken: elapsedSec,
+            status: 'completed' as const,
+            created_at: nowIso,
+          },
+          test,
         });
         pushDashboardFeedEntry(
           user.id,
@@ -158,14 +171,42 @@ export async function recordDashboardAttempt(
             completedAtIso: nowIso,
           }),
         );
-        // Drop the local placeholder so the dashboard doesn't show two rows.
-        removeLocalTestAttempt(user.id, localAttemptId);
-        removeDashboardFeedEntry(user.id, localAttemptId);
-        attemptId = json.id;
       }
     }
   } catch {
-    // feed + local still updated
+    // fall through to local-only save
+  }
+
+  const localPayload = {
+    attempt: {
+      id: attemptId,
+      user_id: ownerId,
+      test_id: input.testId,
+      started_at: nowIso,
+      completed_at: nowIso,
+      score: input.scorePercent,
+      answers: null,
+      time_taken: elapsedSec,
+      status: 'completed' as const,
+      created_at: nowIso,
+    },
+    test,
+  };
+
+  if (!savedToServer) {
+    saveLocalTestAttempt(ownerId, attemptId, localPayload);
+    pushDashboardFeedEntry(
+      ownerId,
+      buildFeedEntry({
+        id: attemptId,
+        userId: ownerId,
+        testId: input.testId,
+        testName: input.testName,
+        scorePercent: input.scorePercent,
+        elapsedSec,
+        completedAtIso: nowIso,
+      }),
+    );
   }
 
   return { attemptId, savedToServer };

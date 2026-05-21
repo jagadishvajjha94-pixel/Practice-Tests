@@ -20,8 +20,10 @@ import {
   studentElevateXProfileFromAuth,
   type StudentElevateXProfile,
 } from '@/lib/placement/student-candidate';
+import { fetchElevateXAttemptStatus } from '@/lib/placement/elevatex-attempt';
 import {
   buildPlacementSession,
+  getPlacementCompletedAttemptId,
   loadSessionByHallTicket,
   saveCandidateDraft,
   saveSession,
@@ -33,6 +35,11 @@ export default function PlacementAssessmentStartPage() {
   const [loading, setLoading] = useState(true);
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [priorAttempt, setPriorAttempt] = useState<{
+    attemptId: string;
+    score?: number;
+    completedAt?: string | null;
+  } | null>(null);
 
   const totalMinutes = Math.round(PLACEMENT_TOTAL_SEC / 60);
 
@@ -70,8 +77,22 @@ export default function PlacementAssessmentStartPage() {
     );
     setProfile(studentProfile);
 
-    const existing = loadSessionByHallTicket(studentProfile.hallTicket);
-    setResumeAvailable(Boolean(existing && !existing.submitted));
+    const localCompletedId = getPlacementCompletedAttemptId(studentProfile.hallTicket);
+    const status = await fetchElevateXAttemptStatus();
+    if (status.completed && status.attemptId) {
+      setPriorAttempt({
+        attemptId: status.attemptId,
+        score: status.score,
+        completedAt: status.completedAt,
+      });
+      setResumeAvailable(false);
+    } else if (localCompletedId) {
+      setPriorAttempt({ attemptId: localCompletedId });
+      setResumeAvailable(false);
+    } else {
+      const existing = loadSessionByHallTicket(studentProfile.hallTicket);
+      setResumeAvailable(Boolean(existing && !existing.submitted));
+    }
     setLoading(false);
   }, [router]);
 
@@ -80,7 +101,7 @@ export default function PlacementAssessmentStartPage() {
   }, [loadStudent]);
 
   const handleStart = () => {
-    if (!profile || starting) return;
+    if (!profile || starting || priorAttempt) return;
     setStarting(true);
 
     const existing = loadSessionByHallTicket(profile.hallTicket);
@@ -163,6 +184,10 @@ export default function PlacementAssessmentStartPage() {
           <ElevateXLiveInfo className="mb-6" />
 
           <ul className="list-disc pl-5 text-sm text-slate-700 space-y-2 mb-6">
+            <li>
+              <strong>One attempt only</strong> — each student may submit ElevateX exactly once while it is
+              live.
+            </li>
             <li>One {totalMinutes}-minute timer covers all six sections.</li>
             <li>You may switch sections freely until time runs out or you submit.</li>
             <li>Speaking section uses your microphone — allow access when prompted.</li>
@@ -170,24 +195,44 @@ export default function PlacementAssessmentStartPage() {
             <li>Click <strong>Submit assessment</strong> when you finish all sections.</li>
           </ul>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              size="lg"
-              disabled={starting}
-              onClick={handleStart}
-              className="bg-[#1e3a5f] hover:bg-[#16304f]"
-            >
-              {starting ? 'Starting…' : 'Start ElevateX exam'}
-            </Button>
-            {resumeAvailable ? (
-              <Button variant="outline" asChild>
-                <Link href="/placement/take">Resume saved session</Link>
+          {priorAttempt ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 mb-6 text-sm text-emerald-950">
+              <p className="font-semibold">You have already completed ElevateX</p>
+              <p className="mt-1 text-emerald-900/90">
+                Each student may attempt this examination only once. You cannot start a new paper.
+              </p>
+              {priorAttempt.score != null ? (
+                <p className="mt-2 font-medium">Your score: {Math.round(priorAttempt.score)}%</p>
+              ) : null}
+              <div className="flex flex-wrap gap-2 mt-4">
+                <Button asChild className="bg-emerald-800 hover:bg-emerald-900">
+                  <Link href={`/placement/result/${priorAttempt.attemptId}`}>View your result</Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/home">Back to home</Link>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                size="lg"
+                disabled={starting}
+                onClick={handleStart}
+                className="bg-[#1e3a5f] hover:bg-[#16304f]"
+              >
+                {starting ? 'Starting…' : 'Start ElevateX exam'}
               </Button>
-            ) : null}
-            <Button variant="ghost" asChild>
-              <Link href="/home">Back to home</Link>
-            </Button>
-          </div>
+              {resumeAvailable ? (
+                <Button variant="outline" asChild>
+                  <Link href="/placement/take">Resume saved session</Link>
+                </Button>
+              ) : null}
+              <Button variant="ghost" asChild>
+                <Link href="/home">Back to home</Link>
+              </Button>
+            </div>
+          )}
         </Card>
 
         <Card className="md:col-span-2 p-6 sm:p-8 shadow-sm border-slate-200 bg-slate-50">
