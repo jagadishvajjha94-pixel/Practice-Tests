@@ -34,7 +34,7 @@ export const PLACEMENT_SECTIONS: PlacementSectionConfig[] = [
     name: 'Speaking / Communication Skills',
     short: 'Speaking',
     description:
-      'Verbal ability, comprehension, and expression — self-introduction, reading, and situational response.',
+      'Verbal ability, comprehension, and expression — five recorded prompts (15 marks total).',
     icon: '🎙️',
     kind: 'speaking',
     marks: 15,
@@ -50,7 +50,7 @@ export const PLACEMENT_SECTIONS: PlacementSectionConfig[] = [
     kind: 'mcq',
     marks: 15,
     durationSec: 8 * 60,
-    questionCount: 12,
+    questionCount: 15,
     negativeMarking: 0,
   },
   {
@@ -63,7 +63,7 @@ export const PLACEMENT_SECTIONS: PlacementSectionConfig[] = [
     kind: 'mcq',
     marks: 20,
     durationSec: 12 * 60,
-    questionCount: 15,
+    questionCount: 20,
     negativeMarking: 0.25,
   },
   {
@@ -76,7 +76,7 @@ export const PLACEMENT_SECTIONS: PlacementSectionConfig[] = [
     kind: 'mcq',
     marks: 15,
     durationSec: 10 * 60,
-    questionCount: 12,
+    questionCount: 15,
     negativeMarking: 0.25,
   },
   {
@@ -89,7 +89,7 @@ export const PLACEMENT_SECTIONS: PlacementSectionConfig[] = [
     kind: 'mcq',
     marks: 15,
     durationSec: 10 * 60,
-    questionCount: 12,
+    questionCount: 15,
     negativeMarking: 0,
   },
 ];
@@ -160,6 +160,22 @@ export const SPEAKING_TASKS: SpeakingTask[] = [
       'Tell us about a moment you struggled at work or in college and how you handled it. Speak naturally for 45 seconds.',
     recordSec: 45,
     marks: 3,
+  },
+  {
+    id: 'summarise',
+    title: 'Explain a concept',
+    prompt:
+      'In about 45 seconds, explain what effective teamwork means in a software project — roles, communication, and delivery.',
+    recordSec: 45,
+    marks: 3,
+  },
+  {
+    id: 'professional-tone',
+    title: 'Professional response',
+    prompt:
+      'A recruiter asks: "Why should we hire you for an internship?" Respond clearly and professionally in 60 seconds.',
+    recordSec: 60,
+    marks: 2,
   },
 ];
 

@@ -181,6 +181,28 @@ const ITEMS: Item[] = [
     correct: 'B',
     trait: 'eq',
   },
+  {
+    q: 'When priorities conflict between two managers, you should:',
+    options: [
+      'Ignore both until they forget',
+      'Clarify deadlines with both, escalate only if blocked, and document agreed priorities',
+      'Work only on the louder manager\'s task',
+      'Quit the task',
+    ],
+    correct: 'B',
+    trait: 'decision',
+  },
+  {
+    q: 'After a failed sprint demo, the best team response is to:',
+    options: [
+      'Blame the tester',
+      'Run a short retrospective, agree on one improvement, and retry with a smaller scope',
+      'Cancel agile ceremonies',
+      'Ship anyway without telling stakeholders',
+    ],
+    correct: 'B',
+    trait: 'teamwork',
+  },
 ];
 
 export function placementPsychometricBank(): Question[] {

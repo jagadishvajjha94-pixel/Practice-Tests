@@ -148,14 +148,11 @@ export default function TakeTestPage({
         if (policyRes.ok) {
           const policy = (await policyRes.json()) as {
             loginRequired?: boolean;
-            rosterEnforced?: boolean;
             liveExamTitle?: string | null;
           };
           if (policy.loginRequired && !sessionData.session?.user) {
             setAccessLocked(
-              policy.rosterEnforced
-                ? `Sign in with your college roll number to take “${policy.liveExamTitle ?? 'this live examination'}”. Only students on the official roster can proceed.`
-                : `Sign in with your roll number to take “${policy.liveExamTitle ?? 'this live examination'}”.`,
+              `Sign in with your roll number to take “${policy.liveExamTitle ?? 'this live examination'}”.`,
             );
             return;
           }
@@ -307,7 +304,7 @@ export default function TakeTestPage({
           <h1 className="text-lg font-semibold text-[#0c2340] mb-3">Access not permitted</h1>
           <p className="text-sm text-amber-950 mb-6">{accessLocked}</p>
           <p className="text-xs text-slate-600 mb-6">
-            Only students on the official roster uploaded by the admin may attempt this live test.
+            Live examinations require a signed-in student account in the correct department and year.
             Sharing the link does not grant access.
           </p>
           <Button asChild className="w-full">

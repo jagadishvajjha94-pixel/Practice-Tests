@@ -15,7 +15,7 @@ import {
   fetchStudentDashboardStats,
 } from '@/lib/student-dashboard-stats';
 import type { TestAttempt } from '@/lib/types';
-import { assertStudentCanTakeTest } from '@/lib/exam-roster/roster-access';
+import { assertStudentCanTakeTest } from '@/lib/exam-access';
 import { resolveStudentTargeting } from '@/lib/student-profile-sync';
 
 export const dynamic = 'force-dynamic';

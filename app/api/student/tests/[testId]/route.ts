@@ -3,8 +3,7 @@ import { loadQuestionsForTake, loadTestRowForTake } from '@/lib/load-test-for-ta
 import { loadTestSections } from '@/lib/exam-v2/load-sections';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { findCompletedAttemptForTest } from '@/lib/test-attempts';
-import { rollFromAuthUser } from '@/lib/exam-roster/normalize-roll';
-import { checkStudentExamAccess } from '@/lib/exam-roster/roster-access';
+import { checkStudentExamAccess } from '@/lib/exam-access';
 import { resolveStudentTargeting } from '@/lib/student-profile-sync';
 
 type RouteContext = { params: Promise<{ testId: string }> };
@@ -37,10 +36,6 @@ export async function GET(_request: Request, context: RouteContext) {
   );
   const access = await checkStudentExamAccess(admin, {
     testId: testId.trim(),
-    rollNumber: rollFromAuthUser({
-      email: authUser?.user?.email ?? auth.ctx.user.email,
-      user_metadata: (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
-    }),
     department: profile.branch ?? auth.ctx.resolved.department ?? '',
     year: profile.academic_year ?? auth.ctx.resolved.academicYear ?? '',
   });

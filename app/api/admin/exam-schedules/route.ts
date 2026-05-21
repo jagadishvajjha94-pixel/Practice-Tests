@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          'Exams must be saved as draft first. Upload the student roster, then use Go live.',
+          'Exams must be saved as scheduled first, then use Go live.',
       },
       { status: 400 },
     );

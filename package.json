@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && next build",
     "migrate:admin": "node scripts/apply-admin-setup.mjs",
-    "migrate:question-bank": "node scripts/apply-question-bank-migration.mjs"
+    "migrate:question-bank": "node scripts/apply-question-bank-migration.mjs",
+    "seed:elevatex": "node scripts/seed-elevatex-sample.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

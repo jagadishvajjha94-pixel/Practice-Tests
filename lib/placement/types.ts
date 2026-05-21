@@ -39,7 +39,12 @@ export type PlacementDepartment = {
     | 'generic';
 };
 
-export type SpeakingTaskId = 'self-intro' | 'paragraph' | 'confidence';
+export type SpeakingTaskId =
+  | 'self-intro'
+  | 'paragraph'
+  | 'confidence'
+  | 'summarise'
+  | 'professional-tone';
 
 export type SpeakingTask = {
   id: SpeakingTaskId;

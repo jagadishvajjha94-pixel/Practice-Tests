@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { ensureStudentUserRow, testIdsMatch } from '@/lib/test-attempts';
-import { assertStudentCanTakeTest } from '@/lib/exam-roster/roster-access';
+import { assertStudentCanTakeTest } from '@/lib/exam-access';
 import { resolveStudentTargeting } from '@/lib/student-profile-sync';
 
 export const dynamic = 'force-dynamic';
