@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { examSchedulesMigrationHint } from '@/lib/db-migration-hints';
 import { getRosterCountsBySchedule } from '@/lib/exam-roster/roster-access';
+import { normalizeEndsAtForGoLive } from '@/lib/exam-schedule';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -48,8 +49,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         { status: 400 },
       );
     }
+    const startsAtIso = new Date().toISOString();
     patch.status = 'live';
-    patch.starts_at = new Date().toISOString();
+    patch.starts_at = startsAtIso;
+    const normalizedEnd = normalizeEndsAtForGoLive(
+      startsAtIso,
+      (existing.ends_at as string | null) ?? null,
+    );
+    if (normalizedEnd !== (existing.ends_at as string | null)) {
+      patch.ends_at = normalizedEnd;
+    }
   } else if (action === 'end') {
     patch.status = 'ended';
     if (!existing.ends_at) {

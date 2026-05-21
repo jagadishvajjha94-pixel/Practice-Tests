@@ -3,6 +3,20 @@ import { departmentsMatch } from '@/lib/faculty/department-match';
 
 export type ExamScheduleStatus = 'scheduled' | 'live' | 'ended';
 
+/** What admins and students should see — may differ from raw DB status when the time window closed. */
+export type ExamScheduleDisplayStatus =
+  | 'scheduled'
+  | 'live'
+  | 'ended'
+  | 'window_ended';
+
+export type ResolvedExamScheduleStatus = {
+  display: ExamScheduleDisplayStatus;
+  label: string;
+  /** True when students may take the exam (status live + inside start/end window). */
+  windowOpen: boolean;
+};
+
 export type ExamScheduleRow = {
   id: string;
   title: string;
@@ -40,17 +54,83 @@ export function scheduleMatchesStudent(
   return depts.some((d) => departmentsMatch(d, department));
 }
 
-export function isScheduleLiveNow(
+export function scheduleEndMs(endsAt: string | null | undefined): number | null {
+  if (!endsAt) return null;
+  const end = new Date(endsAt).getTime();
+  return Number.isNaN(end) ? null : end;
+}
+
+export function scheduleStartMs(startsAt: string): number {
+  const start = new Date(startsAt).getTime();
+  return Number.isNaN(start) ? 0 : start;
+}
+
+export function isScheduleWindowOpen(
   schedule: Pick<ExamScheduleRow, 'status' | 'starts_at' | 'ends_at'>,
   now = Date.now(),
 ): boolean {
   if (schedule.status !== 'live') return false;
-  if (!schedule.ends_at) return true;
-  const end = new Date(schedule.ends_at).getTime();
-  if (!Number.isNaN(end) && now > end) return false;
-  const start = new Date(schedule.starts_at).getTime();
-  if (Number.isNaN(start)) return true;
-  return now >= start;
+  const start = scheduleStartMs(schedule.starts_at);
+  if (start > now) return false;
+  const end = scheduleEndMs(schedule.ends_at);
+  if (end !== null && now > end) return false;
+  return true;
+}
+
+/** @deprecated Alias for isScheduleWindowOpen */
+export function isScheduleLiveNow(
+  schedule: Pick<ExamScheduleRow, 'status' | 'starts_at' | 'ends_at'>,
+  now = Date.now(),
+): boolean {
+  return isScheduleWindowOpen(schedule, now);
+}
+
+export function resolveExamScheduleStatus(
+  schedule: Pick<ExamScheduleRow, 'status' | 'starts_at' | 'ends_at'>,
+  now = Date.now(),
+): ResolvedExamScheduleStatus {
+  if (schedule.status === 'ended') {
+    return { display: 'ended', label: 'Ended', windowOpen: false };
+  }
+
+  if (schedule.status === 'live') {
+    if (isScheduleWindowOpen(schedule, now)) {
+      return { display: 'live', label: 'Live', windowOpen: true };
+    }
+    const end = scheduleEndMs(schedule.ends_at);
+    if (end !== null && now > end) {
+      return {
+        display: 'window_ended',
+        label: 'Ended (time window closed)',
+        windowOpen: false,
+      };
+    }
+    const start = scheduleStartMs(schedule.starts_at);
+    if (start > now) {
+      return { display: 'scheduled', label: 'Scheduled (not started)', windowOpen: false };
+    }
+    return { display: 'window_ended', label: 'Ended (time window closed)', windowOpen: false };
+  }
+
+  const start = scheduleStartMs(schedule.starts_at);
+  if (start > now) {
+    return { display: 'scheduled', label: 'Scheduled', windowOpen: false };
+  }
+
+  return { display: 'scheduled', label: 'Scheduled', windowOpen: false };
+}
+
+/** Clear ends_at on go-live when it is before the new start (common admin workflow bug). */
+export function normalizeEndsAtForGoLive(
+  startsAtIso: string,
+  endsAt: string | null | undefined,
+): string | null {
+  if (!endsAt) return null;
+  const start = new Date(startsAtIso).getTime();
+  const end = scheduleEndMs(endsAt);
+  if (end === null) return null;
+  if (end <= start) return null;
+  return endsAt;
 }
 
 export function isScheduleUpcoming(

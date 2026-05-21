@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { partitionEvaloraModulesForStudent, type EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
 import { partitionSchedulesForStudent, type ExamScheduleRow } from '@/lib/exam-schedule';
+import { syncExpiredLiveExamSchedules } from '@/lib/exam-schedule-sync';
 import { listLiveFacultyExamsForStudent } from '@/lib/live-faculty-exams';
 import { buildStudentPortalPayload } from '@/lib/student-portal';
 import { resolveStudentTargeting } from '@/lib/student-profile-sync';
@@ -70,7 +71,10 @@ export async function GET() {
         .not('published_test_id', 'is', null),
     ]);
 
-  const schedules = (scheduleRows ?? []) as ExamScheduleRow[];
+  let schedules = (scheduleRows ?? []) as ExamScheduleRow[];
+  if (schedules.length > 0) {
+    schedules = await syncExpiredLiveExamSchedules(admin, schedules);
+  }
   const facultyIds = [
     ...new Set(
       schedules

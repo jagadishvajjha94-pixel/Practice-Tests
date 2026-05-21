@@ -5,6 +5,8 @@ import {
   examSchedulesMigrationHint,
   isMissingTableOrColumnError,
 } from '@/lib/db-migration-hints';
+import type { ExamScheduleRow } from '@/lib/exam-schedule';
+import { syncExpiredLiveExamSchedules } from '@/lib/exam-schedule-sync';
 
 export async function GET() {
   const auth = await requireAuth(['admin']);
@@ -58,8 +60,13 @@ export async function GET() {
     return NextResponse.json({ error: approvedError.message }, { status: 500 });
   }
 
+  let scheduleList = (schedules ?? []) as ExamScheduleRow[];
+  if (scheduleList.length > 0) {
+    scheduleList = await syncExpiredLiveExamSchedules(admin, scheduleList);
+  }
+
   return NextResponse.json({
-    schedules: schedules ?? [],
+    schedules: scheduleList,
     approvedExams: approved ?? [],
     warnings: warnings.length ? warnings : undefined,
   });

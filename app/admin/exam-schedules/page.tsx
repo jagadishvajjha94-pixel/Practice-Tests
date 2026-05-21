@@ -8,7 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { ACADEMIC_YEARS, DEPARTMENTS } from '@/lib/college-brand';
-import type { ExamScheduleRow } from '@/lib/exam-schedule';
+import {
+  resolveExamScheduleStatus,
+  type ExamScheduleDisplayStatus,
+  type ExamScheduleRow,
+} from '@/lib/exam-schedule';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 
@@ -37,6 +41,15 @@ function fromLocalInputValue(value: string): string | null {
   if (!value) return null;
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function statusBadgeTone(
+  display: ExamScheduleDisplayStatus,
+): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (display === 'live') return 'success';
+  if (display === 'scheduled') return 'warning';
+  if (display === 'window_ended') return 'danger';
+  return 'neutral';
 }
 
 const SAMPLE_ROSTER_CSV = `roll_number,full_name,department,year
@@ -115,6 +128,10 @@ export default function AdminExamSchedulesPage() {
   );
 
   const activeRosterCount = activeScheduleId ? (rosterCounts[activeScheduleId] ?? 0) : 0;
+
+  const activeResolved = activeSchedule
+    ? resolveExamScheduleStatus(activeSchedule)
+    : null;
 
   const openRosterForSchedule = (scheduleId: string) => {
     setActiveScheduleId(scheduleId);
@@ -361,8 +378,13 @@ export default function AdminExamSchedulesPage() {
                   <p className="text-sm text-slate-600 mt-1">
                     {activeSchedule ? (
                       <>
-                        Draft: <strong>{activeSchedule.title}</strong> ·{' '}
-                        <span className="capitalize">{activeSchedule.status}</span>
+                        Draft: <strong>{activeSchedule.title}</strong>
+                        {activeResolved ? (
+                          <>
+                            {' '}
+                            · <span>{activeResolved.label}</span>
+                          </>
+                        ) : null}
                       </>
                     ) : (
                       'Select a draft from the table below or save step 1 first.'
@@ -425,15 +447,20 @@ export default function AdminExamSchedulesPage() {
                       disabled={
                         acting === activeScheduleId ||
                         activeRosterCount === 0 ||
-                        activeSchedule?.status === 'live'
+                        activeResolved?.display === 'live'
                       }
                       onClick={() => void act(activeScheduleId, 'go_live')}
                     >
-                      {activeSchedule?.status === 'live'
+                      {activeResolved?.display === 'live'
                         ? 'Already live'
-                        : acting === activeScheduleId
-                          ? 'Going live…'
-                          : 'Go live now'}
+                        : activeResolved?.display === 'window_ended' ||
+                            activeSchedule?.status === 'ended'
+                          ? acting === activeScheduleId
+                            ? 'Reopening…'
+                            : 'Reopen exam window'
+                          : acting === activeScheduleId
+                            ? 'Going live…'
+                            : 'Go live now'}
                     </Button>
                     {activeRosterCount === 0 ? (
                       <p className="text-xs text-amber-800 self-center">
@@ -475,13 +502,19 @@ export default function AdminExamSchedulesPage() {
                   <th className="py-2 pr-3">Status</th>
                   <th className="py-2 pr-3">Roster</th>
                   <th className="py-2 pr-3">Starts</th>
+                  <th className="py-2 pr-3">Ends</th>
                   <th className="py-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {schedules.map((s) => {
                   const count = rosterCounts[s.id] ?? 0;
-                  const canGoLive = s.status === 'scheduled' && count > 0;
+                  const resolved = resolveExamScheduleStatus(s);
+                  const canGoLive =
+                    count > 0 &&
+                    (s.status === 'scheduled' ||
+                      s.status === 'ended' ||
+                      resolved.display === 'window_ended');
                   return (
                     <tr
                       key={s.id}
@@ -492,18 +525,12 @@ export default function AdminExamSchedulesPage() {
                     >
                       <td className="py-3 pr-3 font-medium">{s.title}</td>
                       <td className="py-3 pr-3">
-                        <Badge
-                          tone={
-                            s.status === 'live'
-                              ? 'success'
-                              : s.status === 'scheduled'
-                                ? 'warning'
-                                : 'neutral'
-                          }
-                          className="capitalize"
-                        >
-                          {s.status}
-                        </Badge>
+                        <Badge tone={statusBadgeTone(resolved.display)}>{resolved.label}</Badge>
+                        {resolved.display === 'window_ended' ? (
+                          <p className="text-[10px] text-amber-800 mt-1 max-w-[12rem]">
+                            End time passed — use Reopen or set a later end time.
+                          </p>
+                        ) : null}
                       </td>
                       <td className="py-3 pr-3 tabular-nums">
                         <span className={count > 0 ? 'text-emerald-700 font-medium' : 'text-amber-700'}>
@@ -513,26 +540,33 @@ export default function AdminExamSchedulesPage() {
                       <td className="py-3 pr-3 text-slate-600 whitespace-nowrap">
                         {new Date(s.starts_at).toLocaleString()}
                       </td>
+                      <td className="py-3 pr-3 text-slate-600 whitespace-nowrap">
+                        {s.ends_at ? new Date(s.ends_at).toLocaleString() : '—'}
+                      </td>
                       <td className="py-3">
                         <div className="flex flex-wrap gap-1">
-                          {s.status !== 'live' ? (
+                          {resolved.display !== 'live' ? (
                             <Button size="sm" variant="outline" onClick={() => openRosterForSchedule(s.id)}>
                               Roster
                             </Button>
                           ) : null}
-                          {s.status === 'scheduled' ? (
+                          {canGoLive && resolved.display !== 'live' ? (
                             <Button
                               size="sm"
-                              disabled={acting === s.id || !canGoLive}
+                              disabled={acting === s.id}
                               title={
-                                !canGoLive ? 'Upload roster first' : 'Make exam live for rostered students'
+                                resolved.display === 'window_ended' || s.status === 'ended'
+                                  ? 'Reopen the exam window for students'
+                                  : 'Make exam live for rostered students'
                               }
                               onClick={() => void act(s.id, 'go_live')}
                             >
-                              Go live
+                              {resolved.display === 'window_ended' || s.status === 'ended'
+                                ? 'Reopen'
+                                : 'Go live'}
                             </Button>
                           ) : null}
-                          {s.status === 'live' ? (
+                          {resolved.windowOpen || s.status === 'live' ? (
                             <Button
                               size="sm"
                               variant="outline"
