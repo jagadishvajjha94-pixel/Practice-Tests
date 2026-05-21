@@ -10,6 +10,7 @@ import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { ACADEMIC_YEARS, DEPARTMENTS } from '@/lib/college-brand';
 import type { ExamScheduleRow } from '@/lib/exam-schedule';
 import { cn } from '@/lib/utils';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 
 type ApprovedExam = {
   id: string;
@@ -219,7 +220,7 @@ export default function AdminExamSchedulesPage() {
   };
 
   if (loading) {
-    return <p className="text-gray-600">Loading exam schedules…</p>;
+    return <LoadingScreen message="Loading exam schedules…" className="min-h-[40vh]" />;
   }
 
   return (
@@ -236,7 +237,7 @@ export default function AdminExamSchedulesPage() {
       ) : null}
 
       <Card className="overflow-hidden">
-        <div className="flex border-b border-slate-200 bg-slate-50/80">
+        <div className="flex border-b border-slate-200/90 bg-gradient-to-b from-slate-50/90 to-white">
           {(
             [
               { id: 'setup' as const, label: '1. Exam details', hint: 'Title, timing, notice' },

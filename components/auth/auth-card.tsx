@@ -1,4 +1,3 @@
-import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -11,21 +10,23 @@ type Props = {
 
 export function AuthCard({ children, className, title, description }: Props) {
   return (
-    <Card
+    <div
       className={cn(
-        'overflow-hidden rounded-2xl border border-slate-200/90 p-0 shadow-[0_20px_50px_-12px_rgba(15,23,42,0.12)]',
+        'lux-hero-card overflow-hidden rounded-2xl border border-slate-200/90 flex flex-col gap-0',
         className,
       )}
     >
       {title ? (
-        <div className="border-b border-[#1e4a7a]/20 bg-gradient-to-br from-[#1e3a5f] to-[#254d73] px-6 py-5 sm:px-8 sm:py-6">
-          <h2 className="text-lg font-semibold text-white tracking-tight">{title}</h2>
+        <div className="app-brand-bar auth-card-header relative px-6 py-5 sm:px-8 sm:py-6">
+          <h2 className="text-lg font-semibold text-white tracking-tight font-[family-name:var(--font-display),ui-serif,Georgia,serif]">
+            {title}
+          </h2>
           {description ? (
-            <p className="mt-1.5 text-sm text-blue-50/95 leading-relaxed">{description}</p>
+            <p className="mt-1.5 text-sm leading-relaxed">{description}</p>
           ) : null}
         </div>
       ) : null}
       <div className="bg-white px-6 py-6 sm:px-8 sm:py-7 text-slate-950">{children}</div>
-    </Card>
+    </div>
   );
 }

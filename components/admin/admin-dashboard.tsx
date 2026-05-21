@@ -11,6 +11,8 @@ import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { cn } from '@/lib/utils';
 import { StatCard } from '@/components/ui/stat-card';
 import { LiveExamDashboard } from '@/components/admin/live-exam-dashboard';
+import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 
 type DashboardStudent = {
   id: string;
@@ -172,27 +174,19 @@ export function AdminDashboard() {
   }, [router]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Loading admin dashboard...</p>
-      </div>
-    );
+    return <LoadingScreen message="Loading admin dashboard…" className="min-h-[60vh]" />;
   }
 
   if (supabaseEnvMissing) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <p className="text-gray-600 text-center max-w-lg">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
+      <div className="lux-loading-screen min-h-[60vh] px-4">
+        <p className="text-center max-w-lg text-slate-600">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
       </div>
     );
   }
 
   if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Access denied</p>
-      </div>
-    );
+    return <LoadingScreen message="Access denied" className="min-h-[60vh]" />;
   }
 
   const filteredTopStudents = topStudents.filter((student) => {
@@ -408,15 +402,15 @@ export function AdminDashboard() {
   return (
     <>
       <LiveExamDashboard />
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Overview</h2>
-          <p className="text-sm text-gray-600 mt-1">College-wide performance, attendance, and exports</p>
-        </div>
-        <Button onClick={exportFullReportCsv} className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0">
-          Export full report (CSV)
-        </Button>
-      </div>
+      <AdminPageHeader
+        title="Overview"
+        description="College-wide performance, attendance, and exports"
+        actions={
+          <Button onClick={exportFullReportCsv} className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0">
+            Export full report (CSV)
+          </Button>
+        }
+      />
       <div>
         <div className="grid sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
           <StatCard
@@ -436,24 +430,24 @@ export function AdminDashboard() {
 
         <div className="grid lg:grid-cols-2 gap-6 mb-8">
           <Card className="p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Recent student activity</h2>
+            <h2 className="app-section-title mb-4">Recent student activity</h2>
             {recentStudents.length === 0 ? (
-              <p className="text-sm text-gray-600">No activity yet.</p>
+              <p className="text-sm text-slate-600">No activity yet.</p>
             ) : (
               <div className="space-y-3">
                 {recentStudents.map((student) => (
-                  <div key={student.id} className="flex items-center justify-between border-b border-gray-100 pb-2">
+                  <div key={student.id} className="flex items-center justify-between border-b border-slate-100 pb-2">
                     <div>
-                      <p className="font-medium text-gray-900">{student.full_name || student.email}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="font-medium text-[#0c2340]">{student.full_name || student.email}</p>
+                      <p className="text-xs text-slate-500">
                         {student.latestAttemptAt
                           ? `Last attempt: ${new Date(student.latestAttemptAt).toLocaleString()}`
                           : 'No attempts yet'}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-900">{student.attempts} tests</p>
-                      <p className="text-xs text-gray-500">Avg {student.avgScore}%</p>
+                      <p className="text-sm font-semibold text-[#0c2340]">{student.attempts} tests</p>
+                      <p className="text-xs text-slate-500">Avg {student.avgScore}%</p>
                     </div>
                   </div>
                 ))}
@@ -462,12 +456,12 @@ export function AdminDashboard() {
           </Card>
 
           <Card className="p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Highest score per student</h2>
+            <h2 className="text-xl font-bold text-[#0c2340] mb-4">Highest score per student</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0c2340] bg-white"
               >
                 <option value="all">All categories</option>
                 {categories.map((c) => (
@@ -479,7 +473,7 @@ export function AdminDashboard() {
               <select
                 value={selectedTest}
                 onChange={(e) => setSelectedTest(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0c2340] bg-white"
               >
                 <option value="all">All tests</option>
                 {Array.from(testsMap.entries()).map(([id, t]) => (
@@ -491,16 +485,16 @@ export function AdminDashboard() {
               <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search student..." />
             </div>
             {filteredTopStudents.length === 0 ? (
-              <p className="text-sm text-gray-600">No completed attempts yet.</p>
+              <p className="text-sm text-slate-600">No completed attempts yet.</p>
             ) : (
               <div className="space-y-3">
                 {filteredTopStudents.map((student, index) => (
-                  <div key={student.id} className="flex items-center justify-between border-b border-gray-100 pb-2">
+                  <div key={student.id} className="flex items-center justify-between border-b border-slate-100 pb-2">
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-[#0c2340]">
                         #{index + 1} {student.full_name || student.email}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-slate-500">
                         Highest in: {student.highestTestName || '-'} | {student.attempts} attempts
                       </p>
                     </div>
@@ -541,7 +535,7 @@ export function AdminDashboard() {
 
         <div className="grid lg:grid-cols-2 gap-6 mb-8">
           <Card className="p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Score distribution (by student average)</h2>
+            <h2 className="text-xl font-bold text-[#0c2340] mb-4">Score distribution (by student average)</h2>
             <div className="space-y-3">
               {scoreBands.map((band) => {
                 const percent =
@@ -552,7 +546,7 @@ export function AdminDashboard() {
                   <div key={band.label}>
                     <div className="flex items-center justify-between mb-1">
                       <p className={`text-sm font-medium ${band.tone}`}>{band.label}</p>
-                      <p className="text-sm text-gray-700">
+                      <p className="text-sm text-slate-700">
                         {band.count} student{band.count === 1 ? '' : 's'}
                       </p>
                     </div>
@@ -569,22 +563,22 @@ export function AdminDashboard() {
           </Card>
 
           <Card className="p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Recent test submissions</h2>
+            <h2 className="text-xl font-bold text-[#0c2340] mb-4">Recent test submissions</h2>
             {recentAttemptsFeed.length === 0 ? (
-              <p className="text-sm text-gray-600">No attempts yet.</p>
+              <p className="text-sm text-slate-600">No attempts yet.</p>
             ) : (
               <div className="space-y-3">
                 {recentAttemptsFeed.slice(0, 8).map((attempt) => (
-                  <div key={attempt.id} className="flex items-center justify-between border-b border-gray-100 pb-2">
+                  <div key={attempt.id} className="flex items-center justify-between border-b border-slate-100 pb-2">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{attempt.studentName}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-sm font-medium text-[#0c2340]">{attempt.studentName}</p>
+                      <p className="text-xs text-slate-500">
                         {attempt.testName} • {attempt.createdAt ? new Date(attempt.createdAt).toLocaleString() : '-'}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-900">{attempt.score}%</p>
-                      <p className="text-xs text-gray-500 capitalize">{attempt.status}</p>
+                      <p className="text-sm font-semibold text-[#0c2340]">{attempt.score}%</p>
+                      <p className="text-xs text-slate-500 capitalize">{attempt.status}</p>
                     </div>
                   </div>
                 ))}
@@ -595,35 +589,35 @@ export function AdminDashboard() {
 
         <Card className="p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Test-wise performance overview</h2>
-            <p className="text-sm text-gray-500">Top tests by number of attempts</p>
+            <h2 className="text-xl font-bold text-[#0c2340]">Test-wise performance overview</h2>
+            <p className="text-sm text-slate-500">Top tests by number of attempts</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Test</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Attempts</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Avg score</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Highest score</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Pass rate</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Test</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Attempts</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Avg score</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Highest score</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Pass rate</th>
                 </tr>
               </thead>
               <tbody>
                 {testWisePerformance.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-gray-500">
+                    <td colSpan={5} className="py-8 text-center text-slate-500">
                       No test attempts available for current filters.
                     </td>
                   </tr>
                 ) : (
                   testWisePerformance.map((row) => (
-                    <tr key={row.testId} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 text-gray-900 font-medium">{row.testName}</td>
-                      <td className="py-3 px-4 text-gray-900">{row.attempts}</td>
-                      <td className="py-3 px-4 text-gray-900">{row.avgScore}%</td>
-                      <td className="py-3 px-4 text-gray-900">{row.highestScore}%</td>
-                      <td className="py-3 px-4 text-gray-900">{row.passRate}%</td>
+                    <tr key={row.testId} className="border-b border-slate-100 hover:bg-gray-50">
+                      <td className="py-3 px-4 text-[#0c2340] font-medium">{row.testName}</td>
+                      <td className="py-3 px-4 text-[#0c2340]">{row.attempts}</td>
+                      <td className="py-3 px-4 text-[#0c2340]">{row.avgScore}%</td>
+                      <td className="py-3 px-4 text-[#0c2340]">{row.highestScore}%</td>
+                      <td className="py-3 px-4 text-[#0c2340]">{row.passRate}%</td>
                     </tr>
                   ))
                 )}
@@ -634,8 +628,8 @@ export function AdminDashboard() {
 
         <Card className="p-6 mb-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Student attendance and performance report</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-xl font-bold text-[#0c2340]">Student attendance and performance report</h2>
+            <p className="text-sm text-slate-500">
               Showing {filteredStudents.length} of {allStudents.length} students
             </p>
           </div>
@@ -643,33 +637,33 @@ export function AdminDashboard() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Student</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Attempts (written)</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Average</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Highest</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Top Test</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Last Attempt</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Student</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Attempts (written)</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Average</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Highest</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Top Test</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Last Attempt</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-gray-500">
+                    <td colSpan={6} className="text-center py-8 text-slate-500">
                       No students matched your filters.
                     </td>
                   </tr>
                 ) : (
                   filteredStudents.map((student) => (
-                    <tr key={student.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr key={student.id} className="border-b border-slate-100 hover:bg-gray-50">
                       <td className="py-3 px-4">
-                        <p className="font-medium text-gray-900">{student.full_name || student.email}</p>
-                        <p className="text-xs text-gray-500">{student.email}</p>
+                        <p className="font-medium text-[#0c2340]">{student.full_name || student.email}</p>
+                        <p className="text-xs text-slate-500">{student.email}</p>
                       </td>
-                      <td className="py-3 px-4 text-gray-900">{student.attempts}</td>
-                      <td className="py-3 px-4 text-gray-900">{student.avgScore}%</td>
-                      <td className="py-3 px-4 text-gray-900">{student.highestScore}%</td>
-                      <td className="py-3 px-4 text-gray-700">{student.highestTestName || '-'}</td>
-                      <td className="py-3 px-4 text-gray-700">
+                      <td className="py-3 px-4 text-[#0c2340]">{student.attempts}</td>
+                      <td className="py-3 px-4 text-[#0c2340]">{student.avgScore}%</td>
+                      <td className="py-3 px-4 text-[#0c2340]">{student.highestScore}%</td>
+                      <td className="py-3 px-4 text-slate-700">{student.highestTestName || '-'}</td>
+                      <td className="py-3 px-4 text-slate-700">
                         {student.latestAttemptAt ? new Date(student.latestAttemptAt).toLocaleString() : 'No attempts'}
                       </td>
                     </tr>
@@ -683,24 +677,24 @@ export function AdminDashboard() {
         <div className="grid md:grid-cols-3 gap-6">
           <Card className="p-6 hover:shadow-lg transition cursor-pointer">
             <Link href="/admin/questions">
-              <h2 className="text-xl font-bold text-gray-900 mb-3">Questions</h2>
-              <p className="text-gray-600 mb-4">Manage question bank, add new questions, and import from CSV</p>
+              <h2 className="text-xl font-bold text-[#0c2340] mb-3">Questions</h2>
+              <p className="text-slate-600 mb-4">Manage question bank, add new questions, and import from CSV</p>
               <div className="text-blue-600 font-medium">Manage questions →</div>
             </Link>
           </Card>
 
           <Card className="p-6 hover:shadow-lg transition cursor-pointer">
             <Link href="/admin/tests">
-              <h2 className="text-xl font-bold text-gray-900 mb-3">Tests</h2>
-              <p className="text-gray-600 mb-4">Create test sets, assign questions, and manage test settings</p>
+              <h2 className="text-xl font-bold text-[#0c2340] mb-3">Tests</h2>
+              <p className="text-slate-600 mb-4">Create test sets, assign questions, and manage test settings</p>
               <div className="text-blue-600 font-medium">Manage tests →</div>
             </Link>
           </Card>
 
           <Card className="p-6 hover:shadow-lg transition cursor-pointer">
             <Link href="/admin/users">
-              <h2 className="text-xl font-bold text-gray-900 mb-3">Users</h2>
-              <p className="text-gray-600 mb-4">View users and track learning analytics</p>
+              <h2 className="text-xl font-bold text-[#0c2340] mb-3">Users</h2>
+              <p className="text-slate-600 mb-4">View users and track learning analytics</p>
               <div className="text-blue-600 font-medium">Manage users →</div>
             </Link>
           </Card>

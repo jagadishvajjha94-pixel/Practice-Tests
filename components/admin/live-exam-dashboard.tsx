@@ -82,14 +82,18 @@ export function LiveExamDashboard() {
   const entries = board?.entries ?? [];
 
   return (
-    <Card className="mb-8 overflow-hidden border-0 shadow-2xl">
-      <div className="bg-gradient-to-br from-[#0a0f2e] via-[#1a0a3e] to-[#2d1060] text-white p-6 sm:p-8">
+    <Card className="mb-8 overflow-hidden border-0 shadow-[0_20px_48px_-12px_rgba(8,26,50,0.35)]">
+      <div className="relative bg-gradient-to-br from-[#081a32] via-[#0f2d4d] to-[#163d63] text-white p-6 sm:p-8">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#c4a052]/70 to-transparent"
+          aria-hidden
+        />
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-6">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-amber-300">
+            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-amber-200/95">
               Leaderboard
             </p>
-            <h2 className="text-2xl sm:text-3xl font-black mt-1 text-amber-100">
+            <h2 className="text-2xl sm:text-3xl font-bold mt-1 text-white tracking-tight font-[family-name:var(--font-display),ui-serif,Georgia,serif]">
               {board?.test_title ?? board?.schedule?.title ?? 'Live exam'}
             </h2>
           </div>
@@ -98,7 +102,7 @@ export function LiveExamDashboard() {
               <select
                 value={selectedId}
                 onChange={(e) => setSelectedId(e.target.value)}
-                className="rounded-lg border border-violet-400/40 bg-violet-950/60 px-3 py-2 text-sm text-white"
+                className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm text-white backdrop-blur"
               >
                 {schedules.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -114,22 +118,22 @@ export function LiveExamDashboard() {
         </div>
 
         <div className="grid grid-cols-3 gap-3 mb-6 max-w-xl">
-          <div className="rounded-xl bg-white/10 px-4 py-3 text-center border border-amber-400/20">
-            <p className="text-2xl font-black text-amber-300">{entries.length}</p>
-            <p className="text-[10px] uppercase tracking-wider text-violet-200">On board</p>
+          <div className="rounded-xl bg-white/10 px-4 py-3 text-center border border-[#c4a052]/25 backdrop-blur-sm">
+            <p className="text-2xl font-bold text-amber-200 tabular-nums">{entries.length}</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-200/80">On board</p>
           </div>
-          <div className="rounded-xl bg-white/10 px-4 py-3 text-center border border-emerald-400/20">
-            <p className="text-2xl font-black text-emerald-300">{board?.submitted_count ?? 0}</p>
-            <p className="text-[10px] uppercase tracking-wider text-violet-200">Submitted</p>
+          <div className="rounded-xl bg-white/10 px-4 py-3 text-center border border-emerald-400/25 backdrop-blur-sm">
+            <p className="text-2xl font-bold text-emerald-200 tabular-nums">{board?.submitted_count ?? 0}</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-200/80">Submitted</p>
           </div>
-          <div className="rounded-xl bg-white/10 px-4 py-3 text-center border border-cyan-400/20">
-            <p className="text-2xl font-black text-cyan-300">{board?.in_progress_count ?? 0}</p>
-            <p className="text-[10px] uppercase tracking-wider text-violet-200">In progress</p>
+          <div className="rounded-xl bg-white/10 px-4 py-3 text-center border border-cyan-400/25 backdrop-blur-sm">
+            <p className="text-2xl font-bold text-cyan-200 tabular-nums">{board?.in_progress_count ?? 0}</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-200/80">In progress</p>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-amber-400/30 bg-black/25 overflow-hidden">
-          <div className="grid grid-cols-[3rem_1fr_6rem_6rem_8rem] sm:grid-cols-[3rem_1fr_7rem_7rem_10rem] gap-2 px-4 py-3 bg-amber-500/15 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-200 border-b border-amber-400/20">
+        <div className="rounded-2xl border border-white/15 bg-black/20 overflow-hidden backdrop-blur-sm">
+          <div className="grid grid-cols-[3rem_1fr_6rem_6rem_8rem] sm:grid-cols-[3rem_1fr_7rem_7rem_10rem] gap-2 px-4 py-3 bg-[#c4a052]/12 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-100/95 border-b border-white/10">
             <span>#</span>
             <span>Student</span>
             <span>Roll</span>
@@ -152,8 +156,8 @@ export function LiveExamDashboard() {
                     key={entry.attempt_id}
                     className={cn(
                       'grid grid-cols-[3rem_1fr_6rem_6rem_8rem] sm:grid-cols-[3rem_1fr_7rem_7rem_10rem] gap-2 px-4 py-3 items-center transition-colors',
-                      isTop && 'bg-amber-500/10',
-                      !entry.submitted_at && 'bg-cyan-500/5',
+                      isTop && 'bg-[#c4a052]/10',
+                      !entry.submitted_at && 'bg-cyan-500/8',
                     )}
                   >
                     <span
@@ -162,13 +166,13 @@ export function LiveExamDashboard() {
                         idx === 0 && 'text-amber-300',
                         idx === 1 && 'text-slate-200',
                         idx === 2 && 'text-amber-600/90',
-                        idx > 2 && 'text-violet-300/80',
+                        idx > 2 && 'text-slate-300/90',
                       )}
                     >
                       {entry.rank}
                     </span>
                     <span className="font-semibold text-white truncate">{entry.student_name}</span>
-                    <span className="text-sm text-violet-200 font-mono truncate">{entry.roll_number}</span>
+                    <span className="text-sm text-slate-200/90 font-mono truncate">{entry.roll_number}</span>
                     <span
                       className={cn(
                         'text-right text-xl font-black tabular-nums',
@@ -177,7 +181,7 @@ export function LiveExamDashboard() {
                     >
                       {entry.score}%
                     </span>
-                    <span className="text-right text-xs text-violet-200/90 tabular-nums">{submitted}</span>
+                    <span className="text-right text-xs text-slate-200/80 tabular-nums">{submitted}</span>
                   </li>
                 );
               })}
@@ -186,7 +190,7 @@ export function LiveExamDashboard() {
         </div>
 
         {refreshedAt ? (
-          <p className="text-[10px] text-violet-300/60 mt-3 text-right">
+          <p className="text-[10px] text-slate-300/55 mt-3 text-right">
             Auto-refresh · last update {new Date(refreshedAt).toLocaleTimeString()}
           </p>
         ) : null}

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 
 type ViolationRow = {
   id: string;
@@ -52,32 +54,25 @@ export default function AdminProctoringPage() {
   }, [live, load]);
 
   if (loading) {
-    return (
-      <div className="min-h-[40vh] flex items-center justify-center text-muted-foreground">
-        Loading proctoring data…
-      </div>
-    );
+    return <LoadingScreen message="Loading proctoring data…" className="min-h-[40vh]" />;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Proctoring</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Exam integrity flags — tab switches, camera absence (&gt;5s), suspicious behavior, and
-            auto-submits after 7 incidents.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant={live ? 'default' : 'outline'} size="sm" onClick={() => setLive((v) => !v)}>
-            {live ? 'Live refresh on' : 'Live refresh off'}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => void load()}>
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Proctoring"
+        description="Exam integrity flags — tab switches, camera absence (>5s), suspicious behavior, and auto-submits after 7 incidents."
+        actions={
+          <div className="flex gap-2">
+            <Button variant={live ? 'default' : 'outline'} size="sm" onClick={() => setLive((v) => !v)}>
+              {live ? 'Live refresh on' : 'Live refresh off'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void load()}>
+              Refresh
+            </Button>
+          </div>
+        }
+      />
 
       <div className="grid sm:grid-cols-4 gap-3">
         <Card className="p-4 lux-surface">

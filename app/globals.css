@@ -3,9 +3,9 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* RCE institutional theme — slate + navy blue (no purple) */
+/* RCE institutional theme — refined navy + champagne accent */
 :root {
-  --background: #e8eef6;
+  --background: #eef3f9;
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
@@ -13,23 +13,39 @@
   --popover-foreground: #0f172a;
   --primary: #1e3a5f;
   --primary-foreground: #ffffff;
-  --secondary: #e2e8f0;
+  --brand-navy: #1e3a5f;
+  --brand-blue: #254d73;
+  --brand-sky: #2a5f8f;
+  --brand-gradient: linear-gradient(135deg, #1e3a5f 0%, #254d73 42%, #2a5f8f 100%);
+  --brand-gradient-deep: linear-gradient(135deg, #16304f 0%, #1e3a5f 50%, #2563eb 100%);
+  --brand-bar-height: 3.35rem;
+  --secondary: #e8edf4;
   --secondary-foreground: #1e293b;
-  --muted: #f1f5f9;
-  --muted-foreground: #334155;
-  --accent: #2563eb;
+  --muted: #f4f7fb;
+  --muted-foreground: #475569;
+  --accent: #1d6fd4;
   --accent-foreground: #ffffff;
+  --gold: #c4a052;
+  --gold-soft: rgba(196, 160, 82, 0.14);
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #cbd5e1;
-  --input: #cbd5e1;
+  --border: #d4dde8;
+  --input: #d4dde8;
   --ring: #1e4a7a;
   --chart-1: #1e3a5f;
   --chart-2: #2563eb;
   --chart-3: #0ea5e9;
   --chart-4: #059669;
   --chart-5: #d97706;
-  --radius: 0.75rem;
+  --radius: 0.875rem;
+  --shadow-lux:
+    0 1px 2px rgba(12, 35, 64, 0.04),
+    0 8px 28px -6px rgba(12, 35, 64, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --shadow-lux-lg:
+    0 2px 4px rgba(12, 35, 64, 0.05),
+    0 20px 48px -12px rgba(12, 35, 64, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
   --sidebar: #ffffff;
   --sidebar-foreground: #0f172a;
   --sidebar-primary: #1e3a5f;
@@ -126,12 +142,20 @@
   --card-foreground: #0f172a;
   --primary: #1e3a5f;
   --primary-foreground: #ffffff;
+  --brand-navy: #1e3a5f;
+  --brand-blue: #254d73;
+  --brand-sky: #2a5f8f;
+  --brand-gradient: linear-gradient(135deg, #1e3a5f 0%, #254d73 42%, #2a5f8f 100%);
+  --brand-gradient-deep: linear-gradient(135deg, #16304f 0%, #1e3a5f 50%, #2563eb 100%);
   --muted: #f1f5f9;
   --muted-foreground: #334155;
-  --border: #cbd5e1;
+  --border: #d4dde8;
   --ring: #1e4a7a;
   color: #0f172a;
-  background: linear-gradient(165deg, #ffffff 0%, #f4f8fd 42%, #e9f0f9 100%);
+  background:
+    radial-gradient(ellipse 80% 55% at 50% -15%, rgba(37, 99, 235, 0.14), transparent 52%),
+    radial-gradient(ellipse 70% 45% at 100% 0%, var(--gold-soft), transparent 50%),
+    linear-gradient(165deg, #ffffff 0%, #f0f6fc 42%, #e3edf8 100%);
   isolation: isolate;
   position: relative;
 }
@@ -142,8 +166,8 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(30, 58, 95, 0.08), transparent 55%),
-    radial-gradient(circle at 100% 100%, rgba(30, 58, 95, 0.05), transparent 40%);
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(30, 58, 95, 0.09), transparent 55%),
+    radial-gradient(circle at 0% 100%, rgba(196, 160, 82, 0.06), transparent 42%);
   pointer-events: none;
   z-index: 0;
 }
@@ -177,6 +201,57 @@
   color: #0f172a !important;
 }
 
+/* Persistent RCE blue branding — header bar, auth cards, portal shells */
+.app-brand-bar,
+.auth-card-header {
+  border-bottom: 1px solid rgba(30, 74, 122, 0.4);
+  background: var(--brand-gradient);
+  box-shadow:
+    0 4px 20px rgba(30, 58, 95, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.app-brand-bar::after,
+.auth-card-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(96, 165, 250, 0.55) 50%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.app-brand-bar h1,
+.app-brand-bar h2,
+.app-brand-bar h3,
+.app-brand-bar p,
+.auth-card-header h1,
+.auth-card-header h2,
+.auth-card-header p {
+  color: #ffffff;
+}
+
+.app-brand-bar .brand-subtitle,
+.auth-card-header p {
+  color: rgba(219, 234, 254, 0.95);
+}
+
+.app-brand-bar a {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.app-brand-bar a:hover {
+  color: #ffffff;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -191,11 +266,17 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
     line-height: 1.55;
+    background-color: #e8f0fa;
     background-image:
-      radial-gradient(ellipse 100% 60% at 50% -20%, rgba(30, 58, 95, 0.06), transparent 50%),
-      linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+      radial-gradient(ellipse 120% 70% at 50% -18%, rgba(37, 99, 235, 0.12), transparent 52%),
+      radial-gradient(ellipse 80% 50% at 0% 100%, rgba(30, 58, 95, 0.08), transparent 50%),
+      linear-gradient(180deg, #f4f8fd 0%, #e8f0fa 100%);
     min-height: 100dvh;
     text-rendering: optimizeLegibility;
+  }
+
+  body.app-branded {
+    --background: #e8f0fa;
   }
 
   h1,
@@ -256,11 +337,13 @@
 @layer utilities {
   /* Surfaces */
   .lux-surface {
-    @apply border border-slate-200/70 bg-white/95 backdrop-blur-sm text-slate-900;
-    box-shadow:
-      0 1px 2px rgba(15, 23, 42, 0.04),
-      0 8px 24px rgba(30, 58, 95, 0.08),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    @apply border border-slate-200/75 bg-white/96 backdrop-blur-md text-slate-900;
+    box-shadow: var(--shadow-lux);
+  }
+
+  .lux-hero-card {
+    @apply border border-slate-200/85 bg-white/98;
+    box-shadow: var(--shadow-lux-lg);
   }
 
   .lux-heading {
@@ -290,9 +373,30 @@
   }
 
   .app-page-header {
-    @apply relative overflow-hidden border-b border-white/30 py-10;
-    background: linear-gradient(135deg, #0c2340 0%, #163a62 42%, #1e4970 72%, #0f2847 100%);
-    box-shadow: 0 12px 40px rgba(12, 35, 64, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    @apply relative overflow-hidden border-b border-white/20 py-10;
+    background: var(--brand-gradient);
+    box-shadow:
+      0 16px 48px rgba(8, 26, 50, 0.38),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .app-page-header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(196, 160, 82, 0.35) 20%,
+      rgba(196, 160, 82, 0.85) 50%,
+      rgba(196, 160, 82, 0.35) 80%,
+      transparent 100%
+    );
+    pointer-events: none;
+    z-index: 2;
   }
 
   .app-page-header::before {
@@ -300,11 +404,24 @@
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(ellipse 80% 60% at 10% -10%, rgba(56, 189, 248, 0.15), transparent 55%),
-      radial-gradient(ellipse 60% 50% at 90% 100%, rgba(99, 102, 241, 0.12), transparent 50%),
-      linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.12) 100%);
+      radial-gradient(ellipse 80% 60% at 8% -10%, rgba(56, 189, 248, 0.14), transparent 55%),
+      radial-gradient(ellipse 55% 45% at 92% 100%, rgba(196, 160, 82, 0.1), transparent 50%),
+      linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.14) 100%);
     pointer-events: none;
     z-index: 0;
+  }
+
+  .app-page-header .app-title-xl,
+  .app-page-header .app-title-lg {
+    color: #ffffff;
+  }
+
+  .app-page-header .app-subtitle {
+    @apply text-white/82 max-w-3xl;
+  }
+
+  .app-page-header .app-eyebrow {
+    @apply border-white/20 bg-white/10 text-cyan-100/95;
   }
 
   .app-page-header > * {
@@ -313,7 +430,7 @@
   }
 
   .app-eyebrow {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-[#1e3a5f]/15 bg-[#1e3a5f]/[0.06] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#1e3a5f];
+    @apply inline-flex items-center gap-1.5 rounded-full border border-[#1e3a5f]/25 bg-[#1e3a5f]/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#1e3a5f];
   }
 
   .app-title-xl {
@@ -339,21 +456,18 @@
 
   /* Cards & shells */
   .app-card {
-    @apply rounded-2xl border border-slate-200/80 bg-white;
-    box-shadow:
-      0 1px 1px rgba(15, 23, 42, 0.02),
-      0 1px 3px rgba(15, 23, 42, 0.04);
+    @apply rounded-2xl border border-slate-200/85 bg-white;
+    box-shadow: var(--shadow-lux);
+    border-top: 2px solid rgba(30, 58, 95, 0.14);
   }
 
   .app-card-hover {
-    @apply transition-all duration-200;
+    @apply transition-all duration-300 ease-out;
   }
   .app-card-hover:hover {
-    border-color: rgba(30, 58, 95, 0.28);
-    box-shadow:
-      0 4px 6px -1px rgba(15, 23, 42, 0.06),
-      0 10px 24px -8px rgba(15, 23, 42, 0.08);
-    transform: translateY(-1px);
+    border-color: rgba(30, 58, 95, 0.22);
+    box-shadow: var(--shadow-lux-lg);
+    transform: translateY(-2px);
   }
 
   .app-glass {
@@ -378,16 +492,12 @@
 
   /* Stat cards */
   .app-stat-card {
-    @apply relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 transition-all duration-200;
-    box-shadow:
-      0 1px 1px rgba(15, 23, 42, 0.02),
-      0 1px 3px rgba(15, 23, 42, 0.04);
+    @apply relative overflow-hidden rounded-2xl border border-slate-200/85 bg-white p-5 transition-all duration-300 ease-out;
+    box-shadow: var(--shadow-lux);
   }
   .app-stat-card:hover {
-    box-shadow:
-      0 4px 6px -1px rgba(15, 23, 42, 0.06),
-      0 10px 24px -8px rgba(15, 23, 42, 0.1);
-    transform: translateY(-1px);
+    box-shadow: var(--shadow-lux-lg);
+    transform: translateY(-2px);
   }
 
   /* Badges / pills */
@@ -415,7 +525,7 @@
     @apply w-full text-sm;
   }
   .app-table thead th {
-    @apply text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-slate-500 border-b border-slate-200;
+    @apply text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-[#1e3a5f] border-b border-[#1e3a5f]/15 bg-[#1e3a5f]/[0.05];
   }
   .app-table tbody td {
     @apply py-3 px-4 text-slate-800 border-b border-slate-100;
@@ -450,25 +560,89 @@
   }
 
   /* Brand portal headers (admin / faculty) */
-  .app-portal-header {
-    @apply sticky top-0 z-20 text-white shadow-md;
+  .app-portal-shell {
+    @apply min-h-screen;
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 30%),
-      linear-gradient(135deg, #0c2340 0%, #173357 50%, #1e3a5f 100%);
+      radial-gradient(ellipse 90% 50% at 50% -10%, rgba(37, 99, 235, 0.1), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgba(30, 58, 95, 0.08), transparent 50%),
+      linear-gradient(180deg, #f4f8fd 0%, #e8f0fa 100%);
+  }
+
+  .app-portal-main {
+    @apply mx-auto max-w-7xl px-4 py-8 sm:py-10;
+  }
+
+  .app-portal-header {
+    @apply sticky z-[90] text-white relative;
+    top: var(--brand-bar-height);
+    background: var(--brand-gradient);
+    box-shadow: 0 8px 28px rgba(30, 58, 95, 0.25);
+  }
+
+  .app-portal-header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(96, 165, 250, 0.55) 50%,
+      transparent
+    );
+    pointer-events: none;
   }
 
   .app-portal-nav-link {
-    @apply inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200;
+    @apply inline-flex items-center rounded-xl px-3.5 py-2 text-sm font-semibold tracking-tight transition-all duration-200;
   }
   .app-portal-nav-link[data-active='false'] {
-    @apply text-slate-200 hover:bg-white/10;
+    @apply text-slate-200/95 hover:bg-white/10 hover:text-white;
   }
   .app-portal-nav-link[data-active='true'] {
-    background-color: #ffffff;
+    background: linear-gradient(180deg, #ffffff 0%, #f4f7fb 100%);
     color: #0c2340;
     box-shadow:
-      0 1px 1px rgba(15, 23, 42, 0.04),
-      0 4px 12px -4px rgba(15, 23, 42, 0.18);
+      0 1px 2px rgba(12, 35, 64, 0.08),
+      0 6px 16px -6px rgba(12, 35, 64, 0.22);
+  }
+
+  .lux-loading-screen {
+    @apply min-h-[50vh] flex flex-col items-center justify-center gap-4 text-slate-600;
+  }
+
+  .lux-loading-spinner {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 9999px;
+    border: 2px solid rgba(30, 58, 95, 0.12);
+    border-top-color: #1e3a5f;
+    animation: lux-spin 0.85s linear infinite;
+  }
+
+  .lux-loading-message {
+    @apply text-sm font-medium tracking-wide text-slate-600;
+  }
+
+  @keyframes lux-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .lux-panel-title {
+    font-family: var(--font-display), ui-serif, Georgia, serif;
+    @apply text-2xl sm:text-[1.65rem] font-bold tracking-tight text-[#0c2340];
+  }
+
+  .lux-panel-desc {
+    @apply text-sm text-slate-600 mt-1.5 leading-relaxed max-w-2xl;
+  }
+
+  .lux-hero-card {
+    box-shadow: var(--shadow-lux-lg);
   }
 
   /* Buttons reset visual when used on dark portals */

@@ -11,7 +11,7 @@ type StatCardProps = {
 };
 
 const accentGradient = {
-  navy: 'from-[#1e3a5f] to-[#0c2340]',
+  navy: 'from-[#2a5f8f] to-[#1e3a5f]',
   blue: 'from-blue-500 to-blue-700',
   emerald: 'from-emerald-500 to-emerald-700',
   cyan: 'from-cyan-500 to-cyan-700',
@@ -79,7 +79,12 @@ export function StatCard({
           </span>
         ) : null}
       </div>
-      <p className={cn('text-3xl font-bold tabular-nums tracking-tight', valueTone[accent])}>
+      <p
+        className={cn(
+          'text-3xl font-bold tabular-nums tracking-tight font-[family-name:var(--font-display),ui-serif,Georgia,serif]',
+          valueTone[accent],
+        )}
+      >
         {value}
       </p>
       {(hint || trend) && (

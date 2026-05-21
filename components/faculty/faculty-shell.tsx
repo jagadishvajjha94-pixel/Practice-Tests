@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { COLLEGE } from '@/lib/college-brand';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 
 const navItems = [
   { href: '/faculty/dashboard', label: 'Overview' },
@@ -68,25 +69,18 @@ export function FacultyShell({ children }: { children: React.ReactNode }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">
-        <div className="flex items-center gap-3">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#1e3a5f] animate-pulse" />
-          <span>Loading faculty portal…</span>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Loading faculty portal…" className="min-h-screen app-portal-shell" />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="app-portal-header">
-        <div className="max-w-6xl mx-auto px-4 py-5 flex flex-wrap items-start justify-between gap-4">
+    <div className="app-portal-shell">
+      <header className="app-portal-header relative">
+        <div className="max-w-7xl mx-auto px-4 py-5 sm:py-6 flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-cyan-200/90 font-bold">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-amber-200/90 font-bold">
               {COLLEGE.rce} · Faculty
             </p>
-            <h1 className="text-lg sm:text-xl font-bold text-white mt-1 leading-tight">
+            <h1 className="text-lg sm:text-2xl font-bold text-white mt-1 leading-tight tracking-tight font-[family-name:var(--font-display),ui-serif,Georgia,serif]">
               {COLLEGE.name}
             </h1>
             <p className="text-sm text-slate-200/90">{COLLEGE.departmentTitle}</p>
@@ -106,7 +100,7 @@ export function FacultyShell({ children }: { children: React.ReactNode }) {
             Sign out
           </Button>
         </div>
-        <nav className="max-w-6xl mx-auto px-4 pb-4 flex flex-wrap gap-1.5">
+        <nav className="max-w-7xl mx-auto px-4 pb-4 sm:pb-5 flex flex-wrap gap-1.5">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -119,7 +113,7 @@ export function FacultyShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
       </header>
-      <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
+      <main className="app-portal-main">{children}</main>
     </div>
   );
 }

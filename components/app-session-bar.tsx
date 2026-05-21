@@ -61,7 +61,7 @@ export default function AppSessionBar() {
 
   const bar = (
     <div
-      className="pointer-events-auto fixed top-[4.25rem] right-3 z-[9999] flex max-w-[min(100vw-1.5rem,22rem)] flex-wrap items-center justify-end gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-md sm:right-4 sm:text-sm"
+      className="pointer-events-auto fixed top-[4.25rem] right-3 z-[9999] flex max-w-[min(100vw-1.5rem,22rem)] flex-wrap items-center justify-end gap-2 rounded-xl border border-[#1e3a5f]/20 border-t-2 border-t-[#1e3a5f] bg-white/95 px-3 py-2 text-xs shadow-[var(--shadow-lux)] backdrop-blur-md sm:right-4 sm:text-sm"
       role="region"
       aria-label="Account"
     >

@@ -36,7 +36,9 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`${geist.variable} ${geistMono.variable} ${playfair.variable}`}
     >
-      <body className={`${geist.className} font-sans antialiased bg-background text-foreground min-h-dvh`}>
+      <body
+        className={`${geist.className} app-branded font-sans antialiased bg-background text-foreground min-h-dvh`}
+      >
         <CollegeSiteHeader />
         <GlobalBackButton />
         <AppSessionBar />

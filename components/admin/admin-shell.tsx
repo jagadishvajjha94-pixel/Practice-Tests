@@ -7,6 +7,7 @@ import { COLLEGE } from '@/lib/college-brand';
 import { ADMIN_NAV_ITEMS } from '@/lib/admin-nav';
 import { useAdminGate } from '@/lib/use-admin-gate';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -20,14 +21,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-600">
-        <div className="flex items-center gap-3">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#1e3a5f] animate-pulse" />
-          <span>Loading admin panel…</span>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Loading admin panel…" className="min-h-screen app-portal-shell" />;
   }
 
   if (!allowed) {
@@ -37,16 +31,18 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const isOverviewActive = pathname === '/admin' || pathname === '/admin/dashboard';
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="app-portal-header">
-        <div className="max-w-6xl mx-auto px-4 py-5">
+    <div className="app-portal-shell">
+      <header className="app-portal-header relative">
+        <div className="max-w-7xl mx-auto px-4 py-5 sm:py-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-cyan-200/90 font-bold">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-amber-200/90 font-bold">
                 {COLLEGE.rce} · Administration
               </p>
-              <h1 className="text-xl font-bold text-white mt-1">{COLLEGE.shortName}</h1>
-              <p className="text-sm text-slate-200/90">{COLLEGE.departmentTitle}</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-white mt-1 tracking-tight font-[family-name:var(--font-display),ui-serif,Georgia,serif]">
+                {COLLEGE.shortName}
+              </h1>
+              <p className="text-sm text-slate-200/90 mt-0.5">{COLLEGE.departmentTitle}</p>
             </div>
             <div className="flex gap-2 shrink-0">
               <Link href="/auth/role">
@@ -88,7 +84,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </header>
-      <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
+      <main className="app-portal-main">{children}</main>
     </div>
   );
 }

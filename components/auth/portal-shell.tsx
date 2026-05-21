@@ -29,7 +29,11 @@ export function PortalShell({
     >
       {title || subtitle ? (
         <div className="relative z-10 w-full max-w-lg text-center mb-5">
-          {title ? <h1 className="text-xl sm:text-2xl font-bold text-[#0c2340]">{title}</h1> : null}
+          {title ? (
+            <h1 className="text-xl sm:text-2xl font-bold text-[#0c2340] font-[family-name:var(--font-display),ui-serif,Georgia,serif] tracking-tight">
+              {title}
+            </h1>
+          ) : null}
           {subtitle ? <p className="mt-1.5 text-sm font-medium text-slate-700">{subtitle}</p> : null}
         </div>
       ) : null}

@@ -5,16 +5,16 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold tracking-tight transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold tracking-tight transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/40 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground shadow-sm hover:bg-[#16304f]',
+          'bg-gradient-to-b from-[#2a5f8f] to-[#1e3a5f] text-primary-foreground shadow-[0_2px_8px_rgba(30,58,95,0.28)] hover:from-[#3570a8] hover:to-[#254d73] hover:shadow-[0_4px_14px_rgba(30,58,95,0.32)] active:scale-[0.98]',
         destructive:
           'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
         outline:
-          'border border-slate-300 bg-white shadow-sm text-slate-800 hover:bg-slate-50',
+          'border border-slate-300/90 bg-white/95 shadow-sm text-slate-800 hover:border-[#1e3a5f]/25 hover:bg-slate-50/90',
         secondary:
           'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         ghost:
