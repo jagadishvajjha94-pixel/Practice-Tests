@@ -114,8 +114,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid endsAt' }, { status: 400 });
   }
 
-  const goLiveNow = Boolean(body.goLiveNow);
-  const status: ExamScheduleStatus = goLiveNow ? 'live' : 'scheduled';
+  if (Boolean(body.goLiveNow)) {
+    return NextResponse.json(
+      {
+        error:
+          'Exams must be saved as draft first. Upload the student roster, then use Go live.',
+      },
+      { status: 400 },
+    );
+  }
+
+  const status: ExamScheduleStatus = 'scheduled';
 
   const targetDepartments = Array.isArray(body.targetDepartments)
     ? (body.targetDepartments as string[])
@@ -142,7 +151,7 @@ export async function POST(request: NextRequest) {
       faculty_exam_request_id: facultyExamRequestId,
       test_id: examRow.published_test_id as string,
       status,
-      starts_at: goLiveNow ? new Date().toISOString() : startsAt.toISOString(),
+      starts_at: startsAt.toISOString(),
       ends_at: endsAt?.toISOString() ?? null,
       target_departments: targetDepartments,
       target_years: targetYears,

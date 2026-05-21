@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { examSchedulesMigrationHint } from '@/lib/db-migration-hints';
+import { getRosterCountsBySchedule } from '@/lib/exam-roster/roster-access';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -36,6 +37,17 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (action === 'go_live') {
+    const counts = await getRosterCountsBySchedule(admin, [id]);
+    const rosterCount = counts.get(id) ?? 0;
+    if (rosterCount === 0) {
+      return NextResponse.json(
+        {
+          error:
+            'Upload the student roster before going live. Open the Student roster tab and import a CSV first.',
+        },
+        { status: 400 },
+      );
+    }
     patch.status = 'live';
     patch.starts_at = new Date().toISOString();
   } else if (action === 'end') {
