@@ -20,6 +20,12 @@ import { downloadStudentReportPdf } from '@/lib/reports/student-pdf';
 import { ElevateXScorecardView } from '@/components/placement/elevatex-scorecard-view';
 import { downloadElevateXScorecardPdf } from '@/lib/placement/elevatex-scorecard-pdf';
 import { formatScorePercentLabel } from '@/lib/format-score';
+import { StatDetailReportModal } from '@/components/reports/stat-detail-report-modal';
+import {
+  buildFacultyPerformanceCardReport,
+  type FacultyPerformanceCardKey,
+  type FacultyReportContext,
+} from '@/lib/faculty/dashboard-card-reports';
 import type { PlacementScorecard } from '@/lib/placement/types';
 
 type RecentAttempt = {
@@ -89,6 +95,7 @@ export default function FacultyPerformancePage() {
     scorecard: PlacementScorecard;
     attemptId: string;
   } | null>(null);
+  const [detailCard, setDetailCard] = useState<FacultyPerformanceCardKey | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -178,6 +185,18 @@ export default function FacultyPerformancePage() {
     }
   };
 
+  const facultyContext: FacultyReportContext = {
+    department,
+    summary,
+    students,
+    examStats,
+    examRequests: [],
+  };
+
+  const detailReport = detailCard
+    ? buildFacultyPerformanceCardReport(detailCard, facultyContext)
+    : null;
+
   const exportAllCsv = () => {
     const headers = [
       'Name',
@@ -241,6 +260,13 @@ export default function FacultyPerformancePage() {
 
   return (
     <div className="space-y-6">
+      <StatDetailReportModal
+        open={detailCard != null}
+        onClose={() => setDetailCard(null)}
+        report={detailReport}
+        fileBase={detailCard ? `faculty-performance-${detailCard}` : undefined}
+      />
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <span className="app-eyebrow">Insights</span>
@@ -250,9 +276,11 @@ export default function FacultyPerformancePage() {
             exams and ElevateX. View full ElevateX scorecards or download PDFs per student.
           </p>
         </div>
-        <Button variant="outline" onClick={exportAllCsv} disabled={filtered.length === 0}>
-          Export CSV
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={exportAllCsv} disabled={filtered.length === 0}>
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -261,6 +289,7 @@ export default function FacultyPerformancePage() {
           value={summary.students_in_department ?? 0}
           accent="navy"
           icon="🎓"
+          onClick={() => setDetailCard('students_in_department')}
         />
         <StatCard
           label="Attended exams"
@@ -275,18 +304,21 @@ export default function FacultyPerformancePage() {
                 )} attendance`
               : undefined
           }
+          onClick={() => setDetailCard('students_with_attempts')}
         />
         <StatCard
           label="Average score"
           value={formatScorePercentLabel(summary.overall_avg ?? 0)}
           accent="emerald"
           icon="📈"
+          onClick={() => setDetailCard('average_score')}
         />
         <StatCard
           label="Pass rate (≥ 40%)"
           value={formatScorePercentLabel(summary.pass_rate ?? 0)}
           accent={summary.pass_rate && summary.pass_rate >= 60 ? 'emerald' : 'amber'}
           icon="✅"
+          onClick={() => setDetailCard('pass_rate')}
         />
       </div>
 

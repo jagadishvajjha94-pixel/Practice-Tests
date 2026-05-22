@@ -19,12 +19,21 @@ import { StatCard } from '@/components/ui/stat-card';
 import { LiveExamDashboard } from '@/components/admin/live-exam-dashboard';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { LoadingScreen } from '@/components/ui/loading-screen';
+import { StatDetailReportModal } from '@/components/reports/stat-detail-report-modal';
+import {
+  buildAdminDashboardCardReport,
+  type AdminDashboardCardKey,
+  type AdminDashboardReportContext,
+} from '@/lib/admin/dashboard-card-reports';
 
 type DashboardStudent = {
   id: string;
   email: string;
   full_name: string | null;
-  created_at: string;
+  created_at?: string;
+  roll_number?: string;
+  branch?: string | null;
+  academic_year?: string | null;
   attempts: number;
   avgScore: number;
   latestAttemptAt: string | null;
@@ -68,6 +77,7 @@ export function AdminDashboard() {
   const [topStudents, setTopStudents] = useState<DashboardStudent[]>([]);
   const [allStudents, setAllStudents] = useState<DashboardStudent[]>([]);
   const [allAttempts, setAllAttempts] = useState<DashboardAttemptRow[]>([]);
+  const [detailCard, setDetailCard] = useState<AdminDashboardCardKey | null>(null);
 
   useEffect(() => {
     const checkAdminAccess = async () => {
@@ -340,6 +350,35 @@ export function AdminDashboard() {
       };
     });
 
+  const categorySlugByTestId = new Map<string, string>();
+  const categoryNameByTestId = new Map<string, string>();
+  for (const [testId, test] of testsMap.entries()) {
+    const cat = categories.find((c) => c.id === test.category_id);
+    categorySlugByTestId.set(testId, cat?.slug ?? '');
+    categoryNameByTestId.set(testId, cat?.name ?? '');
+  }
+
+  const reportContext: AdminDashboardReportContext = {
+    stats,
+    students: allStudents,
+    attempts: allAttempts,
+    categories,
+    categorySlugByTestId,
+    categoryNameByTestId,
+    testsMap,
+    attendanceRate,
+    overallAverageScore,
+    passRate,
+    passedCount,
+    inactiveCount: inactiveStudents,
+  };
+
+  const detailReport = detailCard
+    ? buildAdminDashboardCardReport(detailCard, reportContext)
+    : null;
+
+  const openCard = (key: AdminDashboardCardKey) => setDetailCard(key);
+
   const exportFullReportCsv = () => {
     const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const lines: string[] = [];
@@ -409,6 +448,12 @@ export function AdminDashboard() {
 
   return (
     <>
+      <StatDetailReportModal
+        open={detailCard != null}
+        onClose={() => setDetailCard(null)}
+        report={detailReport}
+        fileBase={detailCard ? `admin-${detailCard}` : undefined}
+      />
       <LiveExamDashboard />
       <AdminPageHeader
         title="Overview"
@@ -431,14 +476,50 @@ export function AdminDashboard() {
             label="Registered users"
             value={stats.totalRegisteredUsers}
             accent="navy"
+            onClick={() => openCard('registered_users')}
           />
-          <StatCard label="Students with attempts" value={stats.totalStudentsAttended} accent="blue" />
-          <StatCard label="Tests submitted" value={stats.totalTestsSubmitted} accent="navy" />
-          <StatCard label="Avg tests / student" value={stats.avgTestsPerStudent} accent="emerald" />
-          <StatCard label="Tests (7 days)" value={stats.testsLast7Days} accent="cyan" />
-          <StatCard label="Need attention" value={stats.lowPerformers} accent="red" />
-          <StatCard label="Psychometric" value={stats.psychometricSubmitted} accent="indigo" />
-          <StatCard label="SWARX" value={stats.swarxSubmitted} accent="emerald" />
+          <StatCard
+            label="Students with attempts"
+            value={stats.totalStudentsAttended}
+            accent="blue"
+            onClick={() => openCard('students_with_attempts')}
+          />
+          <StatCard
+            label="Tests submitted"
+            value={stats.totalTestsSubmitted}
+            accent="navy"
+            onClick={() => openCard('tests_submitted')}
+          />
+          <StatCard
+            label="Avg tests / student"
+            value={stats.avgTestsPerStudent}
+            accent="emerald"
+            onClick={() => openCard('avg_tests_per_student')}
+          />
+          <StatCard
+            label="Tests (7 days)"
+            value={stats.testsLast7Days}
+            accent="cyan"
+            onClick={() => openCard('tests_last_7_days')}
+          />
+          <StatCard
+            label="Need attention"
+            value={stats.lowPerformers}
+            accent="red"
+            onClick={() => openCard('low_performers')}
+          />
+          <StatCard
+            label="Psychometric"
+            value={stats.psychometricSubmitted}
+            accent="indigo"
+            onClick={() => openCard('psychometric')}
+          />
+          <StatCard
+            label="SWARX"
+            value={stats.swarxSubmitted}
+            accent="emerald"
+            onClick={() => openCard('swarx')}
+          />
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6 mb-8">
@@ -527,24 +608,28 @@ export function AdminDashboard() {
             value={formatScorePercentLabel(attendanceRate)}
             hint={`${stats.totalStudentsAttended} of ${stats.totalRegisteredUsers} students have attempted at least one test`}
             accent="blue"
+            onClick={() => openCard('attendance_rate')}
           />
           <StatCard
             label="Overall average score"
             value={formatScorePercentLabel(overallAverageScore)}
             hint={`Across ${filteredAttempts.length} attempts in the current filter`}
             accent="navy"
+            onClick={() => openCard('overall_average')}
           />
           <StatCard
             label="Pass rate (≥ 40%)"
             value={formatScorePercentLabel(passRate)}
             hint={`${passedCount} of ${filteredAttempts.length} attempts met the pass threshold`}
             accent="emerald"
+            onClick={() => openCard('pass_rate')}
           />
           <StatCard
             label="Inactive students"
             value={inactiveStudents}
             hint="Registered but no test attempts yet"
             accent="amber"
+            onClick={() => openCard('inactive_students')}
           />
         </div>
 

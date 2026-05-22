@@ -7,6 +7,13 @@ import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/ui/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StatDetailReportModal } from '@/components/reports/stat-detail-report-modal';
+import {
+  buildFacultyDashboardCardReport,
+  type FacultyDashboardCardKey,
+  type FacultyPerformanceStudent,
+  type FacultyReportContext,
+} from '@/lib/faculty/dashboard-card-reports';
 import type { FacultyExamRequest } from '@/lib/faculty-exams';
 
 type PerformanceSummary = {
@@ -18,8 +25,11 @@ type PerformanceSummary = {
 export default function FacultyDashboardPage() {
   const [requests, setRequests] = useState<FacultyExamRequest[]>([]);
   const [summary, setSummary] = useState<PerformanceSummary>({});
+  const [department, setDepartment] = useState('');
+  const [students, setStudents] = useState<FacultyPerformanceStudent[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [detailCard, setDetailCard] = useState<FacultyDashboardCardKey | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -32,8 +42,14 @@ export default function FacultyDashboardPage() {
         setRequests(json.requests ?? []);
       }
       if (perfRes.ok) {
-        const json = (await perfRes.json()) as { summary?: PerformanceSummary };
+        const json = (await perfRes.json()) as {
+          department?: string;
+          summary?: PerformanceSummary;
+          students?: FacultyPerformanceStudent[];
+        };
+        setDepartment(json.department ?? '');
         setSummary(json.summary ?? {});
+        setStudents(json.students ?? []);
       }
       setLoading(false);
     };
@@ -41,9 +57,15 @@ export default function FacultyDashboardPage() {
     const timer = setInterval(() => {
       void fetch('/api/faculty/performance')
         .then((perfRes) => perfRes.json())
-        .then((json: { summary?: PerformanceSummary }) => {
-          if (json.summary) setSummary(json.summary);
-        })
+        .then(
+          (json: {
+            summary?: PerformanceSummary;
+            students?: FacultyPerformanceStudent[];
+          }) => {
+            if (json.summary) setSummary(json.summary);
+            if (json.students) setStudents(json.students);
+          },
+        )
         .catch(() => undefined);
     }, 15000);
     return () => clearInterval(timer);
@@ -60,6 +82,23 @@ export default function FacultyDashboardPage() {
     if (filter === 'all') return requests;
     return requests.filter((r) => r.status === filter);
   }, [requests, filter]);
+
+  const facultyContext: FacultyReportContext = useMemo(
+    () => ({
+      department,
+      summary,
+      students,
+      examStats: [],
+      examRequests: requests,
+    }),
+    [department, summary, students, requests],
+  );
+
+  const detailReport = useMemo(
+    () =>
+      detailCard ? buildFacultyDashboardCardReport(detailCard, facultyContext) : null,
+    [detailCard, facultyContext],
+  );
 
   if (loading) {
     return (
@@ -81,6 +120,13 @@ export default function FacultyDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <StatDetailReportModal
+        open={detailCard != null}
+        onClose={() => setDetailCard(null)}
+        report={detailReport}
+        fileBase={detailCard ? `faculty-${detailCard}` : undefined}
+      />
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <span className="app-eyebrow">Overview</span>
@@ -101,18 +147,21 @@ export default function FacultyDashboardPage() {
           value={summary.students_in_department ?? 0}
           accent="navy"
           icon="🎓"
+          onClick={() => setDetailCard('students_in_department')}
         />
         <StatCard
           label="Attended approved exams"
           value={summary.students_with_attempts ?? 0}
           accent="emerald"
           icon="✅"
+          onClick={() => setDetailCard('students_with_attempts')}
         />
         <StatCard
           label="Total attempts"
           value={summary.total_attempts ?? 0}
           accent="blue"
           icon="📊"
+          onClick={() => setDetailCard('total_attempts')}
         />
         <StatCard
           label="Approval queue"
@@ -120,6 +169,7 @@ export default function FacultyDashboardPage() {
           hint={counts.rejected ? `${counts.rejected} rejected` : 'All caught up'}
           accent="amber"
           icon="⏳"
+          onClick={() => setDetailCard('approval_queue')}
         />
       </div>
 

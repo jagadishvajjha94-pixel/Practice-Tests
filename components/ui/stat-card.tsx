@@ -8,6 +8,7 @@ type StatCardProps = {
   trend?: { value: string; tone?: 'positive' | 'negative' | 'neutral' };
   accent?: 'navy' | 'blue' | 'emerald' | 'cyan' | 'amber' | 'red' | 'indigo';
   className?: string;
+  onClick?: () => void;
 };
 
 const accentGradient = {
@@ -54,9 +55,31 @@ export function StatCard({
   trend,
   accent = 'navy',
   className,
+  onClick,
 }: StatCardProps) {
+  const clickable = Boolean(onClick);
   return (
-    <div className={cn('app-stat-card', className)}>
+    <div
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+      className={cn(
+        'app-stat-card',
+        clickable &&
+          'cursor-pointer transition-shadow hover:shadow-[var(--shadow-lux-lg)] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a5f]/40',
+        className,
+      )}
+    >
       <div
         className={cn(
           'absolute inset-x-0 top-0 h-1 bg-gradient-to-r',
@@ -101,6 +124,9 @@ export function StatCard({
           ) : null}
           {hint ? (
             <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
+          ) : null}
+          {clickable ? (
+            <p className="text-[10px] font-semibold text-[#1e3a5f]/70 mt-1">Click for full report →</p>
           ) : null}
         </div>
       )}
