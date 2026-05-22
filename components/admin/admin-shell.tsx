@@ -51,7 +51,19 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     <div className="app-portal-shell">
       <header className="app-portal-header relative">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 border border-white/30 bg-white/15 !text-white hover:bg-white/25"
+              aria-expanded={navOpen}
+              aria-controls="admin-nav-drawer"
+              aria-label={navOpen ? 'Close admin menu' : 'Open admin menu'}
+              onClick={() => setNavOpen((o) => !o)}
+            >
+              {navOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
             <div className="min-w-0 flex-1">
               <p className="text-[10px] uppercase tracking-[0.18em] text-amber-200/90 font-bold truncate">
                 {COLLEGE.rce} · Administration
@@ -79,18 +91,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               >
                 Sign out
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 border border-white/30 bg-white/15 !text-white hover:bg-white/25"
-                aria-expanded={navOpen}
-                aria-controls="admin-nav-drawer"
-                aria-label={navOpen ? 'Close admin menu' : 'Open admin menu'}
-                onClick={() => setNavOpen((o) => !o)}
-              >
-                {navOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </Button>
             </div>
           </div>
         </div>
@@ -108,8 +108,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <aside
         id="admin-nav-drawer"
         className={cn(
-          'fixed top-0 right-0 z-[100] h-full w-[min(100vw-2.5rem,320px)] bg-[#0c2340] text-white shadow-2xl transition-transform duration-200 ease-out flex flex-col',
-          navOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none',
+          'fixed top-0 left-0 z-[100] h-full w-[min(100vw-2.5rem,320px)] bg-[#0c2340] text-white shadow-2xl transition-transform duration-200 ease-out flex flex-col',
+          navOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none',
         )}
         aria-hidden={!navOpen}
       >
