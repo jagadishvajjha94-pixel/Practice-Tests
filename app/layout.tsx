@@ -1,18 +1,18 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono, Playfair_Display } from 'next/font/google'
+import { DM_Sans, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import GlobalBackButton from '@/components/global-back-button'
 import AppSessionBar from '@/components/app-session-bar'
 import CollegeSiteHeader from '@/components/college-site-header'
 
-const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' });
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' });
-const playfair = Playfair_Display({
+const dmSans = DM_Sans({
   subsets: ['latin'],
-  variable: '--font-display',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-dm-sans',
   display: 'swap',
 });
+const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' });
 
 export const metadata: Metadata = {
   title: 'Ramachandra College — Training & Placement Department',
@@ -34,10 +34,10 @@ export default function RootLayout({
     <html
       lang="en"
       data-scroll-behavior="smooth"
-      className={`${geist.variable} ${geistMono.variable} ${playfair.variable}`}
+      className={`${dmSans.variable} ${geistMono.variable}`}
     >
       <body
-        className={`${geist.className} app-branded font-sans antialiased bg-background text-foreground min-h-dvh`}
+        className={`${dmSans.className} app-branded font-sans font-medium antialiased bg-background text-foreground min-h-dvh`}
       >
         <CollegeSiteHeader />
         <GlobalBackButton />

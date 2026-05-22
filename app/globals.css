@@ -54,6 +54,7 @@
   --sidebar-accent-foreground: #1e293b;
   --sidebar-border: #e2e8f0;
   --sidebar-ring: #1e4a7a;
+  --font-display: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 .dark {
@@ -92,7 +93,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -263,8 +264,9 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
+    @apply bg-background text-foreground antialiased font-medium;
+    font-family: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     line-height: 1.55;
     background-color: #e8f0fa;
     background-image:
@@ -348,8 +350,8 @@
 
   .lux-heading {
     color: #0c2340;
-    font-family: var(--font-display), ui-serif, Georgia, serif;
-    font-weight: 700;
+    font-family: var(--font-display);
+    font-weight: 600;
   }
 
   .lux-grid {
@@ -434,7 +436,7 @@
   }
 
   .app-title-xl {
-    font-family: var(--font-display), ui-serif, Georgia, serif;
+    font-family: var(--font-display);
     @apply text-3xl sm:text-4xl font-bold tracking-tight text-[#0c2340];
   }
 
@@ -633,7 +635,7 @@
   }
 
   .lux-panel-title {
-    font-family: var(--font-display), ui-serif, Georgia, serif;
+    font-family: var(--font-display);
     @apply text-2xl sm:text-[1.65rem] font-bold tracking-tight text-[#0c2340];
   }
 

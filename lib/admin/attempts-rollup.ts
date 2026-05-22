@@ -43,6 +43,16 @@ function rowScore(row: AttemptRow): number {
   );
 }
 
+function inferAttemptStatus(row: AttemptRow): string {
+  const raw = String(row.status ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+  if (raw) return raw;
+  if (row.completed_at) return 'completed';
+  return 'in_progress';
+}
+
 function attemptFromRow(row: AttemptRow, testName: string): RollupAttempt {
   const created = String(row.created_at ?? row.started_at ?? new Date().toISOString());
   return {
@@ -51,7 +61,7 @@ function attemptFromRow(row: AttemptRow, testName: string): RollupAttempt {
     test_id: row.test_id != null ? String(row.test_id) : null,
     test_name: testName,
     score: rowScore(row),
-    status: String(row.status ?? 'completed'),
+    status: inferAttemptStatus(row),
     created_at: created,
     completed_at: row.completed_at ? String(row.completed_at) : null,
     time_taken: row.time_taken != null ? Number(row.time_taken) : null,

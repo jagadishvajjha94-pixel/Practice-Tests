@@ -22,11 +22,13 @@ type SpeechRecognition = {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
+  maxAlternatives?: number;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onerror: ((event: { error?: string }) => void) | null;
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
+  abort: () => void;
 };
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
@@ -38,6 +40,19 @@ function getSpeechRecognitionCtor(): SpeechRecognitionConstructor | null {
     webkitSpeechRecognition?: SpeechRecognitionConstructor;
   };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
+function normalizeTranscript(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function mergeTranscript(final: string, interim: string): string {
+  const f = normalizeTranscript(final);
+  const i = normalizeTranscript(interim);
+  if (!f) return i;
+  if (!i) return f;
+  if (i.startsWith(f) || f.includes(i)) return i;
+  return `${f} ${i}`;
 }
 
 type Phase = 'idle' | 'recording' | 'done';
@@ -58,25 +73,45 @@ function TaskCard({
   onSkip: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>(existing ? 'done' : 'idle');
-  const [transcript, setTranscript] = useState(existing?.transcript ?? '');
-  const [interim, setInterim] = useState('');
+  const [displayText, setDisplayText] = useState(existing?.transcript ?? '');
   const [secondsLeft, setSecondsLeft] = useState(task.recordSec);
   const [error, setError] = useState<string | null>(null);
   const [sttUnsupported, setSttUnsupported] = useState(false);
 
+  const finalTranscriptRef = useRef(existing?.transcript ?? '');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const tickRef = useRef<number | null>(null);
   const startedAtRef = useRef<number>(0);
-  /** Becomes true once stopAll has fired; prevents auto-restart from `onend`. */
-  const stoppedRef = useRef<boolean>(false);
+  const stoppedRef = useRef(false);
+  const restartTimerRef = useRef<number | null>(null);
+  const transcriptRafRef = useRef<number | null>(null);
+
+  const getLiveTranscript = useCallback(() => {
+    return normalizeTranscript(finalTranscriptRef.current);
+  }, []);
+
+  const pushLiveTranscript = useCallback((final: string, interim: string) => {
+    finalTranscriptRef.current = normalizeTranscript(final);
+    const combined = mergeTranscript(finalTranscriptRef.current, interim);
+    if (transcriptRafRef.current !== null) {
+      cancelAnimationFrame(transcriptRafRef.current);
+    }
+    transcriptRafRef.current = requestAnimationFrame(() => {
+      transcriptRafRef.current = null;
+      setDisplayText(combined);
+    });
+  }, []);
 
   useEffect(() => {
     return () => {
+      stoppedRef.current = true;
+      if (restartTimerRef.current) window.clearTimeout(restartTimerRef.current);
+      if (transcriptRafRef.current) cancelAnimationFrame(transcriptRafRef.current);
       try {
-        recognitionRef.current?.stop();
+        recognitionRef.current?.abort();
       } catch {
-        // ignore
+        recognitionRef.current?.stop();
       }
       try {
         mediaRecorderRef.current?.stop();
@@ -90,10 +125,14 @@ function TaskCard({
 
   const stopAll = useCallback(() => {
     stoppedRef.current = true;
+    if (restartTimerRef.current) {
+      window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
     try {
-      recognitionRef.current?.stop();
+      recognitionRef.current?.abort();
     } catch {
-      // ignore
+      recognitionRef.current?.stop();
     }
     try {
       mediaRecorderRef.current?.stop();
@@ -109,14 +148,15 @@ function TaskCard({
 
   const finalize = useCallback(
     (rawTranscript: string) => {
+      const text = normalizeTranscript(rawTranscript || getLiveTranscript());
       const durationSec = Math.max(
         1,
         Math.round((Date.now() - startedAtRef.current) / 1000),
       );
-      const sub = scoreSpeakingTranscript(task, rawTranscript, durationSec);
+      const sub = scoreSpeakingTranscript(task, text, durationSec);
       const response: PlacementSpeakingResponse = {
         taskId: task.id,
-        transcript: rawTranscript.trim(),
+        transcript: text,
         durationSec,
         wordCount: sub.wordCount,
         fluency: sub.fluency,
@@ -124,16 +164,69 @@ function TaskCard({
         grammar: sub.grammar,
         contentMatch: sub.contentMatch,
       };
+      finalTranscriptRef.current = text;
+      setDisplayText(text);
       onComplete(response);
       setPhase('done');
     },
-    [task, onComplete],
+    [task, onComplete, getLiveTranscript],
+  );
+
+  const attachRecognition = useCallback(
+    (recognition: SpeechRecognition) => {
+      let sessionFinal = '';
+
+      recognition.onresult = (event) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          const chunk = result[0]?.transcript ?? '';
+          if (!chunk) continue;
+          if (result.isFinal) {
+            sessionFinal = normalizeTranscript(`${sessionFinal} ${chunk}`);
+          } else {
+            interim += chunk;
+          }
+        }
+        pushLiveTranscript(sessionFinal, interim);
+      };
+
+      recognition.onerror = (event) => {
+        const reason = event?.error ?? 'unknown';
+        if (reason === 'no-speech' || reason === 'aborted') return;
+        if (reason === 'network' && !stoppedRef.current) {
+          restartTimerRef.current = window.setTimeout(() => {
+            if (stoppedRef.current) return;
+            try {
+              recognition.start();
+            } catch {
+              // ignore
+            }
+          }, 800);
+          return;
+        }
+        setError(`Speech error: ${reason}`);
+      };
+
+      recognition.onend = () => {
+        if (stoppedRef.current) return;
+        restartTimerRef.current = window.setTimeout(() => {
+          if (stoppedRef.current) return;
+          try {
+            recognition.start();
+          } catch {
+            // ignore
+          }
+        }, 200);
+      };
+    },
+    [pushLiveTranscript],
   );
 
   const start = useCallback(async () => {
     setError(null);
-    setTranscript('');
-    setInterim('');
+    finalTranscriptRef.current = '';
+    setDisplayText('');
     setSecondsLeft(task.recordSec);
     startedAtRef.current = Date.now();
     stoppedRef.current = false;
@@ -141,18 +234,14 @@ function TaskCard({
     const Ctor = getSpeechRecognitionCtor();
     if (!Ctor) {
       setSttUnsupported(true);
-      // Still allow recording-less mode: user types the transcript below.
       setPhase('recording');
       tickRef.current = window.setInterval(() => {
         setSecondsLeft((s) => {
           if (s <= 1) {
-            window.clearInterval(tickRef.current!);
+            if (tickRef.current) window.clearInterval(tickRef.current);
             tickRef.current = null;
-            // Use whatever was typed.
-            setPhase((current) => {
-              if (current === 'recording') finalize(transcript);
-              return current;
-            });
+            stopAll();
+            finalize(finalTranscriptRef.current);
             return 0;
           }
           return s - 1;
@@ -162,59 +251,27 @@ function TaskCard({
     }
 
     try {
-      // Best-effort: also start mic recording so user can hear themselves later (not persisted).
-      const stream = await navigator.mediaDevices
-        .getUserMedia({ audio: true })
-        .catch(() => null);
-      if (stream) {
-        try {
-          const rec = new MediaRecorder(stream);
-          mediaRecorderRef.current = rec;
-          rec.start();
-        } catch {
-          // Some browsers reject MediaRecorder without codec hint; ignore.
-        }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      try {
+        const rec = new MediaRecorder(stream);
+        mediaRecorderRef.current = rec;
+        rec.start();
+      } catch {
+        stream.getTracks().forEach((t) => t.stop());
       }
     } catch {
-      // mic unavailable — STT may still work in some browsers
+      setError('Microphone access is required for the speaking section.');
+      return;
     }
 
     const recognition = new Ctor();
-    recognition.lang = 'en-IN';
+    recognition.lang = 'en-US';
     recognition.continuous = true;
     recognition.interimResults = true;
-
-    let finalText = '';
-    recognition.onresult = (event) => {
-      let nextInterim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        const text = result[0].transcript;
-        if (result.isFinal) {
-          finalText += ' ' + text;
-        } else {
-          nextInterim += text;
-        }
-      }
-      setTranscript(finalText.trim());
-      setInterim(nextInterim);
-    };
-    recognition.onerror = (event) => {
-      const reason = event?.error ?? 'unknown';
-      if (reason === 'no-speech' || reason === 'aborted') return;
-      setError(`Speech error: ${reason}`);
-    };
-    recognition.onend = () => {
-      // Chrome auto-stops STT on silence; restart while the task is still active.
-      if (stoppedRef.current) return;
-      try {
-        recognition.start();
-      } catch {
-        // ignore — already started or permission revoked
-      }
-    };
-
+    recognition.maxAlternatives = 1;
+    attachRecognition(recognition);
     recognitionRef.current = recognition;
+
     try {
       recognition.start();
     } catch (e) {
@@ -226,26 +283,26 @@ function TaskCard({
     tickRef.current = window.setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {
-          window.clearInterval(tickRef.current!);
+          if (tickRef.current) window.clearInterval(tickRef.current);
           tickRef.current = null;
           stopAll();
-          finalize(finalText.trim() || transcript);
+          finalize(getLiveTranscript());
           return 0;
         }
         return s - 1;
       });
     }, 1000);
-  }, [task.recordSec, transcript, phase, secondsLeft, stopAll, finalize]);
+  }, [task.recordSec, attachRecognition, stopAll, finalize, getLiveTranscript]);
 
   const stopEarly = useCallback(() => {
     stopAll();
-    finalize(transcript);
-  }, [stopAll, transcript, finalize]);
+    finalize(getLiveTranscript());
+  }, [stopAll, finalize, getLiveTranscript]);
 
   const reRecord = useCallback(() => {
     setPhase('idle');
-    setTranscript('');
-    setInterim('');
+    finalTranscriptRef.current = '';
+    setDisplayText('');
     setError(null);
   }, []);
 
@@ -261,7 +318,7 @@ function TaskCard({
           <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
             Task {taskIndex + 1} of {totalTasks} · {task.marks} marks
           </p>
-          <h3 className="text-lg font-bold text-slate-900 mt-1">{task.title}</h3>
+          <h3 className="text-lg font-semibold text-slate-900 mt-1">{task.title}</h3>
         </div>
         <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-mono">
           {task.recordSec}s
@@ -280,7 +337,10 @@ function TaskCard({
         <div className="mb-4">
           <Progress value={progress} className="h-2" />
           <div className="flex justify-between text-xs text-slate-500 mt-1">
-            <span>Recording…</span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+              Listening… speak clearly in English
+            </span>
             <span className="font-mono">{secondsLeft}s left</span>
           </div>
         </div>
@@ -288,30 +348,35 @@ function TaskCard({
 
       {sttUnsupported ? (
         <div className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-          Your browser does not support live speech recognition. You can type what you said below and the AI will
-          score that transcript. Chrome on desktop is recommended for full speaking analysis.
+          Your browser does not support live speech recognition. Type your response below.
+          Chrome or Edge on desktop is recommended.
         </div>
       ) : null}
 
       <div className="space-y-2">
         <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
-          Transcript {phase === 'recording' ? '(live)' : ''}
+          Transcript {phase === 'recording' ? '(updating live)' : ''}
         </label>
         <textarea
-          value={`${transcript}${interim ? ' ' + interim : ''}`}
+          value={displayText}
           onChange={(e) => {
-            if (phase !== 'recording') setTranscript(e.target.value);
+            if (phase !== 'recording' || sttUnsupported) {
+              finalTranscriptRef.current = e.target.value;
+              setDisplayText(e.target.value);
+            }
           }}
           readOnly={phase === 'recording' && !sttUnsupported}
           rows={6}
-          className="w-full rounded-md border border-slate-300 p-3 text-sm text-slate-900 font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/40"
-          placeholder={sttUnsupported ? 'Type your spoken response here…' : 'Your speech will appear here as you talk.'}
+          className="w-full rounded-md border border-slate-300 p-3 text-sm text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/40"
+          placeholder={
+            sttUnsupported
+              ? 'Type your spoken response here…'
+              : 'Your words will appear here as you speak. Pause briefly between sentences.'
+          }
         />
       </div>
 
-      {error ? (
-        <p className="text-xs text-red-600 mt-2">{error}</p>
-      ) : null}
+      {error ? <p className="text-xs text-red-600 mt-2">{error}</p> : null}
 
       <div className="flex flex-wrap gap-2 mt-4">
         {phase === 'idle' ? (
@@ -406,7 +471,6 @@ export default function SpeakingSection({
         existing={existing}
         onComplete={(response) => {
           onSaveResponse(response);
-          // Auto-advance after each task save.
           window.setTimeout(goNext, 400);
         }}
         onSkip={goNext}

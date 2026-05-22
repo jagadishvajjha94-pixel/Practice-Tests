@@ -31,6 +31,16 @@ export type LiveWritingEntry = LiveBoardEntry & {
   test_title: string;
 };
 
+export async function buildAllLiveExamBoards(
+  admin: SupabaseClient,
+  schedules: ExamScheduleRow[],
+  preloadedAttempts?: RollupAttempt[],
+): Promise<LiveExamBoard[]> {
+  return Promise.all(
+    schedules.map((schedule) => buildLiveExamBoard(admin, schedule, preloadedAttempts)),
+  );
+}
+
 export async function buildAllLiveWritingActivity(
   admin: SupabaseClient,
   schedules: ExamScheduleRow[],

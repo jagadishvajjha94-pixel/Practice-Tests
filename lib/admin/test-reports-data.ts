@@ -5,6 +5,7 @@ import {
   type AdminExamType,
 } from '@/lib/admin/exam-type';
 import { loadAdminStudents, loadAllAttemptsRollup, type RollupAttempt } from '@/lib/admin/attempts-rollup';
+import { isCompletedAttemptStatus, isInProgressStatus } from '@/lib/attempt-status';
 import { testIdsMatch } from '@/lib/test-attempts';
 
 export type TestReportRow = {
@@ -35,6 +36,8 @@ export type TestReportsPayload = {
   exam_type: AdminExamType;
   summary: {
     total_attempts: number;
+    in_progress_count: number;
+    completed_count: number;
     unique_students: number;
     avg_score: number;
     pass_rate: number;
@@ -140,7 +143,13 @@ export async function loadTestReportsPayload(
     };
   });
 
-  const scores = rows.map((r) => r.score);
+  const completedRows = rows.filter((r) =>
+    isCompletedAttemptStatus(r.status, r.completed_at),
+  );
+  const inProgressCount = rows.filter(
+    (r) => isInProgressStatus(r.status) && !r.completed_at,
+  ).length;
+  const scores = completedRows.map((r) => r.score);
   const uniqueStudents = new Set(rows.map((r) => r.user_id)).size;
   const passed = scores.filter((s) => s >= 40).length;
 
@@ -148,6 +157,8 @@ export async function loadTestReportsPayload(
     exam_type: examType,
     summary: {
       total_attempts: rows.length,
+      in_progress_count: inProgressCount,
+      completed_count: completedRows.length,
       unique_students: uniqueStudents,
       avg_score:
         scores.length > 0

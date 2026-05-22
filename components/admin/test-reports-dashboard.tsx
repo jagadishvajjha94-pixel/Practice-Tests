@@ -22,8 +22,16 @@ import {
   filterReportRows,
 } from '@/lib/admin/export-test-report-csv';
 import type { TestReportsPayload } from '@/lib/admin/test-reports-data';
+import {
+  attemptStatusBadgeClass,
+  formatAttemptStatus,
+  isCompletedAttemptStatus,
+  isInProgressStatus,
+} from '@/lib/attempt-status';
 import type { PlacementScorecard } from '@/lib/placement/types';
 import { cn } from '@/lib/utils';
+
+type StatusFilter = 'all' | 'in_progress' | 'completed';
 
 export function TestReportsDashboard() {
   const router = useRouter();
@@ -33,6 +41,7 @@ export function TestReportsDashboard() {
   const [examType, setExamType] = useState<AdminExamType>(initialType);
   const [selectedTestId, setSelectedTestId] = useState('all');
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [payload, setPayload] = useState<TestReportsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [scorecardLoading, setScorecardLoading] = useState(false);
@@ -73,10 +82,16 @@ export function TestReportsDashboard() {
     router.replace(qs ? `/admin/reports?${qs}` : '/admin/reports', { scroll: false });
   };
 
-  const filteredRows = useMemo(
-    () => (payload ? filterReportRows(payload.rows, search) : []),
-    [payload, search],
-  );
+  const filteredRows = useMemo(() => {
+    if (!payload) return [];
+    let rows = filterReportRows(payload.rows, search);
+    if (statusFilter === 'in_progress') {
+      rows = rows.filter((r) => isInProgressStatus(r.status) && !r.completed_at);
+    } else if (statusFilter === 'completed') {
+      rows = rows.filter((r) => isCompletedAttemptStatus(r.status, r.completed_at));
+    }
+    return rows;
+  }, [payload, search, statusFilter]);
 
   const selectedTestName =
     payload?.tests.find((t) => t.id === selectedTestId)?.name ?? undefined;
@@ -160,11 +175,20 @@ export function TestReportsDashboard() {
         <Card className="p-8 text-center text-slate-600">Could not load report data.</Card>
       ) : (
         <>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
             <StatCard label="Attempts" value={payload.summary.total_attempts} accent="navy" />
+            <StatCard
+              label="In progress"
+              value={payload.summary.in_progress_count}
+              accent="amber"
+            />
+            <StatCard label="Completed" value={payload.summary.completed_count} accent="cyan" />
             <StatCard label="Students" value={payload.summary.unique_students} accent="blue" />
-            <StatCard label="Average score" value={`${payload.summary.avg_score}%`} accent="emerald" />
-            <StatCard label="Pass rate" value={`${payload.summary.pass_rate}%`} accent="cyan" />
+            <StatCard
+              label="Avg (completed)"
+              value={`${payload.summary.avg_score}%`}
+              accent="emerald"
+            />
             <StatCard label="Highest" value={`${payload.summary.highest_score}%`} accent="amber" />
           </div>
 
@@ -194,6 +218,18 @@ export function TestReportsDashboard() {
                   ))}
                 </select>
               </div>
+              <div className="min-w-[180px]">
+                <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
+                <select
+                  className="w-full h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="in_progress">In progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
             </div>
           </Card>
 
@@ -221,7 +257,7 @@ export function TestReportsDashboard() {
                       <th>Test</th>
                       <th>Score</th>
                       <th>Status</th>
-                      <th>Completed</th>
+                      <th>Finished</th>
                       <th aria-label="actions" />
                     </tr>
                   </thead>
@@ -251,14 +287,30 @@ export function TestReportsDashboard() {
                             {Math.round(row.score)}%
                           </span>
                         </td>
-                        <td className="text-sm capitalize">{row.status}</td>
+                        <td>
+                          <span
+                            className={cn(
+                              'inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                              attemptStatusBadgeClass(row.status),
+                            )}
+                          >
+                            {formatAttemptStatus(row.status)}
+                          </span>
+                        </td>
                         <td className="text-sm text-slate-600 whitespace-nowrap">
-                          {row.completed_at
-                            ? new Date(row.completed_at).toLocaleString()
-                            : new Date(row.created_at).toLocaleString()}
+                          {row.completed_at ? (
+                            new Date(row.completed_at).toLocaleString()
+                          ) : isInProgressStatus(row.status) ? (
+                            <span className="text-amber-700 font-medium">
+                              Started {new Date(row.created_at).toLocaleString()}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
                         </td>
                         <td>
-                          {row.exam_type === 'elevatex' ? (
+                          {row.exam_type === 'elevatex' &&
+                          isCompletedAttemptStatus(row.status, row.completed_at) ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -267,6 +319,9 @@ export function TestReportsDashboard() {
                             >
                               Scorecard
                             </Button>
+                          ) : row.exam_type === 'elevatex' &&
+                            isInProgressStatus(row.status) ? (
+                            <span className="text-xs text-amber-700 font-medium">In exam</span>
                           ) : (
                             <Button size="sm" variant="ghost" asChild>
                               <Link href={`/admin/users`}>User</Link>

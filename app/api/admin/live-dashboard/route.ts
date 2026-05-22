@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { loadAllAttemptsRollup } from '@/lib/admin/attempts-rollup';
 import {
+  buildAllLiveExamBoards,
   buildAllLiveWritingActivity,
   buildLiveExamBoard,
   listLiveExamSchedules,
@@ -30,14 +31,20 @@ export async function GET(request: Request) {
     (scheduleId ? liveSchedules.find((s) => s.id === scheduleId) : null) ?? liveSchedules[0];
 
   const { attempts } = await loadAllAttemptsRollup(admin);
-  const [board, writing_now] = await Promise.all([
-    buildLiveExamBoard(admin, schedule, attempts),
+  const [boards, writing_now] = await Promise.all([
+    buildAllLiveExamBoards(admin, liveSchedules, attempts),
     buildAllLiveWritingActivity(admin, liveSchedules, attempts),
   ]);
+
+  const board =
+    boards.find((b) => b.schedule.id === schedule.id) ??
+    boards[0] ??
+    (await buildLiveExamBoard(admin, schedule, attempts));
 
   return NextResponse.json({
     live: true,
     schedules: liveSchedules,
+    boards,
     board,
     writing_now,
     refreshed_at: new Date().toISOString(),
