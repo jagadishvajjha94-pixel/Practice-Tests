@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ElevateXLiveInfo } from '@/components/elevatex/elevatex-live-info';
+import { ProctorConsentGate } from '@/components/proctor/proctor-consent-gate';
+import { createProctorSessionId } from '@/lib/exam-v2/proctoring';
+import { getElevateXTestId } from '@/lib/placement/elevatex-attempt';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { COLLEGE } from '@/lib/college-brand';
 import {
@@ -26,6 +29,7 @@ import {
   getPlacementCompletedAttemptId,
   loadSessionByHallTicket,
   saveCandidateDraft,
+  savePlacementProctorSessionId,
   saveSession,
 } from '@/lib/placement/session';
 
@@ -40,6 +44,8 @@ export default function PlacementAssessmentStartPage() {
     score?: number;
     completedAt?: string | null;
   } | null>(null);
+  const [showProctorGate, setShowProctorGate] = useState(false);
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
 
   const totalMinutes = Math.round(PLACEMENT_TOTAL_SEC / 60);
 
@@ -55,6 +61,7 @@ export default function PlacementAssessmentStartPage() {
       router.replace('/auth/login/student?redirect=/placement/assessment');
       return;
     }
+    setAuthUserId(authData.user.id);
 
     let branch: string | null = null;
     let full_name: string | null = null;
@@ -102,7 +109,6 @@ export default function PlacementAssessmentStartPage() {
 
   const handleStart = () => {
     if (!profile || starting || priorAttempt) return;
-    setStarting(true);
 
     const existing = loadSessionByHallTicket(profile.hallTicket);
     if (existing && !existing.submitted) {
@@ -117,6 +123,14 @@ export default function PlacementAssessmentStartPage() {
       }
     }
 
+    setShowProctorGate(true);
+  };
+
+  const beginExamAfterProctor = () => {
+    if (!profile) return;
+    setStarting(true);
+    const proctorId = createProctorSessionId(getElevateXTestId(), authUserId ?? undefined);
+    savePlacementProctorSessionId(proctorId);
     const candidate = buildElevateXCandidateFromStudent(profile);
     const session = buildPlacementSession(candidate);
     saveCandidateDraft(candidate);
@@ -191,9 +205,29 @@ export default function PlacementAssessmentStartPage() {
             <li>One {totalMinutes}-minute timer covers all six sections.</li>
             <li>You may switch sections freely until time runs out or you submit.</li>
             <li>Speaking section uses your microphone — allow access when prompted.</li>
+            <li>
+              <strong>Proctoring</strong> — camera and tab monitoring (same as RMSET); violations may
+              auto-submit your paper.
+            </li>
             <li>Do not refresh or leave the tab during the exam.</li>
-            <li>Click <strong>Submit assessment</strong> when you finish all sections.</li>
+            <li>
+              On the last section, tap <strong>Mark as done</strong>, then confirm <strong>Submit test</strong>{' '}
+              in the popup.
+            </li>
           </ul>
+
+          {showProctorGate ? (
+            <div className="rounded-lg border border-slate-200 bg-white p-4 mb-6">
+              <p className="text-sm font-semibold text-slate-900 mb-3">Enable proctoring to continue</p>
+              <ProctorConsentGate
+                onReady={beginExamAfterProctor}
+                onCancel={() => {
+                  setShowProctorGate(false);
+                  setStarting(false);
+                }}
+              />
+            </div>
+          ) : null}
 
           {priorAttempt ? (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 mb-6 text-sm text-emerald-950">

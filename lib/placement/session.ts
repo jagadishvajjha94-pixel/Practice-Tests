@@ -51,6 +51,34 @@ export const PLACEMENT_DRAFT_CANDIDATE_KEY = 'placement:candidate';
 export const PLACEMENT_DRAFT_SESSION_KEY = 'placement:session';
 export const PLACEMENT_LAST_SCORECARD_PREFIX = 'placement:scorecard:';
 export const PLACEMENT_COMPLETED_PREFIX = 'placement:completed:';
+export const PLACEMENT_PROCTOR_SESSION_KEY = 'placement:proctorSessionId';
+
+export function loadPlacementProctorSessionId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.sessionStorage.getItem(PLACEMENT_PROCTOR_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function savePlacementProctorSessionId(sessionId: string): void {
+  if (typeof window === 'undefined' || !sessionId) return;
+  try {
+    window.sessionStorage.setItem(PLACEMENT_PROCTOR_SESSION_KEY, sessionId);
+  } catch {
+    // ignore
+  }
+}
+
+export function clearPlacementProctorSessionId(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(PLACEMENT_PROCTOR_SESSION_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 export function markPlacementCompleted(hallTicket: string, attemptId: string): void {
   if (typeof window === 'undefined' || !hallTicket || !attemptId) return;

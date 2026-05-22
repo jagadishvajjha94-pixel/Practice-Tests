@@ -20,8 +20,11 @@ import { fetchElevateXAttemptStatus, getElevateXTestId } from '@/lib/placement/e
 import { encodeElevateXScorecardAnswers } from '@/lib/placement/scorecard-payload';
 import {
   clearPlacementDrafts,
+  clearPlacementProctorSessionId,
+  loadPlacementProctorSessionId,
   loadSession,
   markPlacementCompleted,
+  savePlacementProctorSessionId,
   saveScorecardForAttempt,
   saveSession,
 } from '@/lib/placement/session';
@@ -33,7 +36,12 @@ import type {
   PlacementSpeakingResponse,
 } from '@/lib/placement/types';
 import SpeakingSection from '@/components/placement/speaking-section';
-import type { Question } from '@/lib/types';
+import { PlacementMcqRunner } from '@/components/placement/placement-mcq-runner';
+import { ProctorConsentGate } from '@/components/proctor/proctor-consent-gate';
+import { ExamProctorPanel } from '@/components/proctor/exam-proctor-panel';
+import { useExamProctoring } from '@/hooks/use-exam-proctoring';
+import { createProctorSessionId, getExamViolations } from '@/lib/exam-v2/proctoring';
+import type { ProctorSummary } from '@/lib/exam-v2/proctoring-config';
 
 function formatHms(totalSec: number): string {
   const safe = Math.max(0, Math.floor(totalSec));
@@ -46,160 +54,60 @@ function formatHms(totalSec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function McqRunner({
-  sectionId,
-  questions,
-  answers,
-  onAnswerChange,
-}: {
-  sectionId: PlacementSectionId;
-  questions: Question[];
-  answers: PlacementMcqAnswerMap;
-  onAnswerChange: (questionId: string, value: string | null) => void;
-}) {
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    setIndex(0);
-  }, [sectionId, questions.length]);
-
-  const safeIndex = questions.length ? Math.min(index, questions.length - 1) : 0;
-  const current = questions[safeIndex];
-  if (!current) {
-    return (
-      <Card className="p-6 text-center text-slate-600">
-        No questions available for this section.
-      </Card>
-    );
-  }
-
-  const options: Array<{ letter: 'A' | 'B' | 'C' | 'D'; text: string | null | undefined }> = [
-    { letter: 'A', text: current.option_a },
-    { letter: 'B', text: current.option_b },
-    { letter: 'C', text: current.option_c },
-    { letter: 'D', text: current.option_d },
-  ];
-
-  const selected = answers[current.id] ?? null;
-
-  return (
-    <div className="space-y-4">
-      <Card className="p-5 border-slate-200 shadow-sm">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Question {index + 1} of {questions.length}
-          </p>
-          {selected ? (
-            <span className="text-xs font-semibold text-emerald-700">Answered</span>
-          ) : (
-            <span className="text-xs font-semibold text-slate-500">Unanswered</span>
-          )}
-        </div>
-        <Progress value={((safeIndex + 1) / questions.length) * 100} className="h-1 mb-4" />
-        <h2 className="text-lg font-bold text-slate-900 mb-4 whitespace-pre-wrap leading-snug">
-          {current.question_text}
-        </h2>
-        <div className="space-y-2">
-          {options
-            .filter((o) => o.text != null && String(o.text).trim() !== '')
-            .map(({ letter, text }) => {
-              const active = selected === letter;
-              return (
-                <label
-                  key={letter}
-                  className={cn(
-                    'flex items-start gap-3 rounded-lg border-2 p-3 cursor-pointer transition',
-                    active
-                      ? 'border-[#1e3a5f] bg-blue-50'
-                      : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50',
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name={`q-${current.id}`}
-                    value={letter}
-                    checked={active}
-                    onChange={() => onAnswerChange(current.id, letter)}
-                    className="mt-1"
-                  />
-                  <span className="text-sm text-slate-900">
-                    <strong className="text-[#1e3a5f] mr-2">{letter}.</strong>
-                    {text}
-                  </span>
-                </label>
-              );
-            })}
-        </div>
-        <div className="flex gap-2 mt-5">
-          <Button
-            variant="outline"
-            onClick={() => setIndex((i) => Math.max(0, i - 1))}
-            disabled={safeIndex === 0}
-            className="flex-1"
-          >
-            ← Previous
-          </Button>
-          {selected ? (
-            <Button
-              variant="ghost"
-              className="text-slate-600"
-              onClick={() => onAnswerChange(current.id, null)}
-            >
-              Clear answer
-            </Button>
-          ) : null}
-          <Button
-            onClick={() => setIndex((i) => Math.min(questions.length - 1, i + 1))}
-            disabled={safeIndex >= questions.length - 1}
-            className="flex-1"
-          >
-            Next →
-          </Button>
-        </div>
-      </Card>
-
-      <Card className="p-4 border-slate-200">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
-          Question palette
-        </p>
-        <div className="grid grid-cols-10 gap-1.5">
-          {questions.map((q, i) => {
-            const isCurrent = i === safeIndex;
-            const isAnswered = Boolean(answers[q.id]);
-            return (
-              <button
-                key={q.id}
-                type="button"
-                onClick={() => setIndex(i)}
-                className={cn(
-                  'h-8 rounded text-xs font-bold border transition',
-                  isCurrent
-                    ? 'border-[#1e3a5f] bg-[#1e3a5f] text-white'
-                    : isAnswered
-                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                      : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100',
-                )}
-              >
-                {i + 1}
-              </button>
-            );
-          })}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
 export default function PlacementTakePage() {
   const router = useRouter();
   const [session, setSession] = useState<PlacementSession | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [tabSwitches, setTabSwitches] = useState(0);
   const [blocked, setBlocked] = useState(false);
+  const [proctorReady, setProctorReady] = useState(false);
+  const [proctorSessionId, setProctorSessionId] = useState('');
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
   const submitGuardRef = useRef(false);
   const handleSubmitRef = useRef<(reason: 'manual' | 'timeout') => Promise<void>>(async () => {});
+  const proctorVideoRef = useRef<HTMLVideoElement>(null);
+  const proctorSummaryRef = useRef<ProctorSummary | null>(null);
+
+  const elevateXTestId = getElevateXTestId();
+  const proctorActive = proctorReady && Boolean(proctorSessionId);
+
+  const {
+    violationCount,
+    tabSwitchCount,
+    cameraReady,
+    cameraError,
+    faceStatus,
+    autoSubmitTriggered,
+    startCamera,
+    enterFullscreen,
+    maxViolations,
+  } = useExamProctoring({
+    testId: elevateXTestId,
+    sessionId: proctorSessionId || elevateXTestId,
+    enabled: proctorActive,
+    requireCamera: true,
+    videoRef: proctorVideoRef,
+    onMaxViolations: ({ violationCount: count }) => {
+      proctorSummaryRef.current = {
+        sessionId: proctorSessionId,
+        violationCount: count,
+        autoSubmitted: true,
+        submitReason: 'proctor_violations',
+        violations: getExamViolations(proctorSessionId).map((v) => ({
+          type: v.type,
+          at: v.at,
+        })),
+      };
+      setShowSubmitConfirm(false);
+      void handleSubmitRef.current('timeout');
+    },
+  });
+
+  useEffect(() => {
+    if (!proctorActive) return;
+    void startCamera();
+  }, [proctorActive, startCamera]);
 
   // Hydrate session and block repeat attempts.
   useEffect(() => {
@@ -225,6 +133,11 @@ export default function PlacementTakePage() {
       }
       setSession(loaded);
       setHydrated(true);
+      const storedProctor = loadPlacementProctorSessionId();
+      if (storedProctor) {
+        setProctorSessionId(storedProctor);
+        setProctorReady(true);
+      }
     };
 
     void run();
@@ -288,7 +201,22 @@ export default function PlacementTakePage() {
       const dept = findDepartment(scorecard.candidate.departmentId);
       const testName = `ElevateX · ${dept?.name ?? 'Department'}${reason === 'timeout' ? ' (auto-submit)' : ''}`;
 
-      const elevateXTestId = getElevateXTestId();
+      const submitReason = reason === 'timeout' && proctorSummaryRef.current ? 'proctor_violations' : reason;
+      const proctorSummary =
+        proctorSummaryRef.current ??
+        (proctorActive
+          ? {
+              sessionId: proctorSessionId,
+              violationCount,
+              autoSubmitted: submitReason === 'proctor_violations',
+              submitReason,
+              violations: getExamViolations(proctorSessionId).map((v) => ({
+                type: v.type,
+                at: v.at,
+              })),
+            }
+          : undefined);
+
       const res = await recordDashboardAttempt({
         testId: elevateXTestId,
         testName,
@@ -296,7 +224,13 @@ export default function PlacementTakePage() {
         rawNetScore: scorecard.earnedMarks,
         elapsedSec: scorecard.totalElapsedSec,
         examKind: 'practice',
-        answers: encodeElevateXScorecardAnswers(scorecard),
+        answers: encodeElevateXScorecardAnswers(
+          scorecard,
+          proctorSummary ? { __proctor: proctorSummary as Record<string, unknown> } : undefined,
+        ),
+        proctorSessionId: proctorSummary?.sessionId,
+        proctorViolations: proctorSummary?.violationCount ?? 0,
+        proctorAutoSubmit: proctorSummary?.autoSubmitted ?? false,
         test: {
           id: elevateXTestId,
           name: testName,
@@ -310,13 +244,15 @@ export default function PlacementTakePage() {
       saveScorecardForAttempt(attemptId, { ...scorecard, attemptId });
       markPlacementCompleted(scorecard.candidate.hallTicket, attemptId);
       clearPlacementDrafts(scorecard.candidate.hallTicket);
+      clearPlacementProctorSessionId();
+      setShowSubmitConfirm(false);
       if (res?.alreadyCompleted) {
         router.replace(`/placement/result/${attemptId}`);
         return;
       }
       router.replace(`/placement/result/${attemptId}`);
     },
-    [session, router],
+    [session, router, proctorActive, proctorSessionId, violationCount, elevateXTestId],
   );
 
   useEffect(() => {
@@ -356,7 +292,11 @@ export default function PlacementTakePage() {
     });
   };
 
-  const completeCurrentSection = () => {
+  const allSectionsComplete = (states: PlacementSession['sectionStates']) =>
+    PLACEMENT_SECTIONS.every((s) => states[s.id as PlacementSectionId]?.completed);
+
+  const handleMarkSectionDone = () => {
+    let shouldPromptSubmit = false;
     setSession((prev) => {
       if (!prev) return prev;
       const cfg = PLACEMENT_SECTIONS[prev.currentSectionIndex];
@@ -367,7 +307,11 @@ export default function PlacementTakePage() {
         [cfg.id]: { ...state, completed: true },
       };
 
-      // Find next incomplete section.
+      if (allSectionsComplete(updatedStates)) {
+        shouldPromptSubmit = true;
+        return { ...prev, sectionStates: updatedStates };
+      }
+
       let nextIndex = prev.currentSectionIndex + 1;
       while (
         nextIndex < PLACEMENT_SECTIONS.length &&
@@ -377,6 +321,7 @@ export default function PlacementTakePage() {
       }
 
       if (nextIndex >= PLACEMENT_SECTIONS.length) {
+        shouldPromptSubmit = true;
         return { ...prev, sectionStates: updatedStates };
       }
 
@@ -386,6 +331,9 @@ export default function PlacementTakePage() {
         currentSectionIndex: nextIndex,
       };
     });
+    if (shouldPromptSubmit) {
+      setShowSubmitConfirm(true);
+    }
   };
 
   const setMcqAnswer = (questionId: string, value: string | null) => {
@@ -454,7 +402,34 @@ export default function PlacementTakePage() {
     );
   }
 
+  if (!proctorReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
+        <Card className="max-w-lg w-full p-6 shadow-md border-slate-200">
+          <h1 className="text-xl font-bold text-slate-900 mb-2">{PLACEMENT_EXAM_NAME} · Proctoring</h1>
+          <p className="text-sm text-slate-600 mb-4">
+            Camera and tab monitoring are required for this exam (same standard as RMSET).
+          </p>
+          <ProctorConsentGate
+            onReady={() => {
+              const id =
+                loadPlacementProctorSessionId() ??
+                createProctorSessionId(elevateXTestId, session.candidate.hallTicket);
+              savePlacementProctorSessionId(id);
+              setProctorSessionId(id);
+              setProctorReady(true);
+            }}
+            onCancel={() => router.replace('/placement/assessment')}
+          />
+        </Card>
+      </div>
+    );
+  }
+
   const dept = findDepartment(session.candidate.departmentId);
+  const sectionsDoneCount = PLACEMENT_SECTIONS.filter(
+    (s) => session.sectionStates[s.id as PlacementSectionId]?.completed,
+  ).length;
   const sectionState = session.sectionStates[currentSection.id as PlacementSectionId];
 
   return (
@@ -497,14 +472,9 @@ export default function PlacementTakePage() {
             size="sm"
             className="ml-2 bg-emerald-500 hover:bg-emerald-400 text-white"
             disabled={submitting}
-            onClick={() => {
-              const ok = window.confirm(
-                'Submit your placement assessment? You will not be able to change answers after this.',
-              );
-              if (ok) void handleSubmit('manual');
-            }}
+            onClick={() => setShowSubmitConfirm(true)}
           >
-            {submitting ? 'Submitting…' : 'Submit assessment'}
+            {submitting ? 'Submitting…' : 'Submit test'}
           </Button>
         </div>
         <div className="bg-white/10 h-1">
@@ -515,10 +485,18 @@ export default function PlacementTakePage() {
         </div>
       </header>
 
-      {tabSwitches > 0 ? (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-xs text-amber-900">
-          Tab switch detected ({tabSwitches}) — please remain on this tab for the full duration.
-        </div>
+      {proctorActive ? (
+        <ExamProctorPanel
+          videoRef={proctorVideoRef}
+          violationCount={violationCount}
+          maxViolations={maxViolations}
+          tabSwitchCount={tabSwitchCount}
+          cameraReady={cameraReady}
+          cameraError={cameraError}
+          faceStatus={faceStatus}
+          autoSubmitTriggered={autoSubmitTriggered}
+          onEnterFullscreen={() => void enterFullscreen()}
+        />
       ) : null}
 
       <main className="max-w-7xl mx-auto px-4 py-6 grid lg:grid-cols-4 gap-6">
@@ -588,7 +566,7 @@ export default function PlacementTakePage() {
           </Card>
 
           {sectionState?.kind === 'mcq' ? (
-            <McqRunner
+            <PlacementMcqRunner
               key={currentSection.id}
               sectionId={currentSection.id}
               questions={sectionState.questions}
@@ -599,7 +577,7 @@ export default function PlacementTakePage() {
             <SpeakingSection
               responses={sectionState.responses}
               onSaveResponse={saveSpeakingResponse}
-              onAllDone={completeCurrentSection}
+              onAllDone={handleMarkSectionDone}
             />
           ) : (
             <Card className="p-6 text-center text-slate-600">
@@ -616,7 +594,7 @@ export default function PlacementTakePage() {
               ← Previous section
             </Button>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={completeCurrentSection}>
+              <Button variant="outline" onClick={handleMarkSectionDone}>
                 {session.currentSectionIndex >= PLACEMENT_SECTIONS.length - 1
                   ? 'Mark as done'
                   : 'Save & next section →'}
@@ -640,6 +618,42 @@ export default function PlacementTakePage() {
           </p>
         </section>
       </main>
+
+      {showSubmitConfirm ? (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-md bg-white border-slate-200 shadow-xl">
+            <div className="p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Submit ElevateX test?</h2>
+              <div className="space-y-2 mb-6 text-sm text-gray-600">
+                <p>
+                  Sections completed:{' '}
+                  <span className="font-semibold text-gray-900">
+                    {sectionsDoneCount}/{PLACEMENT_SECTIONS.length}
+                  </span>
+                </p>
+                <p>Once submitted, you cannot change your answers. Your scorecard will be shown immediately.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  disabled={submitting}
+                  onClick={() => setShowSubmitConfirm(false)}
+                >
+                  Continue test
+                </Button>
+                <Button
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={submitting}
+                  onClick={() => void handleSubmit('manual')}
+                >
+                  {submitting ? 'Submitting…' : 'Submit test'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }

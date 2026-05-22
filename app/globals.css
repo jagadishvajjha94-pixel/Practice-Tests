@@ -569,14 +569,14 @@
   }
 
   .app-portal-main {
-    @apply mx-auto max-w-7xl px-4 py-8 sm:py-10;
+    @apply mx-auto max-w-7xl px-4 py-5 sm:py-7;
   }
 
   .app-portal-header {
     @apply sticky z-[90] text-white relative;
     top: var(--brand-bar-height);
     background: var(--brand-gradient);
-    box-shadow: 0 8px 28px rgba(30, 58, 95, 0.25);
+    box-shadow: 0 4px 16px rgba(30, 58, 95, 0.2);
   }
 
   .app-portal-header::after {
@@ -585,7 +585,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    height: 2px;
+    height: 1px;
     background: linear-gradient(
       90deg,
       transparent,

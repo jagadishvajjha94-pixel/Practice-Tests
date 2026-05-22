@@ -19,6 +19,9 @@ export type RecordDashboardAttemptInput = {
   examKind?: ExamKind;
   /** Stored on test_attempts.answers (e.g. ElevateX scorecard JSON). */
   answers?: Record<string, unknown>;
+  proctorSessionId?: string;
+  proctorViolations?: number;
+  proctorAutoSubmit?: boolean;
   /** Minimal test row for local result / dashboard merge */
   test?: Pick<Test, 'id' | 'name' | 'category_id' | 'duration' | 'total_questions'>;
 };
@@ -119,6 +122,9 @@ export async function recordDashboardAttempt(
         completedAtIso: nowIso,
         examKind: input.examKind,
         answers: input.answers,
+        proctorSessionId: input.proctorSessionId,
+        proctorViolations: input.proctorViolations ?? 0,
+        proctorAutoSubmit: input.proctorAutoSubmit ?? false,
       }),
     });
 

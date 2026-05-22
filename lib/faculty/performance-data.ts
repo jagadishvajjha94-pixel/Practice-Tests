@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { departmentsMatch, examMatchesDepartment } from '@/lib/faculty/department-match';
 import { departmentsForPerformanceView } from '@/lib/department-groups';
+import { isElevateXAttemptMeta } from '@/lib/placement/scorecard-payload';
 import { resolveStoredPercent, testIdsMatch } from '@/lib/test-attempts';
 import type { DashboardStatEntry } from '@/lib/student-dashboard-stats';
 
@@ -185,6 +186,33 @@ function resolveAttemptExamTestId(
   return testId || null;
 }
 
+export async function fetchElevateXAttemptsForStudents(
+  admin: SupabaseClient,
+  studentIds: string[],
+): Promise<MatchedAttempt[]> {
+  if (studentIds.length === 0) return [];
+
+  const { data: attemptRows } = await admin
+    .from('test_attempts')
+    .select(
+      'id, user_id, test_id, test_title, score, percentage_score, total_score, status, completed_at, created_at',
+    )
+    .in('user_id', studentIds)
+    .order('created_at', { ascending: false });
+
+  return ((attemptRows ?? []) as RawAttempt[])
+    .filter((row) => isElevateXAttemptMeta(String(row.test_id ?? ''), row.test_title))
+    .map((attempt) => ({
+      ...attempt,
+      resolved_test_id: String(attempt.test_id ?? 'placement_full'),
+      score_percent: resolveStoredPercent(
+        attempt.percentage_score,
+        attempt.score,
+        attempt.total_score,
+      ),
+    }));
+}
+
 export async function fetchDepartmentExamAttempts(
   admin: SupabaseClient,
   studentIds: string[],
@@ -281,7 +309,13 @@ export type FacultyPerformancePayload = {
         status: string | null;
         completed_at: string | null;
         created_at: string | null;
+        is_elevatex?: boolean;
       }>;
+      elevatex: {
+        attempt_id: string;
+        score: number;
+        completed_at: string | null;
+      } | null;
     }
   >;
   score_buckets: Array<{ range: string; from: number; to: number; count: number }>;
@@ -307,6 +341,9 @@ export function buildFacultyPerformancePayload(
 
   const studentsWithAttempts = students.map((student) => {
     const studentAttempts = attempts.filter((a) => a.user_id === student.id);
+    const elevatexAttempt = studentAttempts.find((a) =>
+      isElevateXAttemptMeta(a.test_id, a.test_title),
+    );
     const completed = studentAttempts.filter((a) => a.status === 'completed');
     const avgScore =
       completed.length > 0
@@ -331,16 +368,25 @@ export function buildFacultyPerformancePayload(
       last_attempt_at: lastAttempt?.completed_at ?? lastAttempt?.created_at ?? null,
       recent: studentAttempts.slice(0, 5).map((a) => {
         const exam = a.resolved_test_id ? testTitleById.get(a.resolved_test_id) : undefined;
+        const isElevatex = isElevateXAttemptMeta(a.test_id, a.test_title);
         return {
           id: a.id,
-          test_title: exam?.title ?? a.test_title ?? 'Department exam',
+          test_title: isElevatex ? 'ElevateX' : (exam?.title ?? a.test_title ?? 'Department exam'),
           topic: exam?.topic ?? null,
           score: a.score_percent,
           status: a.status,
           completed_at: a.completed_at,
           created_at: a.created_at,
+          is_elevatex: isElevatex,
         };
       }),
+      elevatex: elevatexAttempt
+        ? {
+            attempt_id: elevatexAttempt.id,
+            score: elevatexAttempt.score_percent,
+            completed_at: elevatexAttempt.completed_at,
+          }
+        : null,
     };
   });
 
@@ -422,7 +468,19 @@ export async function loadFacultyPerformanceData(
   const students = await listStudentsInDepartments(admin, scopeDepartments);
 
   const studentIds = students.map((s) => s.id);
-  const attempts = await fetchDepartmentExamAttempts(admin, studentIds, publishedExams);
+  const [deptAttempts, elevatexAttempts] = await Promise.all([
+    fetchDepartmentExamAttempts(admin, studentIds, publishedExams),
+    fetchElevateXAttemptsForStudents(admin, studentIds),
+  ]);
+
+  const seen = new Set<string>();
+  const attempts: MatchedAttempt[] = [];
+  for (const row of [...elevatexAttempts, ...deptAttempts]) {
+    const key = String(row.id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    attempts.push(row);
+  }
 
   return buildFacultyPerformancePayload(department, publishedExams, students, attempts);
 }

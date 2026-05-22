@@ -17,6 +17,9 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { downloadStudentReportPdf } from '@/lib/reports/student-pdf';
+import { ElevateXScorecardView } from '@/components/placement/elevatex-scorecard-view';
+import { downloadElevateXScorecardPdf } from '@/lib/placement/elevatex-scorecard-pdf';
+import type { PlacementScorecard } from '@/lib/placement/types';
 
 type RecentAttempt = {
   id: string;
@@ -40,6 +43,11 @@ type StudentRow = {
   best_score: number;
   last_attempt_at: string | null;
   recent: RecentAttempt[];
+  elevatex?: {
+    attempt_id: string;
+    score: number;
+    completed_at: string | null;
+  } | null;
 };
 
 type ExamStat = {
@@ -74,6 +82,12 @@ export default function FacultyPerformancePage() {
   const [loading, setLoading] = useState(true);
   const [filterYear, setFilterYear] = useState('all');
   const [search, setSearch] = useState('');
+  const [scorecardLoading, setScorecardLoading] = useState(false);
+  const [scorecardModal, setScorecardModal] = useState<{
+    student: StudentRow;
+    scorecard: PlacementScorecard;
+    attemptId: string;
+  } | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -135,6 +149,32 @@ export default function FacultyPerformancePage() {
             : '—',
       })),
     });
+  };
+
+  const openElevateXScorecard = async (student: StudentRow) => {
+    if (!student.elevatex?.attempt_id) return;
+    setScorecardLoading(true);
+    try {
+      const res = await fetch(
+        `/api/faculty/elevatex/scorecard/${encodeURIComponent(student.elevatex.attempt_id)}`,
+        { credentials: 'include', cache: 'no-store' },
+      );
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(json.error ?? 'Could not load ElevateX scorecard');
+        return;
+      }
+      const json = (await res.json()) as { scorecard?: PlacementScorecard; attemptId?: string };
+      if (json.scorecard) {
+        setScorecardModal({
+          student,
+          scorecard: json.scorecard,
+          attemptId: json.attemptId ?? student.elevatex.attempt_id,
+        });
+      }
+    } finally {
+      setScorecardLoading(false);
+    }
   };
 
   const exportAllCsv = () => {
@@ -205,8 +245,8 @@ export default function FacultyPerformancePage() {
           <span className="app-eyebrow">Insights</span>
           <h2 className="app-title-lg mt-1">Student performance</h2>
           <p className="app-subtitle">
-            Scores from <strong>{department || 'your department'}</strong> students on all
-            admin-approved department exams. Download a PDF per student or export the list as CSV.
+            Scores from <strong>{department || 'your department'}</strong> students on department
+            exams and ElevateX. View full ElevateX scorecards or download PDFs per student.
           </p>
         </div>
         <Button variant="outline" onClick={exportAllCsv} disabled={filtered.length === 0}>
@@ -399,6 +439,7 @@ export default function FacultyPerformancePage() {
                   <th>Attempts</th>
                   <th>Avg</th>
                   <th>Best</th>
+                  <th>ElevateX</th>
                   <th>Last attempt</th>
                   <th aria-label="actions" />
                 </tr>
@@ -428,6 +469,26 @@ export default function FacultyPerformancePage() {
                       </span>
                     </td>
                     <td className="tabular-nums text-slate-700">{s.best_score}%</td>
+                    <td>
+                      {s.elevatex ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="font-semibold text-fuchsia-800 tabular-nums">
+                            {Math.round(s.elevatex.score)}%
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            disabled={scorecardLoading}
+                            onClick={() => void openElevateXScorecard(s)}
+                          >
+                            View scorecard
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-sm">—</span>
+                      )}
+                    </td>
                     <td className="text-slate-500 whitespace-nowrap">
                       {s.last_attempt_at
                         ? new Date(s.last_attempt_at).toLocaleDateString()
@@ -439,7 +500,7 @@ export default function FacultyPerformancePage() {
                         variant="outline"
                         onClick={() => downloadStudentPdf(s)}
                       >
-                        Download PDF
+                        Dept. PDF
                       </Button>
                     </td>
                   </tr>
@@ -449,6 +510,45 @@ export default function FacultyPerformancePage() {
           </div>
         )}
       </Card>
+
+      {scorecardModal ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/50 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="flex w-full max-w-5xl max-h-[min(100dvh-1.5rem,920px)] flex-col rounded-xl bg-white shadow-2xl overflow-hidden border border-slate-200">
+            <div className="shrink-0 border-b border-slate-200 px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-[#0c2340]">
+                  ElevateX · {scorecardModal.student.full_name || scorecardModal.student.email}
+                </h3>
+                <p className="text-sm text-slate-500">{scorecardModal.student.branch}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  className="bg-[#1e3a5f] hover:bg-[#16304f]"
+                  onClick={() =>
+                    downloadElevateXScorecardPdf(
+                      scorecardModal.scorecard,
+                      `elevatex-${scorecardModal.student.email.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+                    )
+                  }
+                >
+                  Download PDF
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setScorecardModal(null)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 min-h-0">
+              <ElevateXScorecardView scorecard={scorecardModal.scorecard} compact />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

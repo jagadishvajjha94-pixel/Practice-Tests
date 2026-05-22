@@ -5,10 +5,12 @@ export const ELEVATEX_SCORECARD_ANSWERS_TYPE = 'elevatex_scorecard_v1';
 
 export function encodeElevateXScorecardAnswers(
   scorecard: PlacementScorecard,
+  extras?: { __proctor?: Record<string, unknown> },
 ): Record<string, unknown> {
   return {
     _type: ELEVATEX_SCORECARD_ANSWERS_TYPE,
     scorecard,
+    ...(extras?.__proctor ? { __proctor: extras.__proctor } : {}),
   };
 }
 
