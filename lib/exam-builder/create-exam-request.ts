@@ -5,6 +5,11 @@ import { resolveSyllabusTopicsForBuilder } from '@/lib/exam-builder/draw-questio
 import { looksLikeUuid } from '@/lib/exam-builder/id-utils';
 import { getGroupDepartments, resolveExamBranchTargeting } from '@/lib/department-groups';
 import { publishFacultyExamRequest } from '@/lib/publish-faculty-exam';
+import {
+  persistSlotRoster,
+  validateScheduleSlots,
+  type ExamScheduleSlotInput,
+} from '@/lib/exam-schedule-slots';
 
 export type CreateExamRequestInput = {
   creatorUserId: string;
@@ -26,6 +31,8 @@ export type CreateExamRequestInput = {
   autoPublish?: boolean;
   autoGoLive?: boolean;
   goLiveNotice?: string | null;
+  usesSlotScheduling?: boolean;
+  scheduleSlots?: ExamScheduleSlotInput[];
 };
 
 export type CreateExamRequestResult = {
@@ -45,6 +52,10 @@ export async function createFacultyExamRequestRecord(
   }
   if (!input.targetYears.length) {
     throw new Error('Select at least one target year');
+  }
+  if (input.usesSlotScheduling && input.scheduleSlots?.length) {
+    const slotErr = validateScheduleSlots(input.scheduleSlots);
+    if (slotErr) throw new Error(slotErr);
   }
 
   const groupDepartments = await getGroupDepartments(admin, input.departmentGroupId);
@@ -107,11 +118,15 @@ export async function createFacultyExamRequestRecord(
     .select('id')
     .single();
 
+  const stripOptionalColumns = (payload: Record<string, unknown>, columns: string[]) => {
+    for (const col of columns) delete payload[col];
+  };
+
   if (
     error?.message?.includes('department_group_id') &&
     (error.message.includes('schema cache') || error.message.includes('does not exist'))
   ) {
-    delete insertPayload.department_group_id;
+    stripOptionalColumns(insertPayload, ['department_group_id']);
     const retry = await admin
       .from('faculty_exam_requests')
       .insert(insertPayload)
@@ -126,6 +141,26 @@ export async function createFacultyExamRequestRecord(
     }
   }
 
+  if (
+    error &&
+    (error.message.includes('uses_slot_scheduling') ||
+      error.message.includes('schedule_slots_json'))
+  ) {
+    stripOptionalColumns(insertPayload, ['uses_slot_scheduling', 'schedule_slots_json']);
+    const retry = await admin
+      .from('faculty_exam_requests')
+      .insert(insertPayload)
+      .select('id')
+      .single();
+    row = retry.data;
+    error = retry.error;
+    if (!error) {
+      console.warn(
+        'Slot scheduling columns missing — run migration 029_exam_slot_scheduling.sql in Supabase.',
+      );
+    }
+  }
+
   if (error || !row?.id) {
     const hint = error?.message?.includes('department_group_id')
       ? `${error?.message ?? 'Could not save exam request'} — Run migration 023_faculty_department_group_id.sql in Supabase SQL editor, wait 30s, retry.`
@@ -134,6 +169,15 @@ export async function createFacultyExamRequestRecord(
   }
 
   const requestId = row.id as string;
+
+  if (input.usesSlotScheduling && input.scheduleSlots?.length) {
+    try {
+      await persistSlotRoster(admin, requestId, input.scheduleSlots);
+    } catch (err) {
+      console.warn('exam_slot_roster_entries persist skipped:', err);
+    }
+  }
+
   let testId: string | undefined;
   let scheduleId: string | undefined;
 

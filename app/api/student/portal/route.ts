@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { partitionEvaloraModulesForStudent, type EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
 import { partitionSchedulesForStudent, type ExamScheduleRow } from '@/lib/exam-schedule';
+import { findStudentSlotAssignment } from '@/lib/exam-schedule-slots';
+import { rollNumberFromUser } from '@/lib/admin/roll-number';
 import { syncExpiredLiveExamSchedules } from '@/lib/exam-schedule-sync';
 import { listLiveFacultyExamsForStudent } from '@/lib/live-faculty-exams';
 import { buildStudentPortalPayload } from '@/lib/student-portal';
@@ -102,7 +104,49 @@ export async function GET() {
     department,
     year,
   );
-  const faculty = partitionSchedulesForStudent(schedules, department, year, extras);
+  const rollNumber = rollNumberFromUser(
+    auth.ctx.resolved.email ?? auth.ctx.user.email,
+    (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
+  );
+
+  const schedulesForPartition: ExamScheduleRow[] = [];
+  const requestIds = [
+    ...new Set(
+      schedules
+        .map((s) => s.faculty_exam_request_id)
+        .filter(Boolean) as string[],
+    ),
+  ];
+  const slotRequestSet = new Set<string>();
+  if (requestIds.length && rollNumber) {
+    for (const reqId of requestIds) {
+      const { data: req } = await admin
+        .from('faculty_exam_requests')
+        .select('uses_slot_scheduling')
+        .eq('id', reqId)
+        .maybeSingle();
+      if (req?.uses_slot_scheduling) slotRequestSet.add(reqId);
+    }
+  }
+
+  for (const schedule of schedules) {
+    const reqId = schedule.faculty_exam_request_id;
+    if (!reqId || !slotRequestSet.has(reqId)) {
+      schedulesForPartition.push(schedule);
+      continue;
+    }
+    const assignment = await findStudentSlotAssignment(admin, reqId, rollNumber);
+    if (assignment && schedule.slot_number === assignment.slot_number) {
+      schedulesForPartition.push(schedule);
+    }
+  }
+
+  const faculty = partitionSchedulesForStudent(
+    schedulesForPartition,
+    department,
+    year,
+    extras,
+  );
 
   const supplementalLive = listLiveFacultyExamsForStudent(
     (approvedRequests ?? []) as Parameters<typeof listLiveFacultyExamsForStudent>[0],

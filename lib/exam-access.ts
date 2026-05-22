@@ -4,12 +4,15 @@ import {
   scheduleMatchesStudent,
   type ExamScheduleRow,
 } from '@/lib/exam-schedule';
+import { checkStudentSlotExamAccess } from '@/lib/exam-schedule-slots';
+import { rollNumberFromUser } from '@/lib/admin/roll-number';
 import { testIdsMatch } from '@/lib/test-attempts';
+
 export type ExamAccessResult =
   | { allowed: true; schedule: ExamScheduleRow | null }
   | {
       allowed: false;
-      code: 'NOT_LIVE' | 'TARGET_MISMATCH';
+      code: 'NOT_LIVE' | 'TARGET_MISMATCH' | 'SLOT_NOT_ASSIGNED' | 'SLOT_WRONG_WINDOW';
       message: string;
       schedule: ExamScheduleRow | null;
     };
@@ -25,13 +28,16 @@ async function schedulesForTest(
   );
 }
 
-/** Decide if a logged-in student may take this test (schedule window + targeting only). */
+/** Decide if a logged-in student may take this test (schedule window + targeting + slot roster). */
 export async function checkStudentExamAccess(
   admin: SupabaseClient,
   input: {
     testId: string;
     department: string;
     year: string;
+    rollNumber?: string;
+    email?: string | null;
+    metadata?: Record<string, unknown> | null;
     now?: number;
   },
 ): Promise<ExamAccessResult> {
@@ -40,6 +46,40 @@ export async function checkStudentExamAccess(
 
   if (schedules.length === 0) {
     return { allowed: true, schedule: null };
+  }
+
+  const facultyRequestId = schedules.find((s) => s.faculty_exam_request_id)?.faculty_exam_request_id;
+  if (facultyRequestId) {
+    const { data: reqRow } = await admin
+      .from('faculty_exam_requests')
+      .select('uses_slot_scheduling')
+      .eq('id', facultyRequestId)
+      .maybeSingle();
+
+    if (reqRow?.uses_slot_scheduling) {
+      const roll =
+        input.rollNumber?.trim() ||
+        rollNumberFromUser(input.email ?? '', input.metadata ?? null);
+      const slotResult = await checkStudentSlotExamAccess(admin, {
+        schedules,
+        facultyExamRequestId: facultyRequestId,
+        rollNumber: roll,
+        email: input.email,
+        metadata: input.metadata,
+        department: input.department,
+        year: input.year,
+        now: input.now,
+      });
+      if (!slotResult.allowed) {
+        return {
+          allowed: false,
+          code: slotResult.code,
+          message: slotResult.message,
+          schedule: slotResult.schedule,
+        };
+      }
+      return { allowed: true, schedule: slotResult.schedule };
+    }
   }
 
   const now = input.now ?? Date.now();
@@ -84,9 +124,14 @@ export async function assertStudentCanTakeTest(
   testId: string,
   profile: { branch: string | null; academic_year: string | null },
 ): Promise<ExamAccessResult> {
+  const roll = rollNumberFromUser(user.email ?? '', user.user_metadata ?? null);
+
   return checkStudentExamAccess(admin, {
     testId,
     department: profile.branch ?? '',
     year: profile.academic_year ?? '',
+    rollNumber: roll,
+    email: user.email,
+    metadata: user.user_metadata ?? null,
   });
 }

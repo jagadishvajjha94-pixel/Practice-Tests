@@ -5,9 +5,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import type { FacultyExamRequest } from '@/lib/faculty-exams';
+import { enrichScheduleSlots, parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
 
 type EnrichedRequest = FacultyExamRequest & {
   faculty?: { full_name?: string; employee_id?: string; department?: string } | null;
+  uses_slot_scheduling?: boolean;
+  schedule_slots_json?: unknown;
 };
 
 export default function AdminApprovalsPage() {
@@ -130,6 +133,33 @@ export default function AdminApprovalsPage() {
                   <p className="text-sm text-slate-700 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
                     {r.description}
                   </p>
+                ) : null}
+                {r.uses_slot_scheduling ? (
+                  <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-3 text-sm space-y-2">
+                    <p className="font-semibold text-indigo-950">8-slot schedule (130 students per slot)</p>
+                    <ul className="grid sm:grid-cols-2 gap-2 text-xs text-indigo-900">
+                      {enrichScheduleSlots(parseScheduleSlotsJson(r.schedule_slots_json)).map(
+                        (slot) => (
+                          <li
+                            key={slot.slot_number}
+                            className="rounded-md bg-white/80 border border-indigo-100 px-2 py-1.5"
+                          >
+                            <span className="font-semibold">Slot {slot.slot_number}</span>
+                            <span className="block text-indigo-800/90">
+                              {slot.exam_date} · {slot.start_time}–{slot.end_time}
+                            </span>
+                            <span className="block text-indigo-700/80">
+                              {slot.roster.length} students
+                            </span>
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                    <p className="text-[11px] text-indigo-800/80">
+                      On approval, eight scheduled windows are created. Admin goes live per slot on
+                      Faculty exam schedules. Students only access during their assigned slot.
+                    </p>
+                  </div>
                 ) : null}
               </Card>
             );

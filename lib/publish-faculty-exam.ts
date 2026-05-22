@@ -8,6 +8,10 @@ import {
 } from '@/lib/exam-builder/id-utils';
 import { isFacultyCodingQuestion } from '@/lib/exam-builder/programming-syllabus';
 import { parseQuestionsJson, type FacultyExamQuestion, type FacultyMcqQuestion } from '@/lib/faculty-exams';
+import {
+  createSchedulesFromSlots,
+  parseScheduleSlotsJson,
+} from '@/lib/exam-schedule-slots';
 
 const DEPT_EXAMS_SLUG = 'department-exams';
 
@@ -174,6 +178,24 @@ export async function publishFacultyExamRequest(
         statusOnlyError.message ??
         'Could not mark exam as approved',
     );
+  }
+
+  const usesSlotScheduling = Boolean(request.uses_slot_scheduling);
+  const slotPayload = parseScheduleSlotsJson(request.schedule_slots_json);
+  if (usesSlotScheduling && slotPayload.length > 0) {
+    const targetDepartments = Array.from(
+      new Set([String(request.department), ...((request.target_branches as string[]) ?? [])]),
+    );
+    await createSchedulesFromSlots(admin, {
+      requestId,
+      testId: testIdStr,
+      title: String(request.title),
+      description: (request.description as string | null) ?? null,
+      targetDepartments,
+      targetYears: (request.target_years as string[]) ?? [],
+      createdBy: adminUserId,
+      slots: slotPayload,
+    });
   }
 
   return { testId: testIdStr };

@@ -476,23 +476,23 @@ export default function UsersManagementPage() {
                     className="text-xl sm:text-2xl font-bold text-gray-900 break-words"
                   >
                     Student report: {selectedReport.student.full_name || selectedReport.student.email}
-                  </h2>
+                </h2>
                   <p className="text-sm text-gray-600 mt-1 break-all">{selectedReport.student.email}</p>
-                </div>
+              </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
                   <Button variant="outline" size="sm" onClick={() => downloadExcelCsv(selectedReport)}>
                     Export CSV
-                  </Button>
+                </Button>
                   <Button
                     size="sm"
                     onClick={() => downloadPdf(selectedReport)}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                   >
-                    Download PDF
-                  </Button>
+                  Download PDF
+                </Button>
                   <Button variant="outline" size="sm" onClick={() => setSelectedReport(null)}>
-                    Close
-                  </Button>
+                  Close
+                </Button>
                 </div>
               </div>
             </div>
@@ -519,24 +519,24 @@ export default function UsersManagementPage() {
                     {formatScorePercentLabel(selectedReport.bestScore)}
                   </p>
                 </Card>
-              </div>
+            </div>
 
-              <Card className="p-4 mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select attempted test</label>
-                <select
+            <Card className="p-4 mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select attempted test</label>
+              <select
                   className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white"
-                  value={selectedAttemptId ?? ''}
-                  onChange={(e) => setSelectedAttemptId(e.target.value)}
-                >
-                  {selectedReport.attempts.map((a) => (
-                    <option key={a.id} value={a.id}>
+                value={selectedAttemptId ?? ''}
+                onChange={(e) => setSelectedAttemptId(e.target.value)}
+              >
+                {selectedReport.attempts.map((a) => (
+                  <option key={a.id} value={a.id}>
                       {a.testName} — {new Date(a.date).toLocaleString()} — {formatScorePercentLabel(a.score)}
-                    </option>
-                  ))}
-                </select>
-              </Card>
+                  </option>
+                ))}
+              </select>
+            </Card>
 
-              {selectedAttempt ? (
+            {selectedAttempt ? (
                 selectedAttempt.isElevateX ? (
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -596,7 +596,7 @@ export default function UsersManagementPage() {
                         <strong>Correct:</strong> {selectedAttempt.correctCount}/
                         {selectedAttempt.totalQuestions}
                       </p>
-                    </div>
+                </div>
                     <div className="rounded-lg border border-slate-200 overflow-x-auto">
                       <table className="w-full min-w-[640px] text-sm table-fixed">
                         <colgroup>
@@ -605,16 +605,16 @@ export default function UsersManagementPage() {
                           <col className="w-[22%]" />
                           <col className="w-[14%]" />
                         </colgroup>
-                        <thead>
-                          <tr className="border-b border-gray-200 bg-gray-50">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50">
                             <th className="text-left py-3 px-3 font-semibold text-gray-700">Question</th>
                             <th className="text-left py-3 px-3 font-semibold text-gray-700">Student answer</th>
                             <th className="text-left py-3 px-3 font-semibold text-gray-700">Correct answer</th>
                             <th className="text-left py-3 px-3 font-semibold text-gray-700">Result</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedAttempt.questions.map((q, idx) => (
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedAttempt.questions.map((q, idx) => (
                             <tr key={idx} className="border-b border-gray-100 align-top">
                               <td className="py-3 px-3 text-gray-900 break-words whitespace-pre-wrap">
                                 {q.questionText}
@@ -628,18 +628,18 @@ export default function UsersManagementPage() {
                                   q.isCorrect ? 'text-green-600' : 'text-red-600'
                                 }`}
                               >
-                                {q.isCorrect ? 'Correct' : 'Incorrect'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </Card>
+                            {q.isCorrect ? 'Correct' : 'Incorrect'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
                 )
-              ) : (
-                <Card className="p-6 text-center text-gray-600">No attempts found for this student.</Card>
-              )}
+            ) : (
+              <Card className="p-6 text-center text-gray-600">No attempts found for this student.</Card>
+            )}
             </div>
           </div>
         </div>

@@ -15,7 +15,13 @@ import { ExamBuilderControls } from '@/components/exam-builder/exam-builder-cont
 import { QuestionBankUploadPanel } from '@/components/exam-builder/question-bank-upload-panel';
 import { McqUploadFormatGuide } from '@/components/exam-builder/mcq-upload-format-guide';
 import { DepartmentGroupPicker } from '@/components/exam-builder/department-group-picker';
+import {
+  ExamSlotSchedulePanel,
+  emptySlots,
+} from '@/components/exam-builder/exam-slot-schedule-panel';
 import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
+import type { ExamScheduleSlotInput } from '@/lib/exam-schedule-slots';
+import { validateScheduleSlots } from '@/lib/exam-schedule-slots';
 
 type Step = 'details' | 'questions' | 'review';
 
@@ -66,6 +72,8 @@ export default function FacultyUploadPage() {
   const [paperWarnings, setPaperWarnings] = useState<string[]>([]);
   const [departmentGroupId, setDepartmentGroupId] = useState('');
   const [catalogRefresh, setCatalogRefresh] = useState(0);
+  const [usesSlotScheduling, setUsesSlotScheduling] = useState(false);
+  const [scheduleSlots, setScheduleSlots] = useState<ExamScheduleSlotInput[]>(emptySlots);
 
   // Step 2 – questions
   const [questions, setQuestions] = useState<FacultyExamQuestion[]>([emptyQuestion()]);
@@ -236,6 +244,8 @@ export default function FacultyUploadPage() {
           syllabus_topic_ids: syllabusTopicIds,
           questions_per_topic: questionsPerTopic,
           department_group_id: departmentGroupId || undefined,
+          uses_slot_scheduling: usesSlotScheduling,
+          schedule_slots: usesSlotScheduling ? scheduleSlots : [],
         }),
       });
       const json = (await res.json()) as { error?: string };
@@ -252,7 +262,8 @@ export default function FacultyUploadPage() {
     }
   };
 
-  const canSubmit = canProceedFromQuestions && detailsValid;
+  const slotsValid = !usesSlotScheduling || validateScheduleSlots(scheduleSlots) === null;
+  const canSubmit = canProceedFromQuestions && detailsValid && slotsValid;
 
   const handleBankQuestionsReady = (qs: FacultyExamQuestion[], warnings: string[]) => {
     setPaperWarnings(warnings);
@@ -372,6 +383,16 @@ export default function FacultyUploadPage() {
             value={departmentGroupId}
             onChange={setDepartmentGroupId}
             primaryDepartment={department}
+          />
+
+          <ExamSlotSchedulePanel
+            enabled={usesSlotScheduling}
+            onEnabledChange={(v) => {
+              setUsesSlotScheduling(v);
+              if (v && scheduleSlots.length === 0) setScheduleSlots(emptySlots());
+            }}
+            slots={scheduleSlots}
+            onSlotsChange={setScheduleSlots}
           />
 
           <Field
@@ -612,7 +633,13 @@ export default function FacultyUploadPage() {
 
           <div className="grid sm:grid-cols-2 gap-5 rounded-xl border border-slate-200 bg-slate-50/60 p-5">
             <DetailRow label="Test type">{testDef?.name ?? testType}</DetailRow>
-            <DetailRow label="Slot">{slotKey.replace(/-/g, ' ')}</DetailRow>
+            <DetailRow label="Question bank slot">{slotKey.replace(/-/g, ' ')}</DetailRow>
+            {usesSlotScheduling ? (
+              <DetailRow label="Exam slots">
+                {scheduleSlots.filter((s) => s.roster.length > 0).length} of 8 configured (
+                {scheduleSlots.reduce((n, s) => n + s.roster.length, 0)} students total)
+              </DetailRow>
+            ) : null}
             <DetailRow label="Title">{title || '—'}</DetailRow>
             <DetailRow label="Topic">{topic || testDef?.name || '—'}</DetailRow>
             {needsSyllabus ? (

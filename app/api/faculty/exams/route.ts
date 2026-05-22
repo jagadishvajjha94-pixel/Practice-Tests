@@ -3,6 +3,7 @@ import { FACULTY_EXAM_YEARS, parseQuestionsJson } from '@/lib/faculty-exams';
 import { isValidAcademicYear } from '@/lib/roles';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { createFacultyExamRequestRecord } from '@/lib/exam-builder/create-exam-request';
+import { parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
 
 export async function GET() {
   const auth = await requireAuth(['faculty']);
@@ -46,6 +47,8 @@ export async function POST(request: NextRequest) {
     syllabus_topic_ids?: string[];
     questions_per_topic?: number;
     department_group_id?: string;
+    uses_slot_scheduling?: boolean;
+    schedule_slots?: unknown[];
   };
 
   try {
@@ -116,6 +119,10 @@ export async function POST(request: NextRequest) {
       questionsPerTopic: body.questions_per_topic ?? null,
       status: 'pending',
       autoPublish: false,
+      usesSlotScheduling: Boolean(body.uses_slot_scheduling),
+      scheduleSlots: body.uses_slot_scheduling
+        ? parseScheduleSlotsJson(body.schedule_slots)
+        : undefined,
     });
 
     const { data } = await admin

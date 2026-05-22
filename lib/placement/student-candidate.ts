@@ -1,7 +1,8 @@
 import { COLLEGE } from '@/lib/college-brand';
 import { rollNumberFromUser } from '@/lib/admin/roll-number';
 import { PLACEMENT_DEPARTMENTS, PLACEMENT_EXAM_NAME } from '@/lib/placement/config';
-import { buildCandidate, type PlacementCandidate } from '@/lib/placement/scoring';
+import { buildCandidate } from '@/lib/placement/scoring';
+import type { PlacementCandidate } from '@/lib/placement/types';
 
 /** Map college profile branch name to ElevateX placement department id. */
 export function placementDepartmentIdFromBranch(branch: string | null | undefined): string {

@@ -27,7 +27,7 @@ import {
 import { fetchElevateXAttemptStatus } from '@/lib/placement/elevatex-attempt';
 import {
   buildPlacementSession,
-  getPlacementCompletedAttemptId,
+  clearPlacementDrafts,
   loadSessionByHallTicket,
   saveCandidateDraft,
   savePlacementProctorSessionId,
@@ -85,7 +85,6 @@ export default function PlacementAssessmentStartPage() {
     );
     setProfile(studentProfile);
 
-    const localCompletedId = getPlacementCompletedAttemptId(studentProfile.hallTicket);
     const status = await fetchElevateXAttemptStatus();
     if (status.completed && status.attemptId) {
       setPriorAttempt({
@@ -93,9 +92,6 @@ export default function PlacementAssessmentStartPage() {
         score: status.score,
         completedAt: status.completedAt,
       });
-      setResumeAvailable(false);
-    } else if (localCompletedId) {
-      setPriorAttempt({ attemptId: localCompletedId });
       setResumeAvailable(false);
     } else {
       const existing = loadSessionByHallTicket(studentProfile.hallTicket);
@@ -113,15 +109,20 @@ export default function PlacementAssessmentStartPage() {
 
     const existing = loadSessionByHallTicket(profile.hallTicket);
     if (existing && !existing.submitted) {
-      const proceed = window.confirm(
-        'A previous in-progress ElevateX attempt was found on this device. Resume it?',
+      const resume = window.confirm(
+        'A saved ElevateX session was found on this device.\n\nPress OK to resume where you left off.\nPress Cancel to choose another option.',
       );
-      if (proceed) {
+      if (resume) {
         saveCandidateDraft(existing.candidate);
         saveSession(existing);
         router.push('/placement/take');
         return;
       }
+      const startFresh = window.confirm(
+        'Start a new attempt? Your saved progress on this device will be deleted.',
+      );
+      if (!startFresh) return;
+      clearPlacementDrafts(profile.hallTicket);
     }
 
     setShowProctorGate(true);
@@ -259,8 +260,18 @@ export default function PlacementAssessmentStartPage() {
                 {starting ? 'Starting…' : 'Start ElevateX exam'}
               </Button>
               {resumeAvailable ? (
-                <Button variant="outline" asChild>
-                  <Link href="/placement/take">Resume saved session</Link>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const existing = loadSessionByHallTicket(profile.hallTicket);
+                    if (existing && !existing.submitted) {
+                      saveCandidateDraft(existing.candidate);
+                      saveSession(existing);
+                      router.push('/placement/take');
+                    }
+                  }}
+                >
+                  Resume saved session
                 </Button>
               ) : null}
               <Button variant="ghost" asChild>

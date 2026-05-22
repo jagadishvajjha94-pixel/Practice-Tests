@@ -5,6 +5,7 @@ import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { findCompletedAttemptForTest } from '@/lib/test-attempts';
 import { checkStudentExamAccess } from '@/lib/exam-access';
 import { resolveStudentTargeting } from '@/lib/student-profile-sync';
+import { rollNumberFromUser } from '@/lib/admin/roll-number';
 
 type RouteContext = { params: Promise<{ testId: string }> };
 
@@ -38,6 +39,12 @@ export async function GET(_request: Request, context: RouteContext) {
     testId: testId.trim(),
     department: profile.branch ?? auth.ctx.resolved.department ?? '',
     year: profile.academic_year ?? auth.ctx.resolved.academicYear ?? '',
+    rollNumber: rollNumberFromUser(
+      auth.ctx.resolved.email ?? auth.ctx.user.email,
+      (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
+    ),
+    email: auth.ctx.resolved.email ?? auth.ctx.user.email,
+    metadata: (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
   });
 
   if (!access.allowed) {

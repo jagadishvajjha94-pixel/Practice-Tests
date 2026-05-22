@@ -21,8 +21,11 @@ import { encodeElevateXScorecardAnswers } from '@/lib/placement/scorecard-payloa
 import {
   clearPlacementDrafts,
   clearPlacementProctorSessionId,
+  getPlacementCompletedAttemptId,
+  loadCandidateDraft,
   loadPlacementProctorSessionId,
   loadSession,
+  loadSessionByHallTicket,
   markPlacementCompleted,
   savePlacementProctorSessionId,
   saveScorecardForAttempt,
@@ -63,11 +66,13 @@ export default function PlacementTakePage() {
   const [proctorReady, setProctorReady] = useState(false);
   const [proctorSessionId, setProctorSessionId] = useState('');
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const submitGuardRef = useRef(false);
   const handleSubmitRef = useRef<(reason: 'manual' | 'timeout') => Promise<void>>(async () => {});
   const proctorVideoRef = useRef<HTMLVideoElement>(null);
   const proctorSummaryRef = useRef<ProctorSummary | null>(null);
+  const sessionRef = useRef<PlacementSession | null>(null);
 
   const elevateXTestId = getElevateXTestId();
   const proctorActive = proctorReady && Boolean(proctorSessionId);
@@ -117,13 +122,34 @@ export default function PlacementTakePage() {
         return;
       }
 
-      const loaded = loadSession();
+      let loaded = loadSession();
+      if (!loaded) {
+        const draft = loadCandidateDraft();
+        if (draft) {
+          loaded = loadSessionByHallTicket(draft.hallTicket);
+          if (loaded) saveSession(loaded);
+        }
+      }
       if (!loaded) {
         router.replace('/placement/assessment');
         return;
       }
       if (loaded.submitted) {
-        router.replace('/placement/assessment');
+        const completedId = getPlacementCompletedAttemptId(loaded.candidate.hallTicket);
+        if (completedId) {
+          setBlocked(true);
+          router.replace(`/placement/result/${completedId}`);
+          return;
+        }
+        const reopened = { ...loaded, submitted: false };
+        saveSession(reopened);
+        setSession(reopened);
+        setHydrated(true);
+        const storedProctor = loadPlacementProctorSessionId();
+        if (storedProctor) {
+          setProctorSessionId(storedProctor);
+          setProctorReady(true);
+        }
         return;
       }
       setSession(loaded);
@@ -141,24 +167,19 @@ export default function PlacementTakePage() {
     };
   }, [router]);
 
-  // Autosave (every 5s) of the session.
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  // Autosave (every 5s) — uses ref so the latest answers are always persisted.
   useEffect(() => {
     if (!session) return;
     const id = window.setInterval(() => {
-      saveSession(session);
+      const current = sessionRef.current;
+      if (current && !current.submitted) saveSession(current);
     }, 5000);
     return () => window.clearInterval(id);
   }, [session]);
-
-  // Tab switch detector (lightweight proctoring).
-  useEffect(() => {
-    if (!hydrated) return;
-    const onVisibility = () => {
-      if (document.hidden) setTabSwitches((c) => c + 1);
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [hydrated]);
 
   // Disable copy / paste on the take page.
   useEffect(() => {
@@ -188,64 +209,78 @@ export default function PlacementTakePage() {
       if (!session || submitGuardRef.current) return;
       submitGuardRef.current = true;
       setSubmitting(true);
+      setSubmitError(null);
 
-      const finalSession: PlacementSession = { ...session, submitted: true };
-      saveSession(finalSession);
+      try {
+        const scorecard = computePlacementScorecard(session);
+        const dept = findDepartment(scorecard.candidate.departmentId);
+        const isProctorAuto =
+          reason === 'timeout' && Boolean(proctorSummaryRef.current);
+        const testName = `ElevateX · ${dept?.name ?? 'Department'}${
+          isProctorAuto ? ' (auto-submit)' : reason === 'timeout' ? ' (time up)' : ''
+        }`;
 
-      const scorecard = computePlacementScorecard(finalSession);
-      const dept = findDepartment(scorecard.candidate.departmentId);
-      const testName = `ElevateX · ${dept?.name ?? 'Department'}${reason === 'timeout' ? ' (auto-submit)' : ''}`;
+        const submitReason =
+          reason === 'timeout' && proctorSummaryRef.current ? 'proctor_violations' : reason;
+        const proctorSummary =
+          proctorSummaryRef.current ??
+          (proctorActive
+            ? {
+                sessionId: proctorSessionId,
+                violationCount,
+                autoSubmitted: submitReason === 'proctor_violations',
+                submitReason,
+                violations: getExamViolations(proctorSessionId).map((v) => ({
+                  type: v.type,
+                  at: v.at,
+                })),
+              }
+            : undefined);
 
-      const submitReason = reason === 'timeout' && proctorSummaryRef.current ? 'proctor_violations' : reason;
-      const proctorSummary =
-        proctorSummaryRef.current ??
-        (proctorActive
-          ? {
-              sessionId: proctorSessionId,
-              violationCount,
-              autoSubmitted: submitReason === 'proctor_violations',
-              submitReason,
-              violations: getExamViolations(proctorSessionId).map((v) => ({
-                type: v.type,
-                at: v.at,
-              })),
-            }
-          : undefined);
+        const res = await recordDashboardAttempt({
+          testId: elevateXTestId,
+          testName,
+          scorePercent: scorecard.percentage,
+          rawNetScore: scorecard.earnedMarks,
+          elapsedSec: scorecard.totalElapsedSec,
+          examKind: 'practice',
+          answers: encodeElevateXScorecardAnswers(
+            scorecard,
+            proctorSummary ? { __proctor: proctorSummary as Record<string, unknown> } : undefined,
+          ),
+          proctorSessionId: proctorSummary?.sessionId,
+          proctorViolations: proctorSummary?.violationCount ?? 0,
+          proctorAutoSubmit: proctorSummary?.autoSubmitted ?? false,
+          test: {
+            id: elevateXTestId,
+            name: testName,
+            category_id: 'placement',
+            duration: 60,
+            total_questions: PLACEMENT_TOTAL_MARKS,
+          },
+        });
 
-      const res = await recordDashboardAttempt({
-        testId: elevateXTestId,
-        testName,
-        scorePercent: scorecard.percentage,
-        rawNetScore: scorecard.earnedMarks,
-        elapsedSec: scorecard.totalElapsedSec,
-        examKind: 'practice',
-        answers: encodeElevateXScorecardAnswers(
-          scorecard,
-          proctorSummary ? { __proctor: proctorSummary as Record<string, unknown> } : undefined,
-        ),
-        proctorSessionId: proctorSummary?.sessionId,
-        proctorViolations: proctorSummary?.violationCount ?? 0,
-        proctorAutoSubmit: proctorSummary?.autoSubmitted ?? false,
-        test: {
-          id: elevateXTestId,
-          name: testName,
-          category_id: 'placement',
-          duration: 60,
-          total_questions: PLACEMENT_TOTAL_MARKS,
-        },
-      });
+        if (!res?.attemptId) {
+          throw new Error(
+            'Could not save your ElevateX attempt. Check your internet connection and try Submit again.',
+          );
+        }
 
-      const attemptId = res?.attemptId ?? `placement-${Date.now()}`;
-      saveScorecardForAttempt(attemptId, { ...scorecard, attemptId });
-      markPlacementCompleted(scorecard.candidate.hallTicket, attemptId);
-      clearPlacementDrafts(scorecard.candidate.hallTicket);
-      clearPlacementProctorSessionId();
-      setShowSubmitConfirm(false);
-      if (res?.alreadyCompleted) {
+        const attemptId = res.attemptId;
+        saveSession({ ...session, submitted: true });
+        saveScorecardForAttempt(attemptId, { ...scorecard, attemptId });
+        markPlacementCompleted(scorecard.candidate.hallTicket, attemptId);
+        clearPlacementDrafts(scorecard.candidate.hallTicket);
+        clearPlacementProctorSessionId();
+        setShowSubmitConfirm(false);
         router.replace(`/placement/result/${attemptId}`);
-        return;
+      } catch (err) {
+        submitGuardRef.current = false;
+        setSubmitting(false);
+        setSubmitError(
+          err instanceof Error ? err.message : 'Submit failed. Please try again.',
+        );
       }
-      router.replace(`/placement/result/${attemptId}`);
     },
     [session, router, proctorActive, proctorSessionId, violationCount, elevateXTestId],
   );
@@ -628,6 +663,11 @@ export default function PlacementTakePage() {
                   </span>
                 </p>
                 <p>Once submitted, you cannot change your answers. Your scorecard will be shown immediately.</p>
+                {submitError ? (
+                  <p className="text-red-700 font-medium rounded-md bg-red-50 border border-red-200 px-3 py-2">
+                    {submitError}
+                  </p>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 <Button
