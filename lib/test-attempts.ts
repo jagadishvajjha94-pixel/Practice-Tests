@@ -231,7 +231,82 @@ export function isAttemptPersistenceError(error: unknown): boolean {
 function isMissingColumnError(error: unknown, column: string): boolean {
   if (!error || typeof error !== 'object') return false;
   const e = error as { code?: string; message?: string };
-  return e.code === 'PGRST204' && (e.message ?? '').toLowerCase().includes(`'${column.toLowerCase()}'`);
+  const msg = (e.message ?? '').toLowerCase();
+  const col = column.toLowerCase();
+  const mentionsCol =
+    msg.includes(`'${col}'`) ||
+    msg.includes(`.${col}`) ||
+    msg.includes(`column ${col}`) ||
+    msg.includes(`${col} does not exist`);
+  if (!mentionsCol) return false;
+  return (
+    e.code === 'PGRST204' ||
+    e.code === '42703' ||
+    msg.includes('does not exist')
+  );
+}
+
+const ATTEMPT_BY_ID_SELECT_VARIANTS = [
+  'id, user_id, test_id, test_title, answers',
+  'id, user_id, test_id, answers',
+  'id, user_id, test_id, test_title',
+  'id, user_id, test_id',
+] as const;
+
+/** Load one attempt row; retries without optional columns missing on older DBs. */
+export async function fetchTestAttemptById(
+  supabase: SupabaseClient,
+  attemptId: string,
+): Promise<{ row: AttemptRow | null; error: { message: string } | null }> {
+  for (const cols of ATTEMPT_BY_ID_SELECT_VARIANTS) {
+    const { data, error } = await supabase
+      .from('test_attempts')
+      .select(cols)
+      .eq('id', attemptId)
+      .maybeSingle();
+    if (!error) {
+      return { row: (data ?? null) as AttemptRow | null, error: null };
+    }
+    if (
+      isMissingColumnError(error, 'test_title') ||
+      isMissingColumnError(error, 'answers')
+    ) {
+      continue;
+    }
+    return { row: null, error: { message: String((error as { message?: string }).message ?? 'Query failed') } };
+  }
+  return { row: null, error: { message: 'Could not load attempt' } };
+}
+
+const ATTEMPT_LIST_BASE_COLS =
+  'id, user_id, test_id, score, percentage_score, total_score, status, completed_at, created_at';
+
+/** List attempts for users; omits test_title when that column is not on test_attempts. */
+export async function fetchTestAttemptsForUsers(
+  supabase: SupabaseClient,
+  userIds: string[],
+): Promise<AttemptRow[]> {
+  if (userIds.length === 0) return [];
+
+  const withTitle = `${ATTEMPT_LIST_BASE_COLS}, test_title`;
+  let res = await supabase
+    .from('test_attempts')
+    .select(withTitle)
+    .in('user_id', userIds)
+    .order('created_at', { ascending: false });
+
+  if (res.error && isMissingColumnError(res.error, 'test_title')) {
+    res = await supabase
+      .from('test_attempts')
+      .select(ATTEMPT_LIST_BASE_COLS)
+      .in('user_id', userIds)
+      .order('created_at', { ascending: false });
+  }
+
+  if (res.error) {
+    throw res.error;
+  }
+  return (res.data ?? []) as AttemptRow[];
 }
 
 export type PersistAttemptInput = {

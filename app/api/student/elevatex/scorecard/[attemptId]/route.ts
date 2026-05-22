@@ -4,6 +4,7 @@ import {
   isElevateXAttemptMeta,
   parseElevateXScorecardFromAnswers,
 } from '@/lib/placement/scorecard-payload';
+import { fetchTestAttemptById } from '@/lib/test-attempts';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,11 +21,7 @@ export async function GET(
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
   }
 
-  const { data: row, error } = await service
-    .from('test_attempts')
-    .select('id, user_id, test_id, test_title, answers')
-    .eq('id', attemptId)
-    .maybeSingle();
+  const { row, error } = await fetchTestAttemptById(service, attemptId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

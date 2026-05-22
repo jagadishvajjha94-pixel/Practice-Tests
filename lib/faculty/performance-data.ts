@@ -2,7 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { departmentsMatch, examMatchesDepartment } from '@/lib/faculty/department-match';
 import { departmentsForPerformanceView } from '@/lib/department-groups';
 import { isElevateXAttemptMeta } from '@/lib/placement/scorecard-payload';
-import { resolveStoredPercent, testIdsMatch } from '@/lib/test-attempts';
+import {
+  fetchTestAttemptsForUsers,
+  resolveStoredPercent,
+  testIdsMatch,
+} from '@/lib/test-attempts';
 import type { DashboardStatEntry } from '@/lib/student-dashboard-stats';
 
 export type DeptStudent = {
@@ -192,16 +196,15 @@ export async function fetchElevateXAttemptsForStudents(
 ): Promise<MatchedAttempt[]> {
   if (studentIds.length === 0) return [];
 
-  const { data: attemptRows } = await admin
-    .from('test_attempts')
-    .select(
-      'id, user_id, test_id, test_title, score, percentage_score, total_score, status, completed_at, created_at',
-    )
-    .in('user_id', studentIds)
-    .order('created_at', { ascending: false });
+  const attemptRows = await fetchTestAttemptsForUsers(admin, studentIds);
 
-  return ((attemptRows ?? []) as RawAttempt[])
-    .filter((row) => isElevateXAttemptMeta(String(row.test_id ?? ''), row.test_title))
+  return (attemptRows as RawAttempt[])
+    .filter((row) =>
+      isElevateXAttemptMeta(
+        String(row.test_id ?? ''),
+        (row as { test_title?: string | null }).test_title,
+      ),
+    )
     .map((attempt) => ({
       ...attempt,
       resolved_test_id: String(attempt.test_id ?? 'placement_full'),
@@ -220,15 +223,9 @@ export async function fetchDepartmentExamAttempts(
 ): Promise<MatchedAttempt[]> {
   if (studentIds.length === 0) return [];
 
-  const { data: attemptRows } = await admin
-    .from('test_attempts')
-    .select(
-      'id, user_id, test_id, test_title, score, percentage_score, total_score, status, completed_at, created_at',
-    )
-    .in('user_id', studentIds)
-    .order('created_at', { ascending: false });
+  const attemptRows = await fetchTestAttemptsForUsers(admin, studentIds);
 
-  const merged: RawAttempt[] = [...((attemptRows ?? []) as RawAttempt[])];
+  const merged: RawAttempt[] = [...(attemptRows as RawAttempt[])];
   const seen = new Set(merged.map((a) => String(a.id)));
 
   if (studentIds.length > 0) {
