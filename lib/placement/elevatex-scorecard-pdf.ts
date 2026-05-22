@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { formatScorePercent, formatScorePercentLabel } from '@/lib/format-score';
 import { findDepartment } from '@/lib/placement/config';
 import type { PlacementScorecard } from '@/lib/placement/types';
 
@@ -34,7 +35,7 @@ export function downloadElevateXScorecardPdf(
   );
 
   doc.setFontSize(12);
-  doc.text(`Overall: ${scorecard.percentage.toFixed(2)}%`, 14, 48);
+  doc.text(`Overall: ${formatScorePercentLabel(scorecard.percentage)}`, 14, 48);
   doc.setFontSize(10);
   doc.text(
     `${scorecard.earnedMarks} / ${scorecard.totalMarks} marks · Readiness: ${scorecard.placementReadiness}`,
@@ -42,7 +43,7 @@ export function downloadElevateXScorecardPdf(
     54,
   );
   doc.text(
-    `Technical ${scorecard.technicalRating.toFixed(0)}% · Communication ${scorecard.communicationRating.toFixed(0)}% · Employability ${scorecard.employabilityScore.toFixed(0)}`,
+    `Technical ${formatScorePercentLabel(scorecard.technicalRating)} · Communication ${formatScorePercentLabel(scorecard.communicationRating)} · Employability ${formatScorePercent(scorecard.employabilityScore)}`,
     14,
     60,
   );
@@ -52,9 +53,9 @@ export function downloadElevateXScorecardPdf(
     head: [['Section', 'Earned', 'Max', '%', 'Correct', 'Wrong', 'Skipped']],
     body: scorecard.sections.map((s) => [
       s.name,
-      s.earned.toFixed(2),
+      formatScorePercent(s.earned),
       String(s.marks),
-      `${s.percent.toFixed(1)}%`,
+      formatScorePercentLabel(s.percent),
       s.correct != null ? String(s.correct) : '—',
       s.wrong != null ? String(s.wrong) : '—',
       s.skipped != null ? String(s.skipped) : '—',

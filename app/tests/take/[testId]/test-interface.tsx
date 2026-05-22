@@ -14,6 +14,7 @@ import QuestionNavigation from './question-navigation';
 import TestTimer from './test-timer';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { answersMatchMcq, isCodingQuestion } from '@/lib/practice-mappers';
+import { formatScorePercentLabel, roundScorePercent } from '@/lib/format-score';
 import { formatSupabaseError } from '@/lib/utils';
 import { isSchemaMissingError } from '@/lib/fallback-question-bank';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -214,10 +215,13 @@ export default function TestInterface({
 
         let scorePercent = 0;
         if (sectionMode && examSections.length) {
-          scorePercent = scoreBySections(examSections, questionsBySection, answers).overallPercent;
+          scorePercent = roundScorePercent(
+            scoreBySections(examSections, questionsBySection, answers).overallPercent,
+          );
         } else {
           const { netScore, maxScore } = scoreMcqWithNegativeMarking(questions, answers, 0);
-          scorePercent = maxScore > 0 ? Math.round((netScore / maxScore) * 100) : 0;
+          scorePercent =
+            maxScore > 0 ? roundScorePercent((netScore / maxScore) * 100) : 0;
         }
 
         const headers = await getSupabaseAuthHeaders(supabase);
@@ -387,7 +391,7 @@ export default function TestInterface({
       let rawNetScore = 0;
       if (sectionMode && examSections.length) {
         const result = scoreBySections(examSections, questionsBySection, answers);
-        scorePercent = result.overallPercent;
+        scorePercent = roundScorePercent(result.overallPercent);
         rawNetScore = result.totalNet;
         if (result.sections.some((s) => !s.passedCutoff)) {
           console.info('Section cutoff missed:', result.sections.filter((s) => !s.passedCutoff));
@@ -395,7 +399,7 @@ export default function TestInterface({
       } else {
         const { netScore, maxScore } = scoreMcqWithNegativeMarking(questions, answers, 0);
         rawNetScore = netScore;
-        scorePercent = maxScore > 0 ? (netScore / maxScore) * 100 : 0;
+        scorePercent = maxScore > 0 ? roundScorePercent((netScore / maxScore) * 100) : 0;
       }
 
       const supabase = getSupabaseBrowserClient();
@@ -605,7 +609,7 @@ export default function TestInterface({
           fallbackPercent = scoreBySections(examSections, questionsBySection, answers).overallPercent;
         } else {
           const { netScore, maxScore } = scoreMcqWithNegativeMarking(questions, answers, 0);
-          fallbackPercent = maxScore > 0 ? (netScore / maxScore) * 100 : 0;
+          fallbackPercent = maxScore > 0 ? roundScorePercent((netScore / maxScore) * 100) : 0;
         }
         let ownerId = LOCAL_ATTEMPT_GUEST_USER_ID;
         const sb = getSupabaseBrowserClient();
@@ -704,7 +708,9 @@ export default function TestInterface({
                   {Math.floor(sectionTimeLeft / 60)}:{String(sectionTimeLeft % 60).padStart(2, '0')}
                 </p>
                 {currentSection.cutoffScore != null ? (
-                  <p className="text-xs text-gray-500">Section cutoff: {currentSection.cutoffScore}%</p>
+                  <p className="text-xs text-gray-500">
+                    Section cutoff: {formatScorePercentLabel(currentSection.cutoffScore)}
+                  </p>
                 ) : null}
               </div>
             ) : (

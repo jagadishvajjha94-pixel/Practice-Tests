@@ -1,5 +1,6 @@
 import { ADMIN_EXAM_TYPE_META, type AdminExamType } from '@/lib/admin/exam-type';
 import type { TestReportRow, TestReportsPayload } from '@/lib/admin/test-reports-data';
+import { formatScorePercent, formatScorePercentLabel } from '@/lib/format-score';
 
 function escapeCsv(value: unknown): string {
   return `"${String(value ?? '').replace(/"/g, '""')}"`;
@@ -20,9 +21,9 @@ export function downloadTestReportCsv(
   }
   lines.push(`Total Attempts,${payload.summary.total_attempts}`);
   lines.push(`Unique Students,${payload.summary.unique_students}`);
-  lines.push(`Average Score,${payload.summary.avg_score}%`);
-  lines.push(`Pass Rate (≥40%),${payload.summary.pass_rate}%`);
-  lines.push(`Highest Score,${payload.summary.highest_score}%`);
+  lines.push(`Average Score,${formatScorePercentLabel(payload.summary.avg_score)}`);
+  lines.push(`Pass Rate (≥40%),${formatScorePercentLabel(payload.summary.pass_rate)}`);
+  lines.push(`Highest Score,${formatScorePercentLabel(payload.summary.highest_score)}`);
   lines.push('');
 
   lines.push('Attempts');
@@ -41,7 +42,7 @@ export function downloadTestReportCsv(
         escapeCsv(row.academic_year ?? ''),
         escapeCsv(row.test_name),
         escapeCsv(row.exam_type),
-        row.score,
+        formatScorePercent(row.score),
         escapeCsv(row.status),
         escapeCsv(row.completed_at ? new Date(row.completed_at).toLocaleString() : ''),
         row.time_taken_sec != null ? Math.round(row.time_taken_sec / 60) : '',

@@ -9,6 +9,7 @@ import {
 } from '@/lib/student-dashboard-stats';
 import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
 import { isElevateXAttemptTitle, isElevateXTestId } from '@/lib/elevatex';
+import { roundScorePercent } from '@/lib/format-score';
 
 export { getBrowserDashboardAttempts, getDashboardFeedAttempts };
 
@@ -43,23 +44,23 @@ export function resolveStoredPercent(
   totalQuestions?: number,
 ): number {
   const pct = percentageScore;
-  if (pct != null && pct >= 0 && pct <= 100) return pct;
+  if (pct != null && pct >= 0 && pct <= 100) return roundScorePercent(pct);
 
   const s = score;
   const total = totalScoreRaw;
   const q = totalQuestions ?? 0;
 
-  if (s != null && s >= 0 && s <= 100) return s;
+  if (s != null && s >= 0 && s <= 100) return roundScorePercent(s);
 
   if (s != null && q > 0 && s <= q && total == null) {
-    return Math.round((s / q) * 100);
+    return roundScorePercent((s / q) * 100);
   }
 
   if (total != null && q > 0) {
-    return Math.round((total / q) * 100);
+    return roundScorePercent((total / q) * 100);
   }
 
-  if (s != null) return s;
+  if (s != null) return roundScorePercent(s);
   return 0;
 }
 

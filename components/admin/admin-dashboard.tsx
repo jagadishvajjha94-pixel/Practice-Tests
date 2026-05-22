@@ -8,6 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
+import {
+  averageScorePercent,
+  formatScorePercentLabel,
+  roundRatePercent,
+  roundScorePercent,
+} from '@/lib/format-score';
 import { cn } from '@/lib/utils';
 import { StatCard } from '@/components/ui/stat-card';
 import { LiveExamDashboard } from '@/components/admin/live-exam-dashboard';
@@ -241,20 +247,18 @@ export function AdminDashboard() {
   const studentsWithAttempts = filteredStudents.filter((s) => s.attempts > 0);
   const attendanceRate =
     stats.totalRegisteredUsers > 0
-      ? Number(((stats.totalStudentsAttended / stats.totalRegisteredUsers) * 100).toFixed(1))
+      ? roundRatePercent((stats.totalStudentsAttended / stats.totalRegisteredUsers) * 100)
       : 0;
   const inactiveStudents = allStudents.filter((s) => s.attempts === 0).length;
   const overallAverageScore =
     filteredAttempts.length > 0
-      ? Number(
-          (
-            filteredAttempts.reduce((sum, a) => sum + Number(a.score ?? 0), 0) / filteredAttempts.length
-          ).toFixed(1)
-        )
+      ? averageScorePercent(filteredAttempts.map((a) => Number(a.score ?? 0)))
       : 0;
   const passedCount = filteredAttempts.filter((a) => Number(a.score ?? 0) >= 40).length;
   const passRate =
-    filteredAttempts.length > 0 ? Number(((passedCount / filteredAttempts.length) * 100).toFixed(1)) : 0;
+    filteredAttempts.length > 0
+      ? roundRatePercent((passedCount / filteredAttempts.length) * 100)
+      : 0;
 
   const scoreBands = [
     {
@@ -300,9 +304,13 @@ export function AdminDashboard() {
         testId,
         testName: sample?.test_name ?? testsMap.get(testId)?.name ?? `Test ${testId}`,
         attempts: row.attempts,
-        avgScore: Number((row.totalScore / row.attempts).toFixed(1)),
-        highestScore: row.highest,
-        passRate: Number(((row.passed / row.attempts) * 100).toFixed(1)),
+        avgScore: averageScorePercent(
+          filteredAttempts
+            .filter((a) => String(a.test_id ?? '') === testId)
+            .map((a) => Number(a.score ?? 0)),
+        ),
+        highestScore: roundScorePercent(row.highest),
+        passRate: roundRatePercent((row.passed / row.attempts) * 100),
       };
     })
     .sort((a, b) => b.attempts - a.attempts)
@@ -452,7 +460,7 @@ export function AdminDashboard() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-[#0c2340]">{student.attempts} tests</p>
-                      <p className="text-xs text-slate-500">Avg {student.avgScore}%</p>
+                      <p className="text-xs text-slate-500">Avg {formatScorePercentLabel(student.avgScore)}</p>
                     </div>
                   </div>
                 ))}
@@ -503,7 +511,9 @@ export function AdminDashboard() {
                         Highest in: {student.highestTestName || '-'} | {student.attempts} attempts
                       </p>
                     </div>
-                    <p className="text-sm font-bold text-green-600">{student.highestScore}%</p>
+                    <p className="text-sm font-bold text-green-600">
+                      {formatScorePercentLabel(student.highestScore)}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -514,19 +524,19 @@ export function AdminDashboard() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
             label="Attendance rate"
-            value={`${attendanceRate}%`}
+            value={formatScorePercentLabel(attendanceRate)}
             hint={`${stats.totalStudentsAttended} of ${stats.totalRegisteredUsers} students have attempted at least one test`}
             accent="blue"
           />
           <StatCard
             label="Overall average score"
-            value={`${overallAverageScore}%`}
+            value={formatScorePercentLabel(overallAverageScore)}
             hint={`Across ${filteredAttempts.length} attempts in the current filter`}
             accent="navy"
           />
           <StatCard
             label="Pass rate (≥ 40%)"
-            value={`${passRate}%`}
+            value={formatScorePercentLabel(passRate)}
             hint={`${passedCount} of ${filteredAttempts.length} attempts met the pass threshold`}
             accent="emerald"
           />
@@ -582,7 +592,9 @@ export function AdminDashboard() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-[#0c2340]">{attempt.score}%</p>
+                      <p className="text-sm font-semibold text-[#0c2340]">
+                        {formatScorePercentLabel(attempt.score)}
+                      </p>
                       <p className="text-xs text-slate-500 capitalize">{attempt.status}</p>
                     </div>
                   </div>
@@ -620,9 +632,9 @@ export function AdminDashboard() {
                     <tr key={row.testId} className="border-b border-slate-100 hover:bg-gray-50">
                       <td className="py-3 px-4 text-[#0c2340] font-medium">{row.testName}</td>
                       <td className="py-3 px-4 text-[#0c2340]">{row.attempts}</td>
-                      <td className="py-3 px-4 text-[#0c2340]">{row.avgScore}%</td>
-                      <td className="py-3 px-4 text-[#0c2340]">{row.highestScore}%</td>
-                      <td className="py-3 px-4 text-[#0c2340]">{row.passRate}%</td>
+                      <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(row.avgScore)}</td>
+                      <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(row.highestScore)}</td>
+                      <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(row.passRate)}</td>
                     </tr>
                   ))
                 )}
@@ -665,8 +677,8 @@ export function AdminDashboard() {
                         <p className="text-xs text-slate-500">{student.email}</p>
                       </td>
                       <td className="py-3 px-4 text-[#0c2340]">{student.attempts}</td>
-                      <td className="py-3 px-4 text-[#0c2340]">{student.avgScore}%</td>
-                      <td className="py-3 px-4 text-[#0c2340]">{student.highestScore}%</td>
+                      <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(student.avgScore)}</td>
+                      <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(student.highestScore)}</td>
                       <td className="py-3 px-4 text-slate-700">{student.highestTestName || '-'}</td>
                       <td className="py-3 px-4 text-slate-700">
                         {student.latestAttemptAt ? new Date(student.latestAttemptAt).toLocaleString() : 'No attempts'}

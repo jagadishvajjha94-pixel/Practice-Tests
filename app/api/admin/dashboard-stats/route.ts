@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { loadAdminStudents, loadAllAttemptsRollup } from '@/lib/admin/attempts-rollup';
 import { listLiveExamSchedules } from '@/lib/admin/live-dashboard-data';
+import { averageScorePercent } from '@/lib/format-score';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,7 +99,7 @@ export async function GET() {
   for (const [userId, values] of scoresByUser.entries()) {
     const row = statsByUserId.get(userId);
     if (!row || values.length === 0) continue;
-    row.avgScore = Number((values.reduce((s, v) => s + v, 0) / values.length).toFixed(1));
+    row.avgScore = averageScorePercent(values);
   }
 
   const studentList = Array.from(statsByUserId.values());

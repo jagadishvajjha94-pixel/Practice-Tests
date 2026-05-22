@@ -6,6 +6,7 @@ import {
 } from '@/lib/admin/exam-type';
 import { loadAdminStudents, loadAllAttemptsRollup, type RollupAttempt } from '@/lib/admin/attempts-rollup';
 import { isCompletedAttemptStatus, isInProgressStatus } from '@/lib/attempt-status';
+import { averageScorePercent, roundRatePercent, roundScorePercent } from '@/lib/format-score';
 import { testIdsMatch } from '@/lib/test-attempts';
 
 export type TestReportRow = {
@@ -135,7 +136,7 @@ export async function loadTestReportsPayload(
       test_id: a.test_id,
       test_name: a.test_name,
       exam_type: a.exam_type,
-      score: a.score,
+      score: roundScorePercent(a.score),
       status: a.status,
       completed_at: a.completed_at,
       created_at: a.created_at,
@@ -160,13 +161,11 @@ export async function loadTestReportsPayload(
       in_progress_count: inProgressCount,
       completed_count: completedRows.length,
       unique_students: uniqueStudents,
-      avg_score:
-        scores.length > 0
-          ? Number((scores.reduce((sum, s) => sum + s, 0) / scores.length).toFixed(1))
-          : 0,
+      avg_score: scores.length > 0 ? averageScorePercent(scores) : 0,
       pass_rate:
-        scores.length > 0 ? Number(((passed / scores.length) * 100).toFixed(1)) : 0,
-      highest_score: scores.length > 0 ? Math.max(...scores) : 0,
+        scores.length > 0 ? roundRatePercent((passed / scores.length) * 100) : 0,
+      highest_score:
+        scores.length > 0 ? roundScorePercent(Math.max(...scores)) : 0,
     },
     tests,
     rows,

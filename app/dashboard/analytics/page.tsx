@@ -17,6 +17,7 @@ import {
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/ui/stat-card';
+import { formatScorePercentLabel } from '@/lib/format-score';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { downloadStudentReportPdf } from '@/lib/reports/student-pdf';
@@ -126,7 +127,7 @@ export default function StudentAnalyticsPage() {
 
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         <div className="grid sm:grid-cols-3 gap-4">
-          <StatCard label="Average score" value={`${avgScore.toFixed(0)}%`} accent="emerald" />
+          <StatCard label="Average score" value={formatScorePercentLabel(avgScore)} accent="emerald" />
           <StatCard label="Attempts" value={attempts.length} accent="navy" />
           <StatCard
             label="Weak areas"

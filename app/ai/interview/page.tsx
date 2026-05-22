@@ -19,6 +19,7 @@ import {
 import { StatusAlert } from '@/components/ui/status-alert';
 import { analyzeResumeText } from '@/lib/ai-interview/resume-analyzer';
 import { DEFAULT_INTERVIEW_QUESTIONS } from '@/lib/ai-interview/default-questions';
+import { formatScorePercentLabel, roundScorePercent } from '@/lib/format-score';
 import { useVoiceInterview } from '@/lib/ai-interview/use-voice-interview';
 import {
   spokenAfterAnswer,
@@ -179,7 +180,9 @@ export default function AiInterviewPage() {
       if (lower.includes(kw.toLowerCase())) answerScore += 9;
     });
     answerScore = Math.min(100, answerScore);
-    setScore((prev) => (prev === 0 ? answerScore : Math.round((prev + answerScore) / 2)));
+    setScore((prev) =>
+      prev === 0 ? roundScorePercent(answerScore) : roundScorePercent((prev + answerScore) / 2),
+    );
 
     const feedbackLine = `${current.feedback} Score for this answer: ${answerScore} out of 100.`;
     const isLast = idx >= bank.length - 1;
@@ -455,7 +458,7 @@ export default function AiInterviewPage() {
         {step === 'done' && (
           <Card className="p-8 lux-surface text-center space-y-6">
             <h2 className="text-2xl font-bold text-foreground">Interview complete</h2>
-            <p className="text-5xl font-bold text-primary">{Math.round(score)}</p>
+            <p className="text-5xl font-bold text-primary">{formatScorePercentLabel(score)}</p>
             <p className="text-muted-foreground">Overall performance score</p>
             <div className="flex flex-wrap justify-center gap-3">
               <Button

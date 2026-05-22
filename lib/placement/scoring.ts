@@ -1,3 +1,4 @@
+import { formatScorePercentLabel } from '@/lib/format-score';
 import { answersMatchMcq } from '@/lib/practice-mappers';
 import type { Question } from '@/lib/types';
 import { PLACEMENT_SECTIONS, SPEAKING_TASKS } from '@/lib/placement/config';
@@ -121,8 +122,8 @@ function aiInsights(
   const recommendations: string[] = [];
 
   for (const s of sections) {
-    if (s.percent >= 75) strengths.push(`${s.name}: strong (${s.percent}%)`);
-    else if (s.percent < 50) weaknesses.push(`${s.name}: needs work (${s.percent}%)`);
+    if (s.percent >= 75) strengths.push(`${s.name}: strong (${formatScorePercentLabel(s.percent)})`);
+    else if (s.percent < 50) weaknesses.push(`${s.name}: needs work (${formatScorePercentLabel(s.percent)})`);
   }
 
   if (technical < 50) {

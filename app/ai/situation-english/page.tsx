@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { formatScorePercentLabel, roundScorePercent } from '@/lib/format-score';
 
 type Scenario = {
   id: number;
@@ -40,7 +41,7 @@ const SCENARIOS: Scenario[] = [
 function evaluate(text: string, keywords: string[]) {
   const lower = text.toLowerCase();
   const matched = keywords.filter((k) => lower.includes(k.toLowerCase()));
-  const coverage = Math.round((matched.length / keywords.length) * 100);
+  const coverage = roundScorePercent((matched.length / keywords.length) * 100);
   const band = coverage >= 75 ? 'Strong' : coverage >= 50 ? 'Moderate' : 'Needs improvement';
   return { matched, coverage, band };
 }
@@ -111,7 +112,7 @@ export default function SituationEnglishPage() {
           <Card className="p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-3">Evaluation Summary</h2>
             <p className="text-sm text-gray-700 mb-2">
-              Keyword coverage: <strong>{report.coverage}%</strong>
+              Keyword coverage: <strong>{formatScorePercentLabel(report.coverage)}</strong>
             </p>
             <p className="text-sm text-gray-700 mb-2">
               Performance band: <strong>{report.band}</strong>

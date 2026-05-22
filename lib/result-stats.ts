@@ -1,6 +1,6 @@
 import type { Question } from '@/lib/types';
 import { answersMatchMcq } from '@/lib/practice-mappers';
-import { formatScorePercent } from '@/lib/format-score';
+import { formatScorePercent, roundScorePercent } from '@/lib/format-score';
 
 export function formatTimeTaken(seconds: number | null | undefined): string {
   const sec = Number(seconds);
@@ -55,7 +55,7 @@ export function computeResultStats(input: {
   const hasPerQuestion = answeredCount > 0;
 
   if (hasPerQuestion && questions.length > 0) {
-    const percentage = Math.round((correctCount / questions.length) * 100);
+    const percentage = roundScorePercent((correctCount / questions.length) * 100);
     return {
       correctCount,
       incorrectCount: questions.length - correctCount,
@@ -96,23 +96,23 @@ export function resolveStoredPercent(
   totalQuestions?: number,
 ): number {
   const pct = toNum(percentageScore);
-  if (pct != null && pct >= 0 && pct <= 100) return pct;
+  if (pct != null && pct >= 0 && pct <= 100) return roundScorePercent(pct);
 
   const s = toNum(score);
   const total = toNum(totalScoreRaw);
   const q = totalQuestions ?? 0;
 
-  if (s != null && s >= 0 && s <= 100) return s;
+  if (s != null && s >= 0 && s <= 100) return roundScorePercent(s);
 
   if (s != null && q > 0 && s <= q && total == null) {
-    return Math.round((s / q) * 100);
+    return roundScorePercent((s / q) * 100);
   }
 
   if (total != null && q > 0) {
-    return Math.round((total / q) * 100);
+    return roundScorePercent((total / q) * 100);
   }
 
-  if (s != null) return s;
+  if (s != null) return roundScorePercent(s);
   return 0;
 }
 

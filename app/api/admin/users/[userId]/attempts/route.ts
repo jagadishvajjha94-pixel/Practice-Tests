@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { loadAllAttemptsRollup } from '@/lib/admin/attempts-rollup';
+import { averageScorePercent } from '@/lib/format-score';
 import { resolveStoredPercent } from '@/lib/test-attempts';
 import { answersMatchMcq } from '@/lib/practice-mappers';
 import { adaptQuestionRow } from '@/lib/practice-mappers';
@@ -126,7 +127,7 @@ export async function GET(
   const scores = detailed.map((a) => a.score);
   const completedAttempts = detailed.filter((a) => a.status === 'completed').length;
   const avgScore =
-    scores.length > 0 ? Number((scores.reduce((s, n) => s + n, 0) / scores.length).toFixed(1)) : 0;
+    scores.length > 0 ? averageScorePercent(scores) : 0;
   const bestScore = scores.length > 0 ? Math.max(...scores) : 0;
 
   return NextResponse.json({

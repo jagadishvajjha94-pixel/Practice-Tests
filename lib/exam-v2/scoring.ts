@@ -1,4 +1,5 @@
 import { answersMatchMcq, isCodingQuestion } from '@/lib/practice-mappers';
+import { roundScorePercent } from '@/lib/format-score';
 import type { Question } from '@/lib/types';
 import type { TestSectionConfig } from '@/lib/exam-v2/section-timer';
 
@@ -66,7 +67,7 @@ export function scoreBySections(
     const qs = questionsBySection.get(section.id) ?? [];
     const neg = section.negativeMarking ?? 0;
     const { netScore, maxScore } = scoreMcqWithNegativeMarking(qs, answers, neg);
-    const percent = maxScore > 0 ? (netScore / maxScore) * 100 : 0;
+    const percent = roundScorePercent(maxScore > 0 ? (netScore / maxScore) * 100 : 0);
     const cutoff = section.cutoffScore ?? null;
     const passedCutoff = cutoff === null || percent >= cutoff;
 
@@ -87,6 +88,6 @@ export function scoreBySections(
     sections: results,
     totalNet,
     totalMax,
-    overallPercent: totalMax > 0 ? (totalNet / totalMax) * 100 : 0,
+    overallPercent: roundScorePercent(totalMax > 0 ? (totalNet / totalMax) * 100 : 0),
   };
 }

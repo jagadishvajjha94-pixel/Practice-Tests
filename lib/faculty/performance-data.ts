@@ -3,6 +3,11 @@ import { departmentsMatch, examMatchesDepartment } from '@/lib/faculty/departmen
 import { departmentsForPerformanceView } from '@/lib/department-groups';
 import { isElevateXAttemptMeta } from '@/lib/placement/scorecard-payload';
 import {
+  averageScorePercent,
+  roundRatePercent,
+  roundScorePercent,
+} from '@/lib/format-score';
+import {
   fetchTestAttemptsForUsers,
   resolveStoredPercent,
   testIdsMatch,
@@ -208,10 +213,12 @@ export async function fetchElevateXAttemptsForStudents(
     .map((attempt) => ({
       ...attempt,
       resolved_test_id: String(attempt.test_id ?? 'placement_full'),
-      score_percent: resolveStoredPercent(
-        attempt.percentage_score,
-        attempt.score,
-        attempt.total_score,
+      score_percent: roundScorePercent(
+        resolveStoredPercent(
+          attempt.percentage_score,
+          attempt.score,
+          attempt.total_score,
+        ),
       ),
     }));
 }
@@ -264,10 +271,12 @@ export async function fetchDepartmentExamAttempts(
       return {
         ...attempt,
         resolved_test_id: resolved,
-        score_percent: resolveStoredPercent(
-          attempt.percentage_score,
-          attempt.score,
-          attempt.total_score,
+        score_percent: roundScorePercent(
+          resolveStoredPercent(
+            attempt.percentage_score,
+            attempt.score,
+            attempt.total_score,
+          ),
         ),
       };
     })
@@ -344,15 +353,11 @@ export function buildFacultyPerformancePayload(
     const completed = studentAttempts.filter((a) => a.status === 'completed');
     const avgScore =
       completed.length > 0
-        ? Number(
-            (
-              completed.reduce((sum, a) => sum + a.score_percent, 0) / completed.length
-            ).toFixed(1),
-          )
+        ? averageScorePercent(completed.map((a) => a.score_percent))
         : 0;
     const bestScore =
       completed.length > 0
-        ? Number(Math.max(...completed.map((a) => a.score_percent)).toFixed(1))
+        ? roundScorePercent(Math.max(...completed.map((a) => a.score_percent)))
         : 0;
     const lastAttempt = studentAttempts[0];
 
@@ -370,7 +375,7 @@ export function buildFacultyPerformancePayload(
           id: a.id,
           test_title: isElevatex ? 'ElevateX' : (exam?.title ?? a.test_title ?? 'Department exam'),
           topic: exam?.topic ?? null,
-          score: a.score_percent,
+          score: roundScorePercent(a.score_percent),
           status: a.status,
           completed_at: a.completed_at,
           created_at: a.created_at,
@@ -380,7 +385,7 @@ export function buildFacultyPerformancePayload(
       elevatex: elevatexAttempt
         ? {
             attempt_id: elevatexAttempt.id,
-            score: elevatexAttempt.score_percent,
+            score: roundScorePercent(elevatexAttempt.score_percent),
             completed_at: elevatexAttempt.completed_at,
           }
         : null,
@@ -394,10 +399,9 @@ export function buildFacultyPerformancePayload(
     );
     const completed = examAttempts.filter((a) => a.status === 'completed');
     const scores = completed.map((a) => a.score_percent);
-    const avg =
-      scores.length > 0 ? Number((scores.reduce((s, n) => s + n, 0) / scores.length).toFixed(1)) : 0;
+    const avg = scores.length > 0 ? averageScorePercent(scores) : 0;
     const pass = scores.filter((s) => s >= 40).length;
-    const passRate = scores.length > 0 ? Number(((pass / scores.length) * 100).toFixed(1)) : 0;
+    const passRate = scores.length > 0 ? roundRatePercent((pass / scores.length) * 100) : 0;
     return {
       exam_id: exam.id,
       test_id: testId,
@@ -427,16 +431,12 @@ export function buildFacultyPerformancePayload(
 
   const overallAvg =
     completedAll.length > 0
-      ? Number(
-          (
-            completedAll.reduce((sum, a) => sum + a.score_percent, 0) / completedAll.length
-          ).toFixed(1),
-        )
+      ? averageScorePercent(completedAll.map((a) => a.score_percent))
       : 0;
   const passOverall = completedAll.filter((a) => a.score_percent >= 40).length;
   const passRateOverall =
     completedAll.length > 0
-      ? Number(((passOverall / completedAll.length) * 100).toFixed(1))
+      ? roundRatePercent((passOverall / completedAll.length) * 100)
       : 0;
 
   return {

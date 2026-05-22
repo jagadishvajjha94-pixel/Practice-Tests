@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { downloadStudentReportPdf } from '@/lib/reports/student-pdf';
 import { ElevateXScorecardView } from '@/components/placement/elevatex-scorecard-view';
 import { downloadElevateXScorecardPdf } from '@/lib/placement/elevatex-scorecard-pdf';
+import { formatScorePercentLabel } from '@/lib/format-score';
 import type { PlacementScorecard } from '@/lib/placement/types';
 
 type RecentAttempt = {
@@ -268,22 +269,22 @@ export default function FacultyPerformancePage() {
           icon="🪪"
           hint={
             summary.students_in_department && summary.students_with_attempts
-              ? `${Math.round(
+              ? `${formatScorePercentLabel(
                   (summary.students_with_attempts / Math.max(1, summary.students_in_department)) *
                     100,
-                )}% attendance`
+                )} attendance`
               : undefined
           }
         />
         <StatCard
           label="Average score"
-          value={`${summary.overall_avg ?? 0}%`}
+          value={formatScorePercentLabel(summary.overall_avg ?? 0)}
           accent="emerald"
           icon="📈"
         />
         <StatCard
           label="Pass rate (≥ 40%)"
-          value={`${summary.pass_rate ?? 0}%`}
+          value={formatScorePercentLabel(summary.pass_rate ?? 0)}
           accent={summary.pass_rate && summary.pass_rate >= 60 ? 'emerald' : 'amber'}
           icon="✅"
         />
@@ -351,7 +352,7 @@ export default function FacultyPerformancePage() {
                     <Badge
                       tone={e.pass_rate >= 60 ? 'success' : e.pass_rate >= 40 ? 'warning' : 'danger'}
                     >
-                      {e.pass_rate}% pass
+                      {formatScorePercentLabel(e.pass_rate)} pass
                     </Badge>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
@@ -376,7 +377,7 @@ export default function FacultyPerformancePage() {
                         Avg
                       </p>
                       <p className="text-base font-bold text-emerald-700 tabular-nums">
-                        {e.avg_score}%
+                        {formatScorePercentLabel(e.avg_score)}
                       </p>
                     </div>
                   </div>
@@ -465,15 +466,15 @@ export default function FacultyPerformancePage() {
                               : 'text-red-700'
                         }`}
                       >
-                        {s.avg_score}%
+                        {formatScorePercentLabel(s.avg_score)}
                       </span>
                     </td>
-                    <td className="tabular-nums text-slate-700">{s.best_score}%</td>
+                    <td className="tabular-nums text-slate-700">{formatScorePercentLabel(s.best_score)}</td>
                     <td>
                       {s.elevatex ? (
                         <div className="flex flex-col gap-1">
                           <span className="font-semibold text-fuchsia-800 tabular-nums">
-                            {Math.round(s.elevatex.score)}%
+                            {formatScorePercentLabel(s.elevatex.score)}
                           </span>
                           <Button
                             size="sm"

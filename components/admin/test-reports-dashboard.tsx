@@ -29,6 +29,7 @@ import {
   isInProgressStatus,
 } from '@/lib/attempt-status';
 import type { PlacementScorecard } from '@/lib/placement/types';
+import { formatScorePercentLabel } from '@/lib/format-score';
 import { cn } from '@/lib/utils';
 
 type StatusFilter = 'all' | 'in_progress' | 'completed';
@@ -186,10 +187,14 @@ export function TestReportsDashboard() {
             <StatCard label="Students" value={payload.summary.unique_students} accent="blue" />
             <StatCard
               label="Avg (completed)"
-              value={`${payload.summary.avg_score}%`}
+              value={formatScorePercentLabel(payload.summary.avg_score)}
               accent="emerald"
             />
-            <StatCard label="Highest" value={`${payload.summary.highest_score}%`} accent="amber" />
+            <StatCard
+              label="Highest"
+              value={formatScorePercentLabel(payload.summary.highest_score)}
+              accent="amber"
+            />
           </div>
 
           <Card className="p-4 mb-6">
@@ -284,7 +289,7 @@ export function TestReportsDashboard() {
                                   : 'text-red-700',
                             )}
                           >
-                            {Math.round(row.score)}%
+                            {formatScorePercentLabel(row.score)}
                           </span>
                         </td>
                         <td>

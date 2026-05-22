@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { formatScorePercentLabel } from '@/lib/format-score';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 3000;
@@ -285,7 +286,7 @@ export function LiveExamDashboard() {
                                   : 'text-rose-300',
                             )}
                           >
-                            {entry.score}%
+                            {formatScorePercentLabel(entry.score)}
                           </span>
                           <span className="text-xs text-slate-200/80 tabular-nums block sm:text-right mt-0.5 sm:mt-0">
                             {submitted}

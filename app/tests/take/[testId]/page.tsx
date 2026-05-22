@@ -26,6 +26,7 @@ import {
   PSYCHOMETRIC_FULL_QUESTIONS,
   PSYCHOMETRIC_GUEST_MINUTES,
 } from '@/lib/constants';
+import { formatScorePercentLabel } from '@/lib/format-score';
 import { isSignupDisabled } from '@/lib/auth-features';
 import { defaultRedirectForRole } from '@/lib/roles';
 import { useAppRole } from '@/lib/use-app-role';
@@ -389,7 +390,7 @@ export default function TakeTestPage({
             You have already submitted this test. Each student may attempt it only once.
           </p>
           <p className="text-sm font-medium text-emerald-800 mb-6">
-            Score: {Math.round(priorAttempt.score)}%
+            Score: {formatScorePercentLabel(priorAttempt.score)}
           </p>
           <div className="flex flex-col gap-2">
             <Button asChild>

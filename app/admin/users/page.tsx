@@ -11,6 +11,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { adaptQuestionRow, answersMatchMcq, extractJoinedQuestion } from '@/lib/practice-mappers';
+import { formatScorePercent, formatScorePercentLabel } from '@/lib/format-score';
 import { formatSupabaseError } from '@/lib/utils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -197,8 +198,8 @@ export default function UsersManagementPage() {
     lines.push(`Joined,${escape(new Date(report.student.created_at).toLocaleDateString())}`);
     lines.push(`Total Attempts,${report.totalAttempts}`);
     lines.push(`Completed Attempts,${report.completedAttempts}`);
-    lines.push(`Average Score,${report.avgScore}%`);
-    lines.push(`Best Score,${report.bestScore}%`);
+    lines.push(`Average Score,${formatScorePercentLabel(report.avgScore)}`);
+    lines.push(`Best Score,${formatScorePercentLabel(report.bestScore)}`);
     lines.push('');
 
     lines.push('Attempts');
@@ -255,7 +256,7 @@ export default function UsersManagementPage() {
     doc.text(`Email: ${report.student.email}`, 14, 30);
     doc.text(`Phone: ${report.student.phone || '-'}`, 14, 36);
     doc.text(
-      `Attempts: ${report.totalAttempts} | Avg: ${report.avgScore}% | Best: ${report.bestScore}%`,
+      `Attempts: ${report.totalAttempts} | Avg: ${formatScorePercentLabel(report.avgScore)} | Best: ${formatScorePercentLabel(report.bestScore)}`,
       14,
       42
     );
@@ -266,7 +267,7 @@ export default function UsersManagementPage() {
       body: report.attempts.map((a) => [
         a.id,
         a.testName,
-        `${Math.round(a.score)}%`,
+        formatScorePercentLabel(a.score),
         a.status,
         new Date(a.date).toLocaleDateString(),
         `${a.answeredCount}/${a.correctCount}`,
@@ -280,7 +281,7 @@ export default function UsersManagementPage() {
       doc.text(`Attempt: ${attempt.testName}`, 14, 16);
       doc.setFontSize(10);
       doc.text(
-        `Score ${Math.round(attempt.score)}% | ${attempt.correctCount}/${attempt.totalQuestions} correct`,
+        `Score ${formatScorePercentLabel(attempt.score)} | ${attempt.correctCount}/${attempt.totalQuestions} correct`,
         14,
         22
       );
@@ -508,11 +509,15 @@ export default function UsersManagementPage() {
                 </Card>
                 <Card className="p-4">
                   <p className="text-sm text-gray-600">Average score</p>
-                  <p className="text-2xl font-bold text-[#1e3a5f]">{selectedReport.avgScore}%</p>
+                  <p className="text-2xl font-bold text-[#1e3a5f]">
+                    {formatScorePercentLabel(selectedReport.avgScore)}
+                  </p>
                 </Card>
                 <Card className="p-4">
                   <p className="text-sm text-gray-600">Best score</p>
-                  <p className="text-2xl font-bold text-orange-600">{selectedReport.bestScore}%</p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {formatScorePercentLabel(selectedReport.bestScore)}
+                  </p>
                 </Card>
               </div>
 
@@ -525,7 +530,7 @@ export default function UsersManagementPage() {
                 >
                   {selectedReport.attempts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.testName} — {new Date(a.date).toLocaleString()} — {Math.round(a.score)}%
+                      {a.testName} — {new Date(a.date).toLocaleString()} — {formatScorePercentLabel(a.score)}
                     </option>
                   ))}
                 </select>
@@ -565,7 +570,7 @@ export default function UsersManagementPage() {
                           summary score was saved. New submissions include the full scorecard in View Report.
                         </p>
                         <p className="text-sm mt-3 text-gray-700">
-                          Overall score: {Math.round(selectedAttempt.score)}%
+                          Overall score: {formatScorePercentLabel(selectedAttempt.score)}
                         </p>
                       </Card>
                     )}
@@ -581,7 +586,7 @@ export default function UsersManagementPage() {
                         <strong>Status:</strong> {selectedAttempt.status}
                       </p>
                       <p>
-                        <strong>Score:</strong> {Math.round(selectedAttempt.score)}%
+                        <strong>Score:</strong> {formatScorePercentLabel(selectedAttempt.score)}
                       </p>
                       <p>
                         <strong>Answered:</strong> {selectedAttempt.answeredCount}/

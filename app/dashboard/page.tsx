@@ -10,7 +10,11 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { buildUserFromAuth, cn, formatSupabaseError } from '@/lib/utils';
 import { getLastSubmitEntry, toDashboardAttemptFromFeed } from '@/lib/dashboard-feed';
-import { formatScorePercent, averageScorePercent } from '@/lib/format-score';
+import {
+  averageScorePercent,
+  formatScorePercentLabel,
+  roundScorePercent,
+} from '@/lib/format-score';
 import {
   fetchStudentDashboardAttempts,
   getClientDashboardAttempts,
@@ -217,11 +221,11 @@ export default function DashboardPage() {
   const completedAttempts = attempts.filter((a) => a.status === 'completed');
   const averageScore =
     attempts.length > 0
-      ? formatScorePercent(averageScorePercent(attempts.map((a) => Number(a.score) || 0)))
+      ? formatScorePercentLabel(averageScorePercent(attempts.map((a) => Number(a.score) || 0)))
       : '0.00';
   const bestScore =
     attempts.length > 0
-      ? formatScorePercent(Math.max(...attempts.map((a) => Number(a.score) || 0)))
+      ? formatScorePercentLabel(roundScorePercent(Math.max(...attempts.map((a) => Number(a.score) || 0))))
       : '0.00';
 
   return (
@@ -254,8 +258,8 @@ export default function DashboardPage() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard label="Tests attempted" value={attempts.length} accent="navy" />
           <StatCard label="Completed" value={completedAttempts.length} accent="blue" />
-          <StatCard label="Average score" value={`${averageScore}%`} accent="emerald" />
-          <StatCard label="Best score" value={`${bestScore}%`} accent="indigo" />
+          <StatCard label="Average score" value={averageScore} accent="emerald" />
+          <StatCard label="Best score" value={bestScore} accent="indigo" />
         </div>
 
         <Card className="p-6 mb-8">
@@ -358,7 +362,7 @@ export default function DashboardPage() {
                               passed ? 'text-emerald-700' : 'text-red-600',
                             )}
                           >
-                            {formatScorePercent(attempt.score)}%
+                            {formatScorePercentLabel(attempt.score)}
                           </span>
                         </td>
                         <td>

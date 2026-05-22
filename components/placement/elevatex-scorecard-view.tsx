@@ -2,6 +2,7 @@
 
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { formatScorePercent, formatScorePercentLabel } from '@/lib/format-score';
 import { cn } from '@/lib/utils';
 import { findDepartment } from '@/lib/placement/config';
 import type { PlacementScorecard } from '@/lib/placement/types';
@@ -62,7 +63,7 @@ export function ElevateXScorecardView({ scorecard, compact, className }: Elevate
           <div className="text-right">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Overall</p>
             <p className={cn('font-bold text-[#0c2340] mt-1 tabular-nums', compact ? 'text-3xl' : 'text-5xl')}>
-              {scorecard.percentage.toFixed(2)}%
+              {formatScorePercentLabel(scorecard.percentage)}
             </p>
             <p className="text-sm text-slate-600 mt-1 tabular-nums">
               {scorecard.earnedMarks} / {scorecard.totalMarks} marks
@@ -75,16 +76,16 @@ export function ElevateXScorecardView({ scorecard, compact, className }: Elevate
             label="Placement readiness"
             value={scorecard.placementReadiness}
             badgeClass={readinessClass}
-            subtitle={`${scorecard.percentage.toFixed(0)}% composite`}
+            subtitle={`${formatScorePercentLabel(scorecard.percentage)} composite`}
           />
           <RatingTile
             label="Technical rating"
-            value={`${scorecard.technicalRating.toFixed(0)}%`}
+            value={formatScorePercentLabel(scorecard.technicalRating)}
             badgeClass="bg-[#1e3a5f]"
           />
           <RatingTile
             label="Communication rating"
-            value={`${scorecard.communicationRating.toFixed(0)}%`}
+            value={formatScorePercentLabel(scorecard.communicationRating)}
             badgeClass="bg-emerald-600"
           />
         </div>
@@ -96,7 +97,7 @@ export function ElevateXScorecardView({ scorecard, compact, className }: Elevate
           <div className="flex items-center gap-3">
             <Progress value={scorecard.employabilityScore} className="h-2 flex-1" />
             <span className="text-2xl font-bold text-[#0c2340] tabular-nums">
-              {scorecard.employabilityScore.toFixed(0)}
+              {formatScorePercent(scorecard.employabilityScore)}
             </span>
           </div>
           <p className="text-[11px] text-slate-500 mt-2">
@@ -113,7 +114,7 @@ export function ElevateXScorecardView({ scorecard, compact, className }: Elevate
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-semibold text-slate-900">{s.name}</p>
                 <p className="text-sm text-slate-600 tabular-nums">
-                  {s.earned.toFixed(2)} / {s.marks} marks · {s.percent.toFixed(2)}%
+                  {formatScorePercent(s.earned)} / {s.marks} marks · {formatScorePercentLabel(s.percent)}
                 </p>
               </div>
               <Progress value={s.percent} className="h-1.5 mt-2" />
@@ -127,10 +128,10 @@ export function ElevateXScorecardView({ scorecard, compact, className }: Elevate
                   </>
                 ) : (
                   <>
-                    <Stat label="Fluency" value={`${(s.fluency ?? 0).toFixed(0)}%`} />
-                    <Stat label="Clarity" value={`${(s.clarity ?? 0).toFixed(0)}%`} />
-                    <Stat label="Grammar" value={`${(s.grammar ?? 0).toFixed(0)}%`} />
-                    <Stat label="Section %" value={`${s.percent.toFixed(0)}%`} />
+                    <Stat label="Fluency" value={formatScorePercentLabel(s.fluency ?? 0)} />
+                    <Stat label="Clarity" value={formatScorePercentLabel(s.clarity ?? 0)} />
+                    <Stat label="Grammar" value={formatScorePercentLabel(s.grammar ?? 0)} />
+                    <Stat label="Section %" value={formatScorePercentLabel(s.percent)} />
                   </>
                 )}
               </div>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
+import { averageScorePercent, formatScorePercentLabel } from '@/lib/format-score';
 
 type AttemptWithMeta = {
   id: string | number;
@@ -79,11 +80,7 @@ export default function AdminTestsPage() {
     const completed = filteredAttempts.filter((a) => a.status === 'completed');
     const avgScore =
       completed.length > 0
-        ? Number(
-            (
-              completed.reduce((sum, a) => sum + Number(a.score ?? 0), 0) / completed.length
-            ).toFixed(1),
-          )
+        ? averageScorePercent(completed.map((a) => Number(a.score ?? 0)))
         : 0;
     const uniqueStudents = new Set(filteredAttempts.map((a) => String(a.user_id))).size;
     return { total, completed: completed.length, avgScore, uniqueStudents };
@@ -199,7 +196,7 @@ export default function AdminTestsPage() {
                     <td className="py-3 px-4 text-sm text-gray-900">{a.studentName}</td>
                     <td className="py-3 px-4 text-sm text-gray-600">{a.studentEmail}</td>
                     <td className="py-3 px-4 text-sm font-semibold text-blue-700">
-                      {a.score == null ? '—' : `${Math.round(Number(a.score))}%`}
+                      {a.score == null ? '—' : formatScorePercentLabel(Number(a.score))}
                     </td>
                     <td className="py-3 px-4 text-sm">
                       <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 capitalize">

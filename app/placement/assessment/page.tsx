@@ -18,6 +18,7 @@ import {
   PLACEMENT_TOTAL_MARKS,
   PLACEMENT_TOTAL_SEC,
 } from '@/lib/placement/config';
+import { formatScorePercentLabel } from '@/lib/format-score';
 import {
   buildElevateXCandidateFromStudent,
   studentElevateXProfileFromAuth,
@@ -236,7 +237,7 @@ export default function PlacementAssessmentStartPage() {
                 Each student may attempt this examination only once. You cannot start a new paper.
               </p>
               {priorAttempt.score != null ? (
-                <p className="mt-2 font-medium">Your score: {Math.round(priorAttempt.score)}%</p>
+                <p className="mt-2 font-medium">Your score: {formatScorePercentLabel(priorAttempt.score)}</p>
               ) : null}
               <div className="flex flex-wrap gap-2 mt-4">
                 <Button asChild className="bg-emerald-800 hover:bg-emerald-900">
