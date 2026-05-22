@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatCard } from '@/components/ui/stat-card';
+import { StatDetailReportModal } from '@/components/reports/stat-detail-report-modal';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { ElevateXScorecardView } from '@/components/placement/elevatex-scorecard-view';
@@ -22,6 +23,10 @@ import {
   filterReportRows,
 } from '@/lib/admin/export-test-report-csv';
 import type { TestReportsPayload } from '@/lib/admin/test-reports-data';
+import {
+  buildTestReportsCardReport,
+  type TestReportsCardKey,
+} from '@/lib/admin/test-reports-card-reports';
 import {
   attemptStatusBadgeClass,
   formatAttemptStatus,
@@ -50,6 +55,7 @@ export function TestReportsDashboard() {
     row: TestReportsPayload['rows'][0];
     scorecard: PlacementScorecard;
   } | null>(null);
+  const [detailCard, setDetailCard] = useState<TestReportsCardKey | null>(null);
 
   const load = useCallback(async (type: AdminExamType, testId: string) => {
     setLoading(true);
@@ -120,8 +126,25 @@ export function TestReportsDashboard() {
 
   const meta = ADMIN_EXAM_TYPE_META[examType];
 
+  const detailReport =
+    payload && detailCard
+      ? buildTestReportsCardReport(detailCard, {
+          payload,
+          examLabel: meta.label,
+          testFilterLabel: selectedTestId !== 'all' ? selectedTestName : undefined,
+        })
+      : null;
+
+  const openCard = (key: TestReportsCardKey) => setDetailCard(key);
+
   return (
     <>
+      <StatDetailReportModal
+        open={detailCard != null}
+        onClose={() => setDetailCard(null)}
+        report={detailReport}
+        fileBase={detailCard ? `test-reports-${examType}-${detailCard}` : undefined}
+      />
       <AdminPageHeader
         title="Test reports"
         description="Separate dashboards for each exam family — filter by test and download CSV reports."
@@ -177,23 +200,41 @@ export function TestReportsDashboard() {
       ) : (
         <>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-            <StatCard label="Attempts" value={payload.summary.total_attempts} accent="navy" />
+            <StatCard
+              label="Attempts"
+              value={payload.summary.total_attempts}
+              accent="navy"
+              onClick={() => openCard('total_attempts')}
+            />
             <StatCard
               label="In progress"
               value={payload.summary.in_progress_count}
               accent="amber"
+              onClick={() => openCard('in_progress')}
             />
-            <StatCard label="Completed" value={payload.summary.completed_count} accent="cyan" />
-            <StatCard label="Students" value={payload.summary.unique_students} accent="blue" />
+            <StatCard
+              label="Completed"
+              value={payload.summary.completed_count}
+              accent="cyan"
+              onClick={() => openCard('completed')}
+            />
+            <StatCard
+              label="Students"
+              value={payload.summary.unique_students}
+              accent="blue"
+              onClick={() => openCard('unique_students')}
+            />
             <StatCard
               label="Avg (completed)"
               value={formatScorePercentLabel(payload.summary.avg_score)}
               accent="emerald"
+              onClick={() => openCard('avg_score')}
             />
             <StatCard
               label="Highest"
               value={formatScorePercentLabel(payload.summary.highest_score)}
               accent="amber"
+              onClick={() => openCard('highest_score')}
             />
           </div>
 

@@ -181,11 +181,6 @@ export default function TestInterface({
     },
   });
 
-  useEffect(() => {
-    if (!proctorActive) return;
-    void startCamera();
-  }, [proctorActive, startCamera]);
-
   useExamAutosave({
     testId: test.id,
     enabled: fullAccess,
@@ -731,6 +726,7 @@ export default function TestInterface({
           faceStatus={faceStatus}
           autoSubmitTriggered={autoSubmitTriggered}
           onEnterFullscreen={() => void enterFullscreen()}
+          onVideoMount={() => void startCamera()}
         />
       ) : null}
 

@@ -365,6 +365,30 @@
     @apply h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent;
   }
 
+  /* Stat detail report modal (admin / faculty dashboard) */
+  .stat-report-modal-panel {
+    @apply ring-1 ring-[#c4a052]/20;
+  }
+
+  .stat-report-modal-header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(196, 160, 82, 0.4) 18%,
+      rgba(196, 160, 82, 0.95) 50%,
+      rgba(196, 160, 82, 0.4) 82%,
+      transparent 100%
+    );
+    pointer-events: none;
+    z-index: 15;
+  }
+
   /* Page chrome */
   .app-page {
     @apply min-h-screen bg-background;

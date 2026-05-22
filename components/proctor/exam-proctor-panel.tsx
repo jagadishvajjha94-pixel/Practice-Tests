@@ -16,6 +16,8 @@ type Props = {
   faceStatus: FaceScanStatus;
   autoSubmitTriggered: boolean;
   onEnterFullscreen: () => void;
+  /** Fired when the portaled <video> mounts so the hook can attach an existing stream. */
+  onVideoMount?: () => void;
 };
 
 const FACE_LABEL: Record<string, string> = {
@@ -36,6 +38,7 @@ export function ExamProctorPanel({
   faceStatus,
   autoSubmitTriggered,
   onEnterFullscreen,
+  onVideoMount,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -64,7 +67,10 @@ export function ExamProctorPanel({
         </div>
         <div className="relative h-12 bg-slate-900">
           <video
-            ref={videoRef}
+            ref={(el) => {
+              (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
+              if (el) onVideoMount?.();
+            }}
             className="h-full w-full object-cover scale-x-[-1]"
             playsInline
             muted

@@ -104,11 +104,6 @@ export default function PlacementTakePage() {
     },
   });
 
-  useEffect(() => {
-    if (!proctorActive) return;
-    void startCamera();
-  }, [proctorActive, startCamera]);
-
   // Hydrate session and block repeat attempts.
   useEffect(() => {
     let cancelled = false;
@@ -496,6 +491,7 @@ export default function PlacementTakePage() {
           faceStatus={faceStatus}
           autoSubmitTriggered={autoSubmitTriggered}
           onEnterFullscreen={() => void enterFullscreen()}
+          onVideoMount={() => void startCamera()}
         />
       ) : null}
 
