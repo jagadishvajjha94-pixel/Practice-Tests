@@ -1,0 +1,163 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  classifyExamAttempt,
+  matchesAdminExamType,
+  type AdminExamType,
+} from '@/lib/admin/exam-type';
+import { loadAdminStudents, loadAllAttemptsRollup, type RollupAttempt } from '@/lib/admin/attempts-rollup';
+import { testIdsMatch } from '@/lib/test-attempts';
+
+export type TestReportRow = {
+  attempt_id: string;
+  user_id: string;
+  student_name: string;
+  email: string;
+  roll_number: string;
+  branch: string | null;
+  academic_year: string | null;
+  test_id: string | null;
+  test_name: string;
+  exam_type: Exclude<AdminExamType, 'all'>;
+  score: number;
+  status: string;
+  completed_at: string | null;
+  created_at: string;
+  time_taken_sec: number | null;
+};
+
+export type TestOption = {
+  id: string;
+  name: string;
+  attempt_count: number;
+};
+
+export type TestReportsPayload = {
+  exam_type: AdminExamType;
+  summary: {
+    total_attempts: number;
+    unique_students: number;
+    avg_score: number;
+    pass_rate: number;
+    highest_score: number;
+  };
+  tests: TestOption[];
+  rows: TestReportRow[];
+};
+
+export async function loadTestReportsPayload(
+  admin: SupabaseClient,
+  examType: AdminExamType,
+  testIdFilter?: string,
+): Promise<TestReportsPayload> {
+  const [students, { attempts, testsById }, categoriesRes, testsRes] = await Promise.all([
+    loadAdminStudents(admin),
+    loadAllAttemptsRollup(admin),
+    admin.from('test_categories').select('id, name, slug'),
+    admin.from('tests').select('id, title, name, category_id'),
+  ]);
+
+  const categories = categoriesRes.error
+    ? []
+    : (categoriesRes.data ?? []).map((c) => ({
+        id: String(c.id),
+        slug: String(c.slug),
+      }));
+
+  const categorySlugByTestId = new Map<string, string>();
+  for (const row of testsRes.data ?? []) {
+    const id = String(row.id);
+    const catId = String(row.category_id ?? '');
+    const slug = categories.find((c) => c.id === catId)?.slug ?? '';
+    categorySlugByTestId.set(id, slug);
+    if (!testsById.has(id)) {
+      testsById.set(id, String(row.title ?? row.name ?? `Test ${id}`));
+    }
+  }
+
+  const studentById = new Map(students.map((s) => [s.id, s]));
+
+  const enriched: Array<RollupAttempt & { exam_type: Exclude<AdminExamType, 'all'>; category_slug: string }> =
+    attempts.map((a) => {
+      const category_slug = a.test_id ? (categorySlugByTestId.get(a.test_id) ?? '') : '';
+      return {
+        ...a,
+        category_slug,
+        exam_type: classifyExamAttempt({
+          test_id: a.test_id,
+          test_name: a.test_name,
+          category_slug,
+        }),
+      };
+    });
+
+  let filtered = enriched.filter((a) =>
+    matchesAdminExamType(examType, {
+      test_id: a.test_id,
+      test_name: a.test_name,
+      category_slug: a.category_slug,
+    }),
+  );
+
+  const attemptKey = (a: (typeof enriched)[0]) => a.test_id ?? `title:${a.test_name}`;
+
+  if (testIdFilter && testIdFilter !== 'all') {
+    filtered = filtered.filter((a) => {
+      if (attemptKey(a) === testIdFilter) return true;
+      return Boolean(a.test_id && testIdsMatch(a.test_id, testIdFilter));
+    });
+  }
+
+  const testCounts = new Map<string, { name: string; count: number }>();
+  for (const a of filtered) {
+    const id = attemptKey(a);
+    const name = a.test_name || testsById.get(a.test_id ?? '') || id;
+    const prev = testCounts.get(id);
+    testCounts.set(id, { name, count: (prev?.count ?? 0) + 1 });
+  }
+
+  const tests: TestOption[] = Array.from(testCounts.entries())
+    .map(([id, v]) => ({ id, name: v.name, attempt_count: v.count }))
+    .sort((a, b) => b.attempt_count - a.attempt_count);
+
+  const rows: TestReportRow[] = filtered.map((a) => {
+    const student = studentById.get(a.user_id);
+    return {
+      attempt_id: a.id,
+      user_id: a.user_id,
+      student_name: student?.full_name?.trim() || student?.email || 'Student',
+      email: student?.email ?? '',
+      roll_number: student?.roll_number ?? '',
+      branch: student?.branch ?? null,
+      academic_year: student?.academic_year ?? null,
+      test_id: a.test_id,
+      test_name: a.test_name,
+      exam_type: a.exam_type,
+      score: a.score,
+      status: a.status,
+      completed_at: a.completed_at,
+      created_at: a.created_at,
+      time_taken_sec: a.time_taken,
+    };
+  });
+
+  const scores = rows.map((r) => r.score);
+  const uniqueStudents = new Set(rows.map((r) => r.user_id)).size;
+  const passed = scores.filter((s) => s >= 40).length;
+
+  return {
+    exam_type: examType,
+    summary: {
+      total_attempts: rows.length,
+      unique_students: uniqueStudents,
+      avg_score:
+        scores.length > 0
+          ? Number((scores.reduce((sum, s) => sum + s, 0) / scores.length).toFixed(1))
+          : 0,
+      pass_rate:
+        scores.length > 0 ? Number(((passed / scores.length) * 100).toFixed(1)) : 0,
+      highest_score: scores.length > 0 ? Math.max(...scores) : 0,
+    },
+    tests,
+    rows,
+  };
+}

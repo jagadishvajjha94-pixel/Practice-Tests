@@ -406,9 +406,14 @@ export function AdminDashboard() {
         title="Overview"
         description="College-wide performance, attendance, and exports"
         actions={
-          <Button onClick={exportFullReportCsv} className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0">
-            Export full report (CSV)
-          </Button>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Button variant="outline" asChild>
+              <Link href="/admin/reports">Per-test reports</Link>
+            </Button>
+            <Button onClick={exportFullReportCsv} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              Export full report (CSV)
+            </Button>
+          </div>
         }
       />
       <div>
