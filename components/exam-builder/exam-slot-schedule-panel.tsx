@@ -67,6 +67,33 @@ export function ExamSlotSchedulePanel({
     );
   };
 
+  const clearSlotRoster = (slotNumber: number) => {
+    const slot = slots.find((s) => s.slot_number === slotNumber);
+    if (!slot?.roster.length) return;
+    if (
+      !window.confirm(
+        `Remove all ${slot.roster.length} student(s) from Slot ${slotNumber}? You can re-upload the file after clearing.`,
+      )
+    ) {
+      return;
+    }
+    updateSlot(slotNumber, { roster: [] });
+    setImportNote(`Slot ${slotNumber} roster cleared. Import Excel/CSV again to add students.`);
+  };
+
+  const clearAllSlotRosters = () => {
+    if (totalStudents === 0) return;
+    if (
+      !window.confirm(
+        `Remove all ${totalStudents} student(s) from every slot? Slot dates and times will be kept.`,
+      )
+    ) {
+      return;
+    }
+    onSlotsChange(slots.map((slot) => ({ ...slot, roster: [] })));
+    setImportNote('All slot rosters cleared. Re-import your Excel/CSV file.');
+  };
+
   const handleCsvImport = (slotNumber: number, file: File | null) => {
     if (!file) return;
     const reader = new FileReader();
@@ -131,6 +158,16 @@ export function ExamSlotSchedulePanel({
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" onClick={() => setSheetImportOpen(true)}>
             Import Excel / CSV
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={totalStudents === 0}
+            className="text-red-700 border-red-200 hover:bg-red-50"
+            onClick={clearAllSlotRosters}
+          >
+            Clear all rosters
           </Button>
           <Button type="button" variant="ghost" size="sm" onClick={() => onEnabledChange(false)}>
             Disable slots
@@ -266,10 +303,23 @@ export function ExamSlotSchedulePanel({
       ) : null}
 
       <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
-        <p className="text-xs font-semibold text-slate-700">
-          Slot {activeSlot} roster — {current?.roster.length ?? 0} / {current?.capacity ?? EXAM_SLOT_CAPACITY_DEFAULT}{' '}
-          students
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-slate-700">
+            Slot {activeSlot} roster — {current?.roster.length ?? 0} / {current?.capacity ?? EXAM_SLOT_CAPACITY_DEFAULT}{' '}
+            students
+          </p>
+          {current && current.roster.length > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs text-red-700 border-red-200 hover:bg-red-50"
+              onClick={() => clearSlotRoster(activeSlot)}
+            >
+              Remove students
+            </Button>
+          ) : null}
+        </div>
         <div className="flex flex-wrap gap-2 items-center">
           <label className="inline-flex items-center gap-2 text-xs font-medium text-[#1e3a5f] cursor-pointer">
             <input
