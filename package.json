@@ -12,6 +12,8 @@
     "migrate:admin": "node scripts/apply-admin-setup.mjs",
     "migrate:question-bank": "node scripts/apply-question-bank-migration.mjs",
     "seed:elevatex": "node scripts/seed-elevatex-sample.mjs",
+    "cleanup:exams": "node scripts/cleanup-exams-keep-today.mjs",
+    "cleanup:exams:apply": "node scripts/cleanup-exams-keep-today.mjs --apply",
     "test": "pnpm run test:unit && pnpm run test:e2e",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",

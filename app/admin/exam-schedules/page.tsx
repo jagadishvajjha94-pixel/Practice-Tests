@@ -64,6 +64,8 @@ export default function AdminExamSchedulesPage() {
   const [endsAt, setEndsAt] = useState('');
   const [savingDraft, setSavingDraft] = useState(false);
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch('/api/admin/exam-schedules', { credentials: 'include' });
@@ -121,6 +123,37 @@ export default function AdminExamSchedulesPage() {
       await load();
     } finally {
       setActing(null);
+    }
+  };
+
+  const runExamCleanup = async (apply: boolean) => {
+    if (apply) {
+      const ok = window.confirm(
+        'Delete all faculty/admin exams NOT from today (IST)?\n\nElevateX student attempts are kept. This cannot be undone.',
+      );
+      if (!ok) return;
+    }
+    setCleanupLoading(true);
+    setCleanupResult(null);
+    try {
+      const res = await fetch(
+        `/api/admin/cleanup-exams-keep-today${apply ? '?apply=1' : ''}`,
+        { method: 'POST', credentials: 'include' },
+      );
+      const json = (await res.json()) as {
+        message?: string;
+        error?: string;
+        keptFacultyRequestIds?: string[];
+        deletedFacultyRequestIds?: string[];
+      };
+      if (!res.ok) {
+        setCleanupResult(json.error ?? 'Cleanup failed');
+        return;
+      }
+      setCleanupResult(json.message ?? 'Done');
+      if (apply) await load();
+    } finally {
+      setCleanupLoading(false);
     }
   };
 
@@ -359,6 +392,35 @@ export default function AdminExamSchedulesPage() {
             </table>
           </div>
         )}
+      </Card>
+
+      <Card className="p-6 border-amber-200 bg-amber-50/40">
+        <h3 className="font-semibold text-[#0c2340] mb-2">Clean up old exams</h3>
+        <p className="text-sm text-slate-600 mb-4">
+          Keeps only faculty exams and schedules from <strong>today (IST)</strong>. Removes older
+          requests, schedules, department tests, and related attempts. ElevateX data is not deleted.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            disabled={cleanupLoading}
+            onClick={() => void runExamCleanup(false)}
+          >
+            {cleanupLoading ? 'Working…' : 'Preview cleanup'}
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={cleanupLoading}
+            onClick={() => void runExamCleanup(true)}
+          >
+            Delete old exams
+          </Button>
+        </div>
+        {cleanupResult ? (
+          <p className="text-sm mt-3 text-slate-700 rounded-md bg-white border border-slate-200 px-3 py-2">
+            {cleanupResult}
+          </p>
+        ) : null}
       </Card>
 
       <p className="text-xs text-slate-500">
