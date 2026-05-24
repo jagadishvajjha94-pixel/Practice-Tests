@@ -165,6 +165,7 @@ export default function FacultyUploadPage() {
   const isManualExam = testType === 'department-manual';
   const isElevateXExam = isElevateXBuilderTestType(testType);
   const steps = isManualExam ? MANUAL_STEPS : isElevateXExam ? ELEVATEX_STEPS : SYLLABUS_STEPS;
+  const slotSchedulingActive = isElevateXExam || usesSlotScheduling;
 
   useEffect(() => {
     if (isElevateXExam && !usesSlotScheduling) {
@@ -178,7 +179,6 @@ export default function FacultyUploadPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate pending slot-scheduled request
   }, [slotSchedulingActive]);
 
-  const slotSchedulingActive = isElevateXExam || usesSlotScheduling;
   const slotsWithApproval = useMemo(
     () => parseSlotsWithApproval(scheduleSlots),
     [scheduleSlots],
