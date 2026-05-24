@@ -34,3 +34,11 @@ export function buildElevateXSampleStudents(count = ELEVATEX_SAMPLE_COUNT): Elev
 }
 
 export const ELEVATEX_SAMPLE_STUDENTS = buildElevateXSampleStudents();
+
+/** All demo rolls removed by reset (current 42 + legacy 15). */
+export function allElevateXSampleRolls(): string[] {
+  return [
+    ...ELEVATEX_SAMPLE_STUDENTS.map((s) => s.roll),
+    ...LEGACY_ELEVATEX_SAMPLE_ROLLS,
+  ];
+}

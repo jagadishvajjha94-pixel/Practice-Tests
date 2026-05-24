@@ -259,3 +259,20 @@ export function getBrowserDashboardAttempts<T extends TestAttempt & { test: Test
       new Date(a.created_at ?? a.completed_at ?? 0).getTime(),
   );
 }
+
+/** Drop cached ElevateX papers on this device (after admin retake reset). */
+export function clearLocalElevateXAttemptsForUser(
+  userId: string,
+  isElevateX: (testId: string | null | undefined, testName?: string | null) => boolean,
+): number {
+  if (typeof window === 'undefined' || !userId) return 0;
+  let removed = 0;
+  for (const row of getBrowserDashboardAttempts(userId)) {
+    const testId = String(row.test_id ?? row.test?.id ?? '');
+    const testName = row.test?.name ?? null;
+    if (!isElevateX(testId, testName)) continue;
+    removeLocalTestAttempt(userId, String(row.id));
+    removed += 1;
+  }
+  return removed;
+}

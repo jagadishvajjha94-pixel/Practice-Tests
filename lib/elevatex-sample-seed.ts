@@ -1,14 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { COLLEGE } from '@/lib/college-brand';
 import { studentAuthEmail } from '@/lib/college-auth';
-import { ELEVATEX_MODULE_KEY } from '@/lib/elevatex';
+import { ELEVATEX_MODULE_KEY, isElevateXAttemptTitle, isElevateXTestId } from '@/lib/elevatex';
 import {
+  allElevateXSampleRolls,
   ELEVATEX_SAMPLE_PASSWORD,
   ELEVATEX_SAMPLE_SLOT,
   ELEVATEX_SAMPLE_STUDENTS,
   LEGACY_ELEVATEX_SAMPLE_ROLLS,
   type ElevateXSampleStudent,
 } from '@/lib/elevatex-sample-credentials';
+import { normalizeRoll } from '@/lib/exam-schedule-slots';
 
 /** Slot 1 window: 10:00–12:00 IST on the given calendar day (YYYY-MM-DD). */
 export function getElevateXSlot1ScheduleWindow(dateIso: string): {
@@ -127,6 +129,65 @@ async function loadAuthUsersByEmail(
   return { usersByEmail };
 }
 
+async function deleteRosterRowsForRoll(
+  supabase: SupabaseClient,
+  roll: string,
+): Promise<void> {
+  const rollNorm = normalizeRoll(roll);
+  await supabase.from('student_active_sessions').delete().eq('roll_number', rollNorm);
+  await supabase.from('exam_student_roster').delete().eq('roll_number', rollNorm);
+  await supabase.from('exam_slot_roster_entries').delete().eq('roll_number', rollNorm);
+}
+
+async function deleteAttemptsForUserIds(
+  supabase: SupabaseClient,
+  userIds: string[],
+): Promise<number> {
+  if (userIds.length === 0) return 0;
+
+  const { data: attempts } = await supabase
+    .from('test_attempts')
+    .select('id')
+    .in('user_id', userIds);
+
+  const attemptIds = (attempts ?? []).map((row) => String(row.id)).filter(Boolean);
+  if (attemptIds.length > 0) {
+    await supabase.from('exam_violations').delete().in('attempt_id', attemptIds);
+  }
+
+  const { data: deleted } = await supabase
+    .from('test_attempts')
+    .delete()
+    .in('user_id', userIds)
+    .select('id');
+
+  return deleted?.length ?? 0;
+}
+
+async function deleteSampleStudentByRoll(
+  roll: string,
+  usersByEmail: Map<string, { id: string }>,
+  supabase: SupabaseClient,
+): Promise<{ deleted: boolean; userId?: string; error?: string }> {
+  const email = studentAuthEmail(roll).toLowerCase();
+  const user = usersByEmail.get(email);
+  if (!user?.id) {
+    return { deleted: false };
+  }
+
+  await deleteRosterRowsForRoll(supabase, roll);
+
+  const { error: delErr } = await supabase.auth.admin.deleteUser(user.id);
+  if (delErr) {
+    return { deleted: false, userId: user.id, error: delErr.message };
+  }
+
+  usersByEmail.delete(email);
+  await supabase.from('users').delete().eq('id', user.id);
+
+  return { deleted: true, userId: user.id };
+}
+
 async function deleteLegacySampleStudents(
   usersByEmail: Map<string, { id: string }>,
   supabase: SupabaseClient,
@@ -135,21 +196,168 @@ async function deleteLegacySampleStudents(
   const errors: string[] = [];
 
   for (const roll of LEGACY_ELEVATEX_SAMPLE_ROLLS) {
-    const email = studentAuthEmail(roll).toLowerCase();
-    const user = usersByEmail.get(email);
-    if (!user?.id) continue;
-
-    const { error: delErr } = await supabase.auth.admin.deleteUser(user.id);
-    if (delErr) {
-      errors.push(`${roll}: ${delErr.message}`);
+    const outcome = await deleteSampleStudentByRoll(roll, usersByEmail, supabase);
+    if (outcome.error) {
+      errors.push(`${roll}: ${outcome.error}`);
       continue;
     }
-    usersByEmail.delete(email);
-    await supabase.from('users').delete().eq('id', user.id);
-    deleted.push(roll);
+    if (outcome.deleted) deleted.push(roll);
   }
 
   return { deleted, errors };
+}
+
+export type ElevateXResetResult = {
+  deletedRolls: string[];
+  notFoundRolls: string[];
+  errors: string[];
+  attemptsDeleted: number;
+};
+
+export type ElevateXAttemptsResetResult = {
+  studentsFound: number;
+  studentsMissing: string[];
+  attemptsDeleted: number;
+  violationsDeleted: number;
+  sessionsCleared: number;
+  errors: string[];
+};
+
+function attemptMatchesElevateX(row: { test_id?: unknown; test_title?: unknown }): boolean {
+  if (isElevateXTestId(String(row.test_id ?? ''))) return true;
+  return isElevateXAttemptTitle(String(row.test_title ?? ''));
+}
+
+/** Clear ElevateX attempts for demo students so they can take the paper again (keeps logins). */
+export async function resetElevateXSampleAttempts(
+  supabase: SupabaseClient,
+): Promise<ElevateXAttemptsResetResult> {
+  const loaded = await loadAuthUsersByEmail(supabase);
+  if ('error' in loaded) {
+    return {
+      studentsFound: 0,
+      studentsMissing: [],
+      attemptsDeleted: 0,
+      violationsDeleted: 0,
+      sessionsCleared: 0,
+      errors: [loaded.error],
+    };
+  }
+
+  const { usersByEmail } = loaded;
+  const userIds: string[] = [];
+  const rollsFound: string[] = [];
+  const studentsMissing: string[] = [];
+
+  for (const roll of ELEVATEX_SAMPLE_STUDENTS.map((s) => s.roll)) {
+    const email = studentAuthEmail(roll).toLowerCase();
+    const user = usersByEmail.get(email);
+    if (user?.id) {
+      userIds.push(user.id);
+      rollsFound.push(roll);
+    } else {
+      studentsMissing.push(roll);
+    }
+  }
+
+  const errors: string[] = [];
+  let attemptsDeleted = 0;
+  let violationsDeleted = 0;
+  let sessionsCleared = 0;
+
+  for (const roll of rollsFound) {
+    const rollNorm = normalizeRoll(roll);
+    const { count, error } = await supabase
+      .from('student_active_sessions')
+      .delete({ count: 'exact' })
+      .eq('roll_number', rollNorm);
+    if (error) errors.push(`session ${roll}: ${error.message}`);
+    else sessionsCleared += count ?? 0;
+  }
+
+  for (const userId of userIds) {
+    const { data: attempts, error: fetchErr } = await supabase
+      .from('test_attempts')
+      .select('id, test_id, test_title')
+      .eq('user_id', userId);
+
+    if (fetchErr) {
+      errors.push(`attempts ${userId}: ${fetchErr.message}`);
+      continue;
+    }
+
+    const elevatexAttemptIds = (attempts ?? [])
+      .filter((row) => attemptMatchesElevateX(row))
+      .map((row) => String(row.id))
+      .filter(Boolean);
+
+    if (elevatexAttemptIds.length === 0) continue;
+
+    const { error: violErr } = await supabase
+      .from('exam_violations')
+      .delete()
+      .in('attempt_id', elevatexAttemptIds);
+    if (violErr) errors.push(`violations ${userId}: ${violErr.message}`);
+    else violationsDeleted += elevatexAttemptIds.length;
+
+    const { data: deleted, error: delErr } = await supabase
+      .from('test_attempts')
+      .delete()
+      .in('id', elevatexAttemptIds)
+      .select('id');
+
+    if (delErr) errors.push(`delete ${userId}: ${delErr.message}`);
+    else attemptsDeleted += deleted?.length ?? 0;
+  }
+
+  return {
+    studentsFound: userIds.length,
+    studentsMissing,
+    attemptsDeleted,
+    violationsDeleted,
+    sessionsCleared,
+    errors,
+  };
+}
+
+/** Remove all 42 ElevateX demo accounts (+ legacy rolls) so students can sign up again. */
+export async function resetElevateXSampleStudents(
+  supabase: SupabaseClient,
+): Promise<ElevateXResetResult> {
+  const loaded = await loadAuthUsersByEmail(supabase);
+  if ('error' in loaded) {
+    return {
+      deletedRolls: [],
+      notFoundRolls: [],
+      errors: [loaded.error],
+      attemptsDeleted: 0,
+    };
+  }
+
+  const { usersByEmail } = loaded;
+  const deletedRolls: string[] = [];
+  const notFoundRolls: string[] = [];
+  const errors: string[] = [];
+  const userIdsToPurge: string[] = [];
+
+  for (const roll of allElevateXSampleRolls()) {
+    const outcome = await deleteSampleStudentByRoll(roll, usersByEmail, supabase);
+    if (outcome.error) {
+      errors.push(`${roll}: ${outcome.error}`);
+      continue;
+    }
+    if (outcome.deleted) {
+      deletedRolls.push(roll);
+      if (outcome.userId) userIdsToPurge.push(outcome.userId);
+    } else {
+      notFoundRolls.push(roll);
+      await deleteRosterRowsForRoll(supabase, roll);
+    }
+  }
+
+  const attemptsDeleted = await deleteAttemptsForUserIds(supabase, userIdsToPurge);
+
+  return { deletedRolls, notFoundRolls, errors, attemptsDeleted };
 }
 
 export type ElevateXSeedAccountResult = {

@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/card';
 import { ElevateXLiveInfo } from '@/components/elevatex/elevatex-live-info';
 import { ProctorConsentGate } from '@/components/proctor/proctor-consent-gate';
 import { createProctorSessionId } from '@/lib/exam-v2/proctoring';
+import { isElevateXAttemptTitle, isElevateXTestId } from '@/lib/elevatex';
+import { clearLocalElevateXAttemptsForUser } from '@/lib/local-test-attempts';
 import { getElevateXTestId } from '@/lib/placement/elevatex-attempt';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { COLLEGE } from '@/lib/college-brand';
@@ -29,6 +31,7 @@ import {
   buildPlacementSession,
   clearPlacementDrafts,
   loadSessionByHallTicket,
+  PLACEMENT_COMPLETED_PREFIX,
   saveCandidateDraft,
   savePlacementProctorSessionId,
   saveSession,
@@ -94,6 +97,18 @@ export default function PlacementAssessmentStartPage() {
       });
       setResumeAvailable(false);
     } else {
+      clearLocalElevateXAttemptsForUser(authData.user.id, (testId, testName) =>
+        isElevateXTestId(testId) || isElevateXAttemptTitle(testName),
+      );
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.removeItem(
+            `${PLACEMENT_COMPLETED_PREFIX}${studentProfile.hallTicket}`,
+          );
+        } catch {
+          // ignore
+        }
+      }
       const existing = loadSessionByHallTicket(studentProfile.hallTicket);
       setResumeAvailable(Boolean(existing && !existing.submitted));
     }

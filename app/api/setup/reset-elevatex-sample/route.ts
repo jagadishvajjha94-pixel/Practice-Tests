@@ -1,0 +1,59 @@
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { resetElevateXSampleStudents } from '@/lib/elevatex-sample-seed';
+import { ELEVATEX_SAMPLE_COUNT } from '@/lib/elevatex-sample-credentials';
+
+export const maxDuration = 60;
+
+function getServiceRoleKey(): string | undefined {
+  const raw = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!raw || raw.includes('YOUR_')) return undefined;
+  return raw;
+}
+
+/**
+ * Deletes EXS1001–EXS1042 (and legacy EX26001–15) auth accounts and related rows
+ * so students can register again with their own passwords.
+ */
+export async function POST() {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+    const serviceRoleKey = getServiceRoleKey();
+
+    if (!supabaseUrl || !serviceRoleKey || !supabaseUrl.includes('.supabase.co')) {
+      return NextResponse.json(
+        {
+          error:
+            'Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (service role) for this deployment.',
+        },
+        { status: 500 },
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const result = await resetElevateXSampleStudents(supabase);
+
+    if (result.errors.length > 0 && result.deletedRolls.length === 0) {
+      return NextResponse.json(
+        { error: result.errors.join('; '), ...result },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Removed ${result.deletedRolls.length} ElevateX demo login(s). Students can sign up again at /auth/signup/student.`,
+      expectedDemoCount: ELEVATEX_SAMPLE_COUNT,
+      ...result,
+      studentSignup: '/auth/signup/student',
+      studentLogin: '/auth/login/student',
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'ElevateX reset failed unexpectedly';
+    console.error('[reset-elevatex-sample]', err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

@@ -23,6 +23,8 @@ export default function SetupPage() {
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
   const [elevatexLoading, setElevatexLoading] = useState(false);
+  const [elevatexResetLoading, setElevatexResetLoading] = useState(false);
+  const [elevatexAttemptsResetLoading, setElevatexAttemptsResetLoading] = useState(false);
   const [elevatexPassword, setElevatexPassword] = useState<string | null>(null);
   const [elevatexAccounts, setElevatexAccounts] = useState<SeedAccount[]>([]);
   const [elevatexMeta, setElevatexMeta] = useState<string | null>(null);
@@ -40,6 +42,95 @@ export default function SetupPage() {
 
   const displayedAccounts =
     elevatexAccounts.length > 0 ? elevatexAccounts : defaultElevatexAccounts;
+
+  const handleResetElevateXAttempts = async () => {
+    if (
+      !window.confirm(
+        'Clear ElevateX exam attempts for all 42 demo students (EXS1001–EXS1042)? They keep the same login password and can take the paper again.',
+      )
+    ) {
+      return;
+    }
+    setElevatexAttemptsResetLoading(true);
+    setElevatexMeta(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/setup/reset-elevatex-attempts', { method: 'POST' });
+      const raw = await res.text();
+      let json: {
+        error?: string;
+        message?: string;
+        studentsFound?: number;
+        attemptsDeleted?: number;
+      } = {};
+      if (raw.trim()) {
+        try {
+          json = JSON.parse(raw) as typeof json;
+        } catch {
+          throw new Error(
+            raw.slice(0, 200) || `Reset failed with empty response (HTTP ${res.status})`,
+          );
+        }
+      } else if (!res.ok) {
+        throw new Error(`Reset failed with empty response (HTTP ${res.status})`);
+      }
+      if (!res.ok) throw new Error(json.error ?? 'ElevateX attempt reset failed');
+      setElevatexMeta(
+        json.message ??
+          `Cleared ${json.attemptsDeleted ?? 0} attempt(s) for ${json.studentsFound ?? 0} student(s).`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ElevateX attempt reset failed');
+    } finally {
+      setElevatexAttemptsResetLoading(false);
+    }
+  };
+
+  const handleResetElevateX = async () => {
+    if (
+      !window.confirm(
+        'Remove all 42 ElevateX demo logins (EXS1001–EXS1042)? Students will need to sign up again with their own password.',
+      )
+    ) {
+      return;
+    }
+    setElevatexResetLoading(true);
+    setElevatexMeta(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/setup/reset-elevatex-sample', { method: 'POST' });
+      const raw = await res.text();
+      let json: {
+        error?: string;
+        message?: string;
+        deletedRolls?: string[];
+        notFoundRolls?: string[];
+        attemptsDeleted?: number;
+      } = {};
+      if (raw.trim()) {
+        try {
+          json = JSON.parse(raw) as typeof json;
+        } catch {
+          throw new Error(
+            raw.slice(0, 200) || `Reset failed with empty response (HTTP ${res.status})`,
+          );
+        }
+      } else if (!res.ok) {
+        throw new Error(`Reset failed with empty response (HTTP ${res.status})`);
+      }
+      if (!res.ok) throw new Error(json.error ?? 'ElevateX reset failed');
+      setElevatexPassword(null);
+      setElevatexAccounts([]);
+      setElevatexMeta(
+        json.message ??
+          `Removed ${json.deletedRolls?.length ?? 0} demo account(s). ${json.attemptsDeleted ?? 0} test attempt(s) cleared.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ElevateX reset failed');
+    } finally {
+      setElevatexResetLoading(false);
+    }
+  };
 
   const handleSeedElevateX = async () => {
     setElevatexLoading(true);
@@ -158,15 +249,48 @@ export default function SetupPage() {
               Creates <strong>EXS1001–EXS1042</strong> (replaces old EX26001–15). Password for all:{' '}
               <strong>ElevateX2026</strong>. Year on login: <strong>III Year</strong>.
             </p>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void handleSeedElevateX()}
-              disabled={elevatexLoading}
-              className="w-full"
-            >
-              {elevatexLoading ? 'Seeding ElevateX…' : 'Seed / refresh 42 ElevateX credentials'}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleSeedElevateX()}
+                disabled={
+                  elevatexLoading || elevatexResetLoading || elevatexAttemptsResetLoading
+                }
+                className="w-full sm:flex-1"
+              >
+                {elevatexLoading ? 'Seeding ElevateX…' : 'Seed / refresh 42 ElevateX credentials'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleResetElevateXAttempts()}
+                disabled={
+                  elevatexLoading || elevatexResetLoading || elevatexAttemptsResetLoading
+                }
+                className="w-full sm:flex-1 text-amber-800 border-amber-200 hover:bg-amber-50"
+              >
+                {elevatexAttemptsResetLoading ? 'Clearing attempts…' : 'Allow retake (42 students)'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleResetElevateX()}
+                disabled={
+                  elevatexLoading || elevatexResetLoading || elevatexAttemptsResetLoading
+                }
+                className="w-full sm:flex-1 text-red-700 border-red-200 hover:bg-red-50"
+              >
+                {elevatexResetLoading ? 'Resetting…' : 'Delete 42 demo logins'}
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500">
+              <strong>Allow retake</strong> keeps EXS1001–EXS1042 logins (password{' '}
+              <code className="bg-gray-100 px-1 rounded">ElevateX2026</code>) and clears completed
+              papers so students can write ElevateX again.{' '}
+              <strong>Delete 42 demo logins</strong> removes accounts for fresh signup.{' '}
+              <strong>Seed</strong> recreates demo accounts.
+            </p>
 
             {elevatexMeta ? (
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-900">

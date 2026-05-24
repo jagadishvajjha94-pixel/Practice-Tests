@@ -202,6 +202,7 @@ export function clearPlacementDrafts(hallTicket?: string): void {
     window.sessionStorage.removeItem(PLACEMENT_DRAFT_CANDIDATE_KEY);
     if (hallTicket) {
       window.localStorage.removeItem(`${PLACEMENT_DRAFT_SESSION_KEY}:${hallTicket}`);
+      window.localStorage.removeItem(`${PLACEMENT_COMPLETED_PREFIX}${hallTicket}`);
     }
   } catch {
     // ignore
