@@ -8,6 +8,7 @@ import {
   roundScorePercent,
 } from '@/lib/format-score';
 import type { TestReportRow, TestReportsPayload } from '@/lib/admin/test-reports-data';
+import { sortTestReportRows } from '@/lib/admin/schedule-report-filter';
 
 export type TestReportPdfOptions = {
   examLabel: string;
@@ -68,7 +69,8 @@ function slugify(value: string): string {
 }
 
 export function downloadTestReportPdf(options: TestReportPdfOptions): void {
-  const { examLabel, testName, scheduleLabel, rows } = options;
+  const { examLabel, testName, scheduleLabel, rows: rawRows } = options;
+  const rows = sortTestReportRows(rawRows);
   const summary = options.summary ?? computeSummary(rows);
   const generatedAt = new Date().toLocaleString();
   const doc = new jsPDF({ orientation: rows.length > 25 ? 'landscape' : 'portrait' });
@@ -153,8 +155,9 @@ export function downloadTestReportPdf(options: TestReportPdfOptions): void {
 
     autoTable(doc, {
       startY: y,
-      head: [['Student', 'Roll', 'Branch', 'Year', 'Test', 'Score', 'Status', 'Started', 'Completed', 'Time (min)']],
+      head: [['Rank', 'Student', 'Roll', 'Branch', 'Year', 'Test', 'Score', 'Status', 'Started', 'Completed', 'Time (min)']],
       body: rows.map((row) => [
+        row.rank != null ? String(row.rank) : '—',
         row.student_name,
         row.roll_number || '—',
         row.branch ?? '—',
@@ -186,6 +189,8 @@ export function downloadTestReportPdf(options: TestReportPdfOptions): void {
   }
 
   const namePart = testName ? slugify(testName) : slugify(examLabel);
+  const slotPart =
+    rows[0]?.slot_number != null ? `-slot-${rows[0].slot_number}` : '';
   const datePart = new Date().toISOString().slice(0, 10);
-  doc.save(`exam-report-${namePart}-${datePart}.pdf`);
+  doc.save(`exam-report-${namePart}${slotPart}-${datePart}.pdf`);
 }

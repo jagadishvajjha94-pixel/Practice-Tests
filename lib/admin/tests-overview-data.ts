@@ -13,6 +13,11 @@ import {
   type RollupAttempt,
 } from '@/lib/admin/attempts-rollup';
 import { isCompletedAttemptStatus } from '@/lib/attempt-status';
+import {
+  filterRollupAttemptsForSchedule,
+  latestAttemptPerUser,
+  type ScheduleReportContext,
+} from '@/lib/admin/schedule-report-filter';
 export type AdminTestBucket = 'live' | 'upcoming' | 'ended';
 
 export type DepartmentAttemptStat = {
@@ -81,25 +86,13 @@ function bucketFromDisplay(display: ExamScheduleDisplayStatus): AdminTestBucket 
   return 'ended';
 }
 
-function attemptStatsForTest(
-  testId: string | null,
-  attempts: RollupAttempt[],
+function attemptStatsFromAttempts(
+  related: RollupAttempt[],
   studentBranchByUserId: Map<string, string | null>,
 ): Pick<
   AdminTestOverviewItem,
   'students_attempted' | 'completed_attempts' | 'total_attempts' | 'departments_attempted' | 'avg_score'
 > {
-  if (!testId) {
-    return {
-      students_attempted: 0,
-      completed_attempts: 0,
-      total_attempts: 0,
-      departments_attempted: [],
-      avg_score: null,
-    };
-  }
-
-  const related = filterAttemptsForTest(attempts, testId);
   const students = new Set<string>();
   const deptStudentSets = new Map<string, Set<string>>();
   let completed = 0;
@@ -132,6 +125,51 @@ function attemptStatsForTest(
     departments_attempted,
     avg_score: scoreCount > 0 ? Math.round((scoreSum / scoreCount) * 100) / 100 : null,
   };
+}
+
+function attemptStatsForTest(
+  testId: string | null,
+  attempts: RollupAttempt[],
+  studentBranchByUserId: Map<string, string | null>,
+): Pick<
+  AdminTestOverviewItem,
+  'students_attempted' | 'completed_attempts' | 'total_attempts' | 'departments_attempted' | 'avg_score'
+> {
+  if (!testId) {
+    return {
+      students_attempted: 0,
+      completed_attempts: 0,
+      total_attempts: 0,
+      departments_attempted: [],
+      avg_score: null,
+    };
+  }
+
+  return attemptStatsFromAttempts(filterAttemptsForTest(attempts, testId), studentBranchByUserId);
+}
+
+function attemptStatsForScheduleWindow(
+  testId: string | null,
+  scheduleContext: ScheduleReportContext,
+  attempts: RollupAttempt[],
+  studentBranchByUserId: Map<string, string | null>,
+): Pick<
+  AdminTestOverviewItem,
+  'students_attempted' | 'completed_attempts' | 'total_attempts' | 'departments_attempted' | 'avg_score'
+> {
+  if (!testId) {
+    return {
+      students_attempted: 0,
+      completed_attempts: 0,
+      total_attempts: 0,
+      departments_attempted: [],
+      avg_score: null,
+    };
+  }
+
+  const byTest = filterAttemptsForTest(attempts, testId);
+  const scoped = filterRollupAttemptsForSchedule(byTest, scheduleContext);
+  return attemptStatsFromAttempts(latestAttemptPerUser(scoped), studentBranchByUserId);
 }
 
 function departmentsForFacultyRequest(row: FacultyRequestRow): string[] {
@@ -205,6 +243,13 @@ export async function loadAdminTestsOverview(
           : [];
 
     const testId = schedule.test_id ? String(schedule.test_id) : faculty?.published_test_id ?? null;
+    const scheduleContext: ScheduleReportContext = {
+      starts_at: schedule.starts_at,
+      ends_at: schedule.ends_at,
+      test_id: testId,
+      title: schedule.title,
+      faculty_title: faculty?.title ?? null,
+    };
 
     items.push({
       id: `schedule:${schedule.id}`,
@@ -224,7 +269,7 @@ export async function loadAdminTestsOverview(
       topic: faculty?.topic ?? null,
       slot_number: schedule.slot_number ?? null,
       faculty_department: faculty?.department ?? null,
-      ...attemptStatsForTest(testId, attempts, studentBranchByUserId),
+      ...attemptStatsForScheduleWindow(testId, scheduleContext, attempts, studentBranchByUserId),
     });
   }
 
@@ -243,6 +288,13 @@ export async function loadAdminTestsOverview(
     const status = bucketFromDisplay(resolved.display);
     const elevatex = isElevateXModule(row.module_key);
     const testId = elevatex ? row.module_key : row.module_key;
+    const scheduleContext: ScheduleReportContext = {
+      starts_at: row.starts_at,
+      ends_at: row.ends_at,
+      test_id: testId,
+      title: row.title ?? (elevatex ? 'ElevateX' : row.module_key),
+      faculty_title: null,
+    };
 
     items.push({
       id: `evalora:${row.id}`,
@@ -262,7 +314,7 @@ export async function loadAdminTestsOverview(
       topic: null,
       slot_number: null,
       faculty_department: null,
-      ...attemptStatsForTest(testId, attempts, studentBranchByUserId),
+      ...attemptStatsForScheduleWindow(testId, scheduleContext, attempts, studentBranchByUserId),
     });
   }
 

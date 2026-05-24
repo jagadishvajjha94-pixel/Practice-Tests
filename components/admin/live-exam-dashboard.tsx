@@ -1,10 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatScorePercentLabel } from '@/lib/format-score';
 import { cn } from '@/lib/utils';
+import { ADMIN_EXAM_TYPE_META } from '@/lib/admin/exam-type';
+import { downloadTestReportPdf } from '@/lib/admin/export-test-report-pdf';
+import { scheduleLabelForTestOverview } from '@/lib/admin/test-overview-report';
+import type { TestReportsPayload } from '@/lib/admin/test-reports-data';
+import type { AdminTestOverviewItem } from '@/lib/admin/tests-overview-data';
 
 const POLL_MS = 1500;
+const AUTO_REPORT_STORAGE_KEY = 'prepindia-auto-slot-reports';
 
 type LiveSchedule = {
   id: string;
@@ -12,6 +18,16 @@ type LiveSchedule = {
   test_id: string;
   status: string;
   starts_at: string;
+  ends_at: string | null;
+  slot_number?: number | null;
+};
+
+type EndedReportMeta = {
+  schedule_id: string;
+  slot_number: number | null;
+  title: string;
+  test_id: string;
+  exam_type: keyof typeof ADMIN_EXAM_TYPE_META;
   ends_at: string | null;
 };
 
@@ -45,6 +61,73 @@ type LiveWritingEntry = LiveBoardEntry & {
   schedule_title: string;
   test_title: string;
 };
+
+function readDownloadedReportIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = sessionStorage.getItem(AUTO_REPORT_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function markReportDownloaded(scheduleId: string): void {
+  const ids = readDownloadedReportIds();
+  ids.add(scheduleId);
+  sessionStorage.setItem(AUTO_REPORT_STORAGE_KEY, JSON.stringify([...ids]));
+}
+
+async function downloadSlotReport(meta: EndedReportMeta, testTitle: string): Promise<boolean> {
+  const q = new URLSearchParams({
+    examType: meta.exam_type,
+    testId: meta.test_id,
+    scheduleId: meta.schedule_id,
+  });
+  const res = await fetch(`/api/admin/test-reports?${q.toString()}`, {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+  if (!res.ok) return false;
+  const payload = (await res.json()) as TestReportsPayload;
+  if (payload.rows.length === 0) return false;
+
+  const overviewItem: AdminTestOverviewItem = {
+    id: `schedule:${meta.schedule_id}`,
+    test_id: meta.test_id,
+    title: testTitle,
+    kind: 'faculty_schedule',
+    kind_label: meta.slot_number ? `Slot ${meta.slot_number}` : 'Exam',
+    status: 'ended',
+    status_label: 'Ended',
+    departments: [],
+    years: [],
+    starts_at: meta.ends_at,
+    ends_at: meta.ends_at,
+    notice: null,
+    description: null,
+    duration_minutes: null,
+    topic: null,
+    slot_number: meta.slot_number,
+    faculty_department: null,
+    students_attempted: 0,
+    completed_attempts: 0,
+    total_attempts: 0,
+    departments_attempted: [],
+    avg_score: null,
+  };
+
+  downloadTestReportPdf({
+    examLabel: ADMIN_EXAM_TYPE_META[meta.exam_type].label,
+    testName: testTitle,
+    scheduleLabel: scheduleLabelForTestOverview(overviewItem),
+    rows: payload.rows,
+    summary: payload.summary,
+  });
+  return true;
+}
 
 function PodiumCard({
   entry,
@@ -125,16 +208,43 @@ function PodiumCard({
 export function LiveExamDashboard() {
   const [schedules, setSchedules] = useState<LiveSchedule[]>([]);
   const [boards, setBoards] = useState<LiveBoard[]>([]);
+  const [endedSchedules, setEndedSchedules] = useState<LiveSchedule[]>([]);
+  const [endedBoards, setEndedBoards] = useState<LiveBoard[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [writingNow, setWritingNow] = useState<LiveWritingEntry[]>([]);
   const [live, setLive] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const prevLiveIdsRef = useRef<Set<string>>(new Set());
+
+  const showingLive = live && schedules.length > 0;
+  const activeSchedules = showingLive ? schedules : endedSchedules;
+  const activeBoards = showingLive ? boards : endedBoards;
 
   const board = useMemo(
-    () => boards.find((b) => b.schedule.id === selectedId) ?? boards[0] ?? null,
-    [boards, selectedId],
+    () => activeBoards.find((b) => b.schedule.id === selectedId) ?? activeBoards[0] ?? null,
+    [activeBoards, selectedId],
+  );
+
+  const maybeAutoDownloadEndedSlots = useCallback(
+    async (prevLiveIds: Set<string>, ended: EndedReportMeta[], endedBoardList: LiveBoard[]) => {
+      const downloaded = readDownloadedReportIds();
+      const now = Date.now();
+      for (const meta of ended) {
+        if (downloaded.has(meta.schedule_id)) continue;
+        const wasLive = prevLiveIds.has(meta.schedule_id);
+        const endMs = meta.ends_at ? new Date(meta.ends_at).getTime() : 0;
+        const endedRecently =
+          endMs > 0 && !Number.isNaN(endMs) && now - endMs < 15 * 60 * 1000;
+        if (!wasLive && !endedRecently) continue;
+        const boardMatch = endedBoardList.find((b) => b.schedule.id === meta.schedule_id);
+        const testTitle = boardMatch?.test_title ?? meta.title;
+        const ok = await downloadSlotReport(meta, testTitle);
+        if (ok) markReportDownloaded(meta.schedule_id);
+      }
+    },
+    [],
   );
 
   const refresh = useCallback(async () => {
@@ -153,7 +263,9 @@ export function LiveExamDashboard() {
         live?: boolean;
         schedules?: LiveSchedule[];
         boards?: LiveBoard[];
-        board?: LiveBoard | null;
+        ended_schedules?: LiveSchedule[];
+        ended_boards?: LiveBoard[];
+        ended_reports?: EndedReportMeta[];
         writing_now?: LiveWritingEntry[];
         refreshed_at?: string;
       };
@@ -161,23 +273,33 @@ export function LiveExamDashboard() {
       setFetchError(null);
       const list = json.schedules ?? [];
       const isLive = Boolean(json.live) && list.length > 0;
-      const allBoards =
-        json.boards?.length ? json.boards : json.board ? [json.board] : [];
+      const liveBoards = json.boards?.length ? json.boards : [];
+      const endedList = json.ended_schedules ?? [];
+      const endedBoardList = json.ended_boards ?? [];
+      const endedMeta = json.ended_reports ?? [];
+
+      const currentLiveIds = new Set(list.map((s) => s.id));
+      const prevLiveIds = prevLiveIdsRef.current;
+      void maybeAutoDownloadEndedSlots(prevLiveIds, endedMeta, endedBoardList);
+      prevLiveIdsRef.current = currentLiveIds;
 
       setLive(isLive);
       setSchedules(list);
-      setBoards(allBoards);
+      setBoards(liveBoards);
+      setEndedSchedules(endedList);
+      setEndedBoards(endedBoardList);
       setWritingNow(json.writing_now ?? []);
       setRefreshedAt(json.refreshed_at ?? new Date().toISOString());
 
-      if (!isLive) {
+      const visibleList = isLive ? list : endedList;
+      if (visibleList.length === 0) {
         setSelectedId('');
         return;
       }
 
       setSelectedId((prev) => {
-        if (prev && list.some((s) => s.id === prev)) return prev;
-        return list[0]?.id ?? '';
+        if (prev && visibleList.some((s) => s.id === prev)) return prev;
+        return visibleList[0]?.id ?? '';
       });
     } catch {
       setFetchError('Could not load live dashboard');
@@ -185,15 +307,13 @@ export function LiveExamDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [maybeAutoDownloadEndedSlots]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   useEffect(() => {
-    if (!live) return;
-
     const tick = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
@@ -208,7 +328,7 @@ export function LiveExamDashboard() {
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [live, refresh]);
+  }, [refresh]);
 
   if (loading) {
     return (
@@ -229,12 +349,13 @@ export function LiveExamDashboard() {
     );
   }
 
-  if (!live || schedules.length === 0) {
+  if (!showingLive && endedSchedules.length === 0) {
     return null;
   }
 
   const entries = board?.entries ?? [];
-  const multiLive = schedules.length > 1;
+  const multiLive = showingLive && schedules.length > 1;
+  const multiEnded = !showingLive && endedSchedules.length > 1;
   const submittedEntries = entries
     .filter((e) => e.submitted_at)
     .sort((a, b) => b.score - a.score || a.rank - b.rank);
@@ -248,8 +369,7 @@ export function LiveExamDashboard() {
     third: podiumSource[2],
   };
   const highestScore =
-    board?.highest_score ??
-    (entries.length ? Math.max(...entries.map((e) => e.score)) : 0);
+    board?.highest_score ?? (entries.length ? Math.max(...entries.map((e) => e.score)) : 0);
   const topScorer = board?.top_scorer ?? podiumSource[0] ?? null;
   const podiumLabel =
     submittedEntries.length > 0
@@ -276,31 +396,43 @@ export function LiveExamDashboard() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-6">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-2 rounded-full border border-red-400/60 bg-red-500/25 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-red-100 animate-pulse">
-                  <span className="h-2 w-2 rounded-full bg-red-400" />
-                  Live
-                </span>
+                {showingLive ? (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-red-400/60 bg-red-500/25 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-red-100 animate-pulse">
+                    <span className="h-2 w-2 rounded-full bg-red-400" />
+                    Live
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-300/40 bg-slate-500/25 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-slate-100">
+                    Ended
+                  </span>
+                )}
                 <span className="text-[11px] font-bold uppercase tracking-[0.28em] text-amber-200/95">
-                  Live leaderboard
+                  {showingLive ? 'Live leaderboard' : 'Final slot report'}
                 </span>
               </div>
               <h2 className="text-2xl sm:text-4xl font-bold mt-3 text-white tracking-tight truncate">
-                {multiLive ? `${schedules.length} exams live now` : board?.test_title ?? 'Live exam'}
+                {multiLive
+                  ? `${schedules.length} exams live now`
+                  : board?.test_title ?? 'Exam session'}
               </h2>
               <p className="text-sm text-violet-200/80 mt-1">
-                This live session only · auto-refresh every {POLL_MS / 1000}s
+                {showingLive
+                  ? `This live session only · auto-refresh every ${POLL_MS / 1000}s`
+                  : 'Slot ended · top performers ranked · report downloaded automatically'}
                 {multiLive ? ' · tap a test below when multiple are live' : ''}
               </p>
             </div>
-            <div className="rounded-xl border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-center shrink-0">
-              <p className="text-[10px] uppercase tracking-wider text-amber-100/80">Students writing</p>
-              <p className="text-3xl font-black text-amber-200 tabular-nums">{writingNow.length}</p>
-            </div>
+            {showingLive ? (
+              <div className="rounded-xl border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-center shrink-0">
+                <p className="text-[10px] uppercase tracking-wider text-amber-100/80">Students writing</p>
+                <p className="text-3xl font-black text-amber-200 tabular-nums">{writingNow.length}</p>
+              </div>
+            ) : null}
           </div>
 
-          {multiLive ? (
+          {multiLive || multiEnded ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-6">
-              {boards.map((b) => {
+              {activeBoards.map((b) => {
                 const active = b.schedule.id === selectedId;
                 return (
                   <button
@@ -315,16 +447,28 @@ export function LiveExamDashboard() {
                     )}
                   >
                     <p className="text-sm font-semibold text-white truncate">{b.test_title}</p>
-                    <p className="text-[10px] text-violet-200/70 mt-0.5 truncate">{b.schedule.title}</p>
+                    <p className="text-[10px] text-violet-200/70 mt-0.5 truncate">
+                      {b.schedule.slot_number ? `Slot ${b.schedule.slot_number} · ` : ''}
+                      {b.schedule.title}
+                    </p>
                     <div className="mt-3 flex gap-4 text-[10px] uppercase tracking-wider">
-                      <span className="text-cyan-200">
-                        <span className="font-bold text-lg tabular-nums">{b.in_progress_count}</span>{' '}
-                        writing
-                      </span>
-                      <span className="text-emerald-200">
-                        <span className="font-bold text-lg tabular-nums">{b.submitted_count}</span>{' '}
-                        done
-                      </span>
+                      {showingLive ? (
+                        <>
+                          <span className="text-cyan-200">
+                            <span className="font-bold text-lg tabular-nums">{b.in_progress_count}</span>{' '}
+                            writing
+                          </span>
+                          <span className="text-emerald-200">
+                            <span className="font-bold text-lg tabular-nums">{b.submitted_count}</span>{' '}
+                            done
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-emerald-200">
+                          <span className="font-bold text-lg tabular-nums">{b.submitted_count}</span>{' '}
+                          submitted
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
@@ -335,9 +479,10 @@ export function LiveExamDashboard() {
           {board ? (
             <>
               <p className="text-sm font-medium text-amber-100/90 mb-4 truncate">
+                {board.schedule.slot_number ? `Slot ${board.schedule.slot_number} · ` : ''}
                 Now showing: {board.test_title}
                 {board.schedule.ends_at
-                  ? ` · ends ${new Date(board.schedule.ends_at).toLocaleString()}`
+                  ? ` · ${showingLive ? 'ends' : 'ended'} ${new Date(board.schedule.ends_at).toLocaleString()}`
                   : ''}
               </p>
 
@@ -370,6 +515,7 @@ export function LiveExamDashboard() {
                   <p className="text-[10px] uppercase tracking-wider text-cyan-100/70">In progress</p>
                 </div>
               </div>
+
               <div className="mb-6">
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-200/90 mb-3 text-center">
                   {podiumLabel}
@@ -381,7 +527,7 @@ export function LiveExamDashboard() {
                 </div>
               </div>
 
-              {writingNow.length > 0 ? (
+              {showingLive && writingNow.length > 0 ? (
                 <div className="mb-6 rounded-2xl border border-cyan-400/35 bg-cyan-500/10 p-4">
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-200/95 mb-3">
                     Currently writing ({writingNow.length})
@@ -415,7 +561,7 @@ export function LiveExamDashboard() {
                 </div>
                 {entries.length === 0 ? (
                   <p className="px-4 py-12 text-center text-violet-200/70 text-sm">
-                    Waiting for the first submission…
+                    {showingLive ? 'Waiting for the first submission…' : 'No attempts recorded for this slot.'}
                   </p>
                 ) : (
                   <ul className="max-h-[min(380px,45vh)] overflow-y-auto divide-y divide-white/5">
@@ -423,14 +569,16 @@ export function LiveExamDashboard() {
                       const isTop = idx < 3;
                       const submitted = entry.submitted_at
                         ? new Date(entry.submitted_at).toLocaleTimeString()
-                        : 'In exam';
+                        : showingLive
+                          ? 'In exam'
+                          : '—';
                       return (
                         <li
                           key={entry.attempt_id}
                           className={cn(
                             'px-4 py-3 transition-colors',
                             isTop && 'bg-amber-400/8',
-                            !entry.submitted_at && 'bg-cyan-500/8',
+                            !entry.submitted_at && showingLive && 'bg-cyan-500/8',
                           )}
                         >
                           <div className="sm:grid sm:grid-cols-[3rem_1fr_7rem_5rem_8rem] sm:gap-2 sm:items-center">

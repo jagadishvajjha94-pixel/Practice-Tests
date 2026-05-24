@@ -17,8 +17,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const examType = parseAdminExamType(searchParams.get('examType'));
   const testId = searchParams.get('testId')?.trim() || undefined;
+  const scheduleId = searchParams.get('scheduleId')?.trim() || undefined;
 
-  const payload = await loadTestReportsPayload(admin, examType, testId);
+  const payload = await loadTestReportsPayload(admin, examType, testId, scheduleId);
 
   return NextResponse.json(payload);
 }

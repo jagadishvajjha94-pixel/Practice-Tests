@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   Dialog,
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { formatAttemptStatus } from '@/lib/attempt-status';
 import { formatScorePercentLabel } from '@/lib/format-score';
 import { ADMIN_EXAM_TYPE_META } from '@/lib/admin/exam-type';
 import { downloadTestReportPdf } from '@/lib/admin/export-test-report-pdf';
@@ -58,23 +59,69 @@ function deleteConfirmMessage(test: AdminTestOverviewItem): string {
   return `Delete "${test.title}" completely? This removes schedules, rosters, and attempts.`;
 }
 
-export function AdminTestDetailModal({
+function AdminTestDetailModalContent({
   test,
-  open,
   onOpenChange,
   onDeleted,
-}: AdminTestDetailModalProps) {
+}: {
+  test: AdminTestOverviewItem;
+  onOpenChange: (open: boolean) => void;
+  onDeleted?: () => void;
+}) {
+  const [reportPayload, setReportPayload] = useState<TestReportsPayload | null>(null);
+  const [reportLoading, setReportLoading] = useState(true);
+  const [reportError, setReportError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  if (!test) return null;
+  useEffect(() => {
+    let cancelled = false;
+    setReportPayload(null);
+    setReportError(null);
+    setReportLoading(true);
+
+    const { examType, testId, scheduleId } = reportFiltersForTestOverview(test);
+    const q = new URLSearchParams({ examType });
+    if (testId) q.set('testId', testId);
+    if (scheduleId) q.set('scheduleId', scheduleId);
+
+    fetch(`/api/admin/test-reports?${q.toString()}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Could not load test results');
+        return (await res.json()) as TestReportsPayload;
+      })
+      .then((payload) => {
+        if (!cancelled) setReportPayload(payload);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setReportError(err instanceof Error ? err.message : 'Could not load test results');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setReportLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [test.id]);
+
+  const stats = reportPayload?.summary;
+  const rows = reportPayload?.rows ?? [];
+  const studentsAttempted = stats?.unique_students ?? test.students_attempted;
+  const completedAttempts = stats?.completed_count ?? test.completed_attempts;
+  const avgScore = stats?.avg_score ?? test.avg_score;
+  const totalAttempts = stats?.total_attempts ?? test.total_attempts;
 
   const targetDepartments =
     test.departments.length > 0 ? test.departments.join(', ') : 'All departments';
   const targetYears = test.years.length > 0 ? test.years.join(', ') : 'All years';
 
   const deleteTest = async () => {
-    if (!test) return;
     if (!window.confirm(deleteConfirmMessage(test))) return;
 
     setDeleting(true);
@@ -100,159 +147,192 @@ export function AdminTestDetailModal({
   };
 
   const downloadExamReportPdf = async () => {
+    if (!reportPayload || rows.length === 0) {
+      alert('No student attempts recorded for this exam yet.');
+      return;
+    }
+
     setDownloading(true);
     try {
-      const { examType, testId } = reportFiltersForTestOverview(test);
-      const q = new URLSearchParams({ examType });
-      if (testId) q.set('testId', testId);
-      const res = await fetch(`/api/admin/test-reports?${q.toString()}`, {
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      if (!res.ok) {
-        alert('Could not load exam report data.');
-        return;
-      }
-      const payload = (await res.json()) as TestReportsPayload;
-      if (payload.rows.length === 0) {
-        alert('No student attempts recorded for this exam yet.');
-        return;
-      }
+      const { examType } = reportFiltersForTestOverview(test);
       downloadTestReportPdf({
         examLabel: ADMIN_EXAM_TYPE_META[examType].label,
         testName: test.title,
         scheduleLabel: scheduleLabelForTestOverview(test),
-        rows: payload.rows,
-        summary: payload.summary,
+        rows: reportPayload.rows,
+        summary: reportPayload.summary,
       });
     } finally {
       setDownloading(false);
     }
   };
 
+  const reportQuery = reportFiltersForTestOverview(test);
+
+  return (
+    <DialogContent className="sm:max-w-2xl max-h-[min(calc(100dvh-2rem),800px)] overflow-y-auto overscroll-contain flex flex-col">
+      <DialogHeader>
+        <DialogTitle className="text-xl text-[#0c2340] pr-8">{test.title}</DialogTitle>
+        <DialogDescription className="flex flex-wrap items-center gap-2 pt-1">
+          <Badge tone="brand">{test.kind_label}</Badge>
+          <Badge tone={statusTone(test.status)} className="capitalize">
+            {test.status}
+          </Badge>
+          <span className="text-gray-500">{test.status_label}</span>
+        </DialogDescription>
+      </DialogHeader>
+
+      <section className="grid sm:grid-cols-3 gap-3">
+        <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Students attempted</p>
+          <p className="mt-1 text-2xl font-bold text-blue-900">
+            {reportLoading ? '…' : studentsAttempted}
+          </p>
+        </div>
+        <div className="rounded-lg border border-green-100 bg-green-50/60 p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-green-700">Completed attempts</p>
+          <p className="mt-1 text-2xl font-bold text-green-900">
+            {reportLoading ? '…' : completedAttempts}
+          </p>
+        </div>
+        <div className="rounded-lg border border-orange-100 bg-orange-50/60 p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-orange-700">Average score</p>
+          <p className="mt-1 text-2xl font-bold text-orange-900">
+            {reportLoading ? '…' : avgScore == null ? '—' : formatScorePercentLabel(avgScore)}
+          </p>
+        </div>
+      </section>
+
+      <dl className="mt-2">
+        <DetailRow label="Schedule">
+          {test.starts_at ? (
+            <>
+              {formatWhen(test.starts_at)}
+              {test.ends_at ? ` → ${formatWhen(test.ends_at)}` : ''}
+            </>
+          ) : (
+            'Not scheduled yet'
+          )}
+        </DetailRow>
+        {test.duration_minutes ? (
+          <DetailRow label="Duration">{test.duration_minutes} minutes</DetailRow>
+        ) : null}
+        {test.topic ? <DetailRow label="Topic">{test.topic}</DetailRow> : null}
+        {test.faculty_department ? (
+          <DetailRow label="Faculty dept">{test.faculty_department}</DetailRow>
+        ) : null}
+        {test.slot_number ? <DetailRow label="Slot">Slot {test.slot_number}</DetailRow> : null}
+        <DetailRow label="Target departments">{targetDepartments}</DetailRow>
+        <DetailRow label="Target years">{targetYears}</DetailRow>
+        {test.notice ? <DetailRow label="Notice">{test.notice}</DetailRow> : null}
+        {test.description ? <DetailRow label="Description">{test.description}</DetailRow> : null}
+        {test.test_id ? (
+          <DetailRow label="Test ID">
+            <span className="font-mono text-xs">{test.test_id}</span>
+          </DetailRow>
+        ) : null}
+      </dl>
+
+      <section className="mt-4">
+        <h3 className="text-sm font-semibold text-gray-800 mb-2">
+          Student results
+          {test.slot_number ? ` · Slot ${test.slot_number}` : ''}
+        </h3>
+        {reportLoading ? (
+          <p className="text-sm text-gray-500 rounded-lg border border-dashed border-gray-200 p-4 animate-pulse">
+            Loading results for this test…
+          </p>
+        ) : reportError ? (
+          <p className="text-sm text-red-600 rounded-lg border border-red-200 bg-red-50 p-4">{reportError}</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-gray-500 rounded-lg border border-dashed border-gray-200 p-4">
+            No student attempts recorded for this slot yet.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left py-2.5 px-3 font-semibold text-gray-700">Rank</th>
+                  <th className="text-left py-2.5 px-3 font-semibold text-gray-700">Student</th>
+                  <th className="text-left py-2.5 px-3 font-semibold text-gray-700">Roll</th>
+                  <th className="text-right py-2.5 px-3 font-semibold text-gray-700">Score</th>
+                  <th className="text-left py-2.5 px-3 font-semibold text-gray-700">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.attempt_id} className="border-b border-gray-100 last:border-0">
+                    <td className="py-2.5 px-3 font-semibold text-[#1e3a5f]">
+                      {row.rank != null ? `#${row.rank}` : '—'}
+                    </td>
+                    <td className="py-2.5 px-3 text-gray-900">{row.student_name}</td>
+                    <td className="py-2.5 px-3 font-mono text-xs text-gray-600">
+                      {row.roll_number || '—'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-semibold text-[#1e3a5f]">
+                      {formatScorePercentLabel(row.score)}
+                    </td>
+                    <td className="py-2.5 px-3 text-gray-600">{formatAttemptStatus(row.status)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          className="bg-[#0c2340] hover:bg-[#16304f]"
+          disabled={downloading || reportLoading || totalAttempts === 0}
+          onClick={() => void downloadExamReportPdf()}
+        >
+          {downloading ? 'Preparing PDF…' : 'Download slot report (PDF)'}
+        </Button>
+        <Button variant="outline" asChild>
+          <Link
+            href={`/admin/reports?type=${reportQuery.examType}${
+              test.test_id ? `&testId=${encodeURIComponent(test.test_id)}` : ''
+            }${reportQuery.scheduleId ? `&scheduleId=${encodeURIComponent(reportQuery.scheduleId)}` : ''}`}
+          >
+            Open full reports
+          </Link>
+        </Button>
+        <Button
+          variant="outline"
+          disabled={deleting}
+          className="text-red-700 border-red-200 hover:bg-red-50"
+          onClick={() => void deleteTest()}
+        >
+          {deleting ? 'Deleting…' : 'Delete'}
+        </Button>
+        {test.kind === 'faculty_published' || test.kind === 'faculty_schedule' ? (
+          <Button variant="ghost" asChild>
+            <Link href="/admin/exam-schedules">Exam schedules →</Link>
+          </Button>
+        ) : null}
+      </div>
+    </DialogContent>
+  );
+}
+
+export function AdminTestDetailModal({
+  test,
+  open,
+  onOpenChange,
+  onDeleted,
+}: AdminTestDetailModalProps) {
+  if (!test) return null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[min(calc(100dvh-2rem),800px)] overflow-y-auto overscroll-contain flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="text-xl text-[#0c2340] pr-8">{test.title}</DialogTitle>
-          <DialogDescription className="flex flex-wrap items-center gap-2 pt-1">
-            <Badge tone="brand">{test.kind_label}</Badge>
-            <Badge tone={statusTone(test.status)} className="capitalize">
-              {test.status}
-            </Badge>
-            <span className="text-gray-500">{test.status_label}</span>
-          </DialogDescription>
-        </DialogHeader>
-
-        <section className="grid sm:grid-cols-3 gap-3">
-          <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Students attempted</p>
-            <p className="mt-1 text-2xl font-bold text-blue-900">{test.students_attempted}</p>
-          </div>
-          <div className="rounded-lg border border-green-100 bg-green-50/60 p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-green-700">Completed attempts</p>
-            <p className="mt-1 text-2xl font-bold text-green-900">{test.completed_attempts}</p>
-          </div>
-          <div className="rounded-lg border border-orange-100 bg-orange-50/60 p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-orange-700">Average score</p>
-            <p className="mt-1 text-2xl font-bold text-orange-900">
-              {test.avg_score == null ? '—' : formatScorePercentLabel(test.avg_score)}
-            </p>
-          </div>
-        </section>
-
-        <dl className="mt-2">
-          <DetailRow label="Schedule">
-            {test.starts_at ? (
-              <>
-                {formatWhen(test.starts_at)}
-                {test.ends_at ? ` → ${formatWhen(test.ends_at)}` : ''}
-              </>
-            ) : (
-              'Not scheduled yet'
-            )}
-          </DetailRow>
-          {test.duration_minutes ? (
-            <DetailRow label="Duration">{test.duration_minutes} minutes</DetailRow>
-          ) : null}
-          {test.topic ? <DetailRow label="Topic">{test.topic}</DetailRow> : null}
-          {test.faculty_department ? (
-            <DetailRow label="Faculty dept">{test.faculty_department}</DetailRow>
-          ) : null}
-          {test.slot_number ? <DetailRow label="Slot">Slot {test.slot_number}</DetailRow> : null}
-          <DetailRow label="Target departments">{targetDepartments}</DetailRow>
-          <DetailRow label="Target years">{targetYears}</DetailRow>
-          {test.notice ? <DetailRow label="Notice">{test.notice}</DetailRow> : null}
-          {test.description ? <DetailRow label="Description">{test.description}</DetailRow> : null}
-          {test.test_id ? (
-            <DetailRow label="Test ID">
-              <span className="font-mono text-xs">{test.test_id}</span>
-            </DetailRow>
-          ) : null}
-        </dl>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button
-            className="bg-[#0c2340] hover:bg-[#16304f]"
-            disabled={downloading || test.total_attempts === 0}
-            onClick={() => void downloadExamReportPdf()}
-          >
-            {downloading ? 'Preparing PDF…' : 'Download exam report (PDF)'}
-          </Button>
-          <Button variant="outline" asChild>
-            <Link
-              href={`/admin/reports?type=${reportFiltersForTestOverview(test).examType}${
-                test.test_id ? `&testId=${encodeURIComponent(test.test_id)}` : ''
-              }`}
-            >
-              Open full reports
-            </Link>
-          </Button>
-          <Button
-            variant="outline"
-            disabled={deleting}
-            className="text-red-700 border-red-200 hover:bg-red-50"
-            onClick={() => void deleteTest()}
-          >
-            {deleting ? 'Deleting…' : 'Delete'}
-          </Button>
-          {test.kind === 'faculty_published' || test.kind === 'faculty_schedule' ? (
-            <Button variant="ghost" asChild>
-              <Link href="/admin/exam-schedules">Exam schedules →</Link>
-            </Button>
-          ) : null}
-        </div>
-
-        <section className="mt-4">
-          <h3 className="text-sm font-semibold text-gray-800 mb-2">Departments attempted</h3>
-          {test.departments_attempted.length === 0 ? (
-            <p className="text-sm text-gray-500 rounded-lg border border-dashed border-gray-200 p-4">
-              No student attempts recorded for this test yet.
-            </p>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="text-left py-2.5 px-3 font-semibold text-gray-700">Department</th>
-                    <th className="text-right py-2.5 px-3 font-semibold text-gray-700">Students</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {test.departments_attempted.map((row) => (
-                    <tr key={row.department} className="border-b border-gray-100 last:border-0">
-                      <td className="py-2.5 px-3 text-gray-900">{row.department}</td>
-                      <td className="py-2.5 px-3 text-right font-semibold text-[#1e3a5f]">
-                        {row.student_count}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </DialogContent>
+      <AdminTestDetailModalContent
+        key={test.id}
+        test={test}
+        onOpenChange={onOpenChange}
+        onDeleted={onDeleted}
+      />
     </Dialog>
   );
 }

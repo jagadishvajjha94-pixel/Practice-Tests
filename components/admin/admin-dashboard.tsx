@@ -78,6 +78,8 @@ export function AdminDashboard() {
   const [allStudents, setAllStudents] = useState<DashboardStudent[]>([]);
   const [allAttempts, setAllAttempts] = useState<DashboardAttemptRow[]>([]);
   const [detailCard, setDetailCard] = useState<AdminDashboardCardKey | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAdminAccess = async () => {
@@ -188,6 +190,35 @@ export function AdminDashboard() {
     const refreshTimer = setInterval(() => void reloadStats(), 5000);
     return () => clearInterval(refreshTimer);
   }, [router]);
+
+  const resetForExamDay = async () => {
+    if (
+      !window.confirm(
+        'Remove ALL student and faculty logins and clear every attempt, roster, and session? Admin accounts are kept. This cannot be undone.',
+      )
+    ) {
+      return;
+    }
+    setResetLoading(true);
+    setResetMessage(null);
+    try {
+      const res = await fetch('/api/admin/reset-all-students', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok) throw new Error(json.error ?? 'Reset failed');
+      setResetMessage(json.message ?? 'All student data cleared. Admin dashboard refreshed.');
+      window.location.reload();
+    } catch (err) {
+      setResetMessage(err instanceof Error ? err.message : 'Reset failed');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -460,6 +491,23 @@ export function AdminDashboard() {
         fileBase={detailCard ? `admin-${detailCard}` : undefined}
       />
       <LiveExamDashboard />
+      <Card className="mb-6 border-amber-200 bg-amber-50/80 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-amber-950">Exam day prep</p>
+          <p className="text-sm text-amber-900/80 mt-0.5">
+            Remove all demo student logins (including EXS1001–1042), clear attempts and rosters. Keeps admin only.
+          </p>
+          {resetMessage ? <p className="text-xs text-amber-800 mt-2">{resetMessage}</p> : null}
+        </div>
+        <Button
+          variant="outline"
+          className="border-amber-300 text-amber-950 hover:bg-amber-100 shrink-0"
+          disabled={resetLoading}
+          onClick={() => void resetForExamDay()}
+        >
+          {resetLoading ? 'Clearing…' : 'Clear all students & reset admin data'}
+        </Button>
+      </Card>
       <AdminPageHeader
         title="Overview"
         description="College-wide performance, attendance, and exports"

@@ -487,6 +487,58 @@ export async function listLiveExamSchedules(admin: SupabaseClient): Promise<Exam
   );
 }
 
+const DEFAULT_ENDED_LOOKBACK_MS = 48 * 60 * 60 * 1000;
+
+function isRecentlyEndedSchedule(
+  schedule: Pick<ExamScheduleRow, 'starts_at' | 'ends_at' | 'status'>,
+  now = Date.now(),
+  lookbackMs = DEFAULT_ENDED_LOOKBACK_MS,
+): boolean {
+  const resolved = resolveExamScheduleStatus(schedule, now);
+  if (resolved.display === 'live') return false;
+  if (resolved.display === 'scheduled') return false;
+
+  const endMs = schedule.ends_at ? new Date(schedule.ends_at).getTime() : null;
+  if (endMs === null || Number.isNaN(endMs)) return false;
+  if (endMs > now) return false;
+  return endMs >= now - lookbackMs;
+}
+
+export async function listRecentlyEndedExamSchedules(
+  admin: SupabaseClient,
+  lookbackMs = DEFAULT_ENDED_LOOKBACK_MS,
+): Promise<ExamScheduleRow[]> {
+  const now = Date.now();
+  const ended: ExamScheduleRow[] = [];
+
+  let scheduleRows = ((await admin
+    .from('exam_schedules')
+    .select('*')
+    .order('ends_at', { ascending: false })).data ?? []) as ExamScheduleRow[];
+
+  if (scheduleRows.length) {
+    scheduleRows = await syncExpiredLiveExamSchedules(admin, scheduleRows);
+  }
+
+  for (const row of scheduleRows) {
+    if (isRecentlyEndedSchedule(row, now, lookbackMs)) ended.push(row);
+  }
+
+  const { data: evaloraRows } = await admin
+    .from('evalora_module_schedules')
+    .select('*')
+    .order('ends_at', { ascending: false });
+
+  for (const row of (evaloraRows ?? []) as EvaloraModuleScheduleRow[]) {
+    const mapped = evaloraToExamSchedule(row);
+    if (isRecentlyEndedSchedule(mapped, now, lookbackMs)) ended.push(mapped);
+  }
+
+  return ended.sort(
+    (a, b) => new Date(b.ends_at ?? b.starts_at).getTime() - new Date(a.ends_at ?? a.starts_at).getTime(),
+  );
+}
+
 export async function buildLiveExamBoard(
   admin: SupabaseClient,
   schedule: ExamScheduleRow,

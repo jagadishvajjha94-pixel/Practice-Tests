@@ -374,7 +374,7 @@ export function generateLogicalQuestions(rng: () => number, count: number, idPre
   ];
 
   for (let i = 0; i < count; i++) {
-    const mode = pickInt(rng, 0, 2);
+    const mode = pickInt(rng, 0, 6);
     if (mode === 0) {
       const s = syllogisms[pickInt(rng, 0, syllogisms.length - 1)];
       const { options: opts, letter } = shuffleMcqOptions(rng, s.conc, s.wrongs);
@@ -403,16 +403,104 @@ export function generateLogicalQuestions(rng: () => number, count: number, idPre
           explanation: null,
         }),
       );
-    } else {
+    } else if (mode === 2) {
       const colors = ['Red', 'Blue', 'Green', 'Yellow'];
       const order = [...colors].sort(() => rng() - 0.5).slice(0, 4);
       const qText = `Colours listed (random order): ${order.join(', ')}. Alphabetically by colour name, which comes second?`;
       const sorted = [...order].sort((a, b) => a.localeCompare(b));
-      const correct = sorted[1];
-      const { options: opts, letter } = shuffleMcqOptions(rng, correct, [sorted[0], sorted[2], sorted[3]]);
+      const correct = sorted[1]!;
+      const { options: opts, letter } = shuffleMcqOptions(rng, correct, [sorted[0]!, sorted[2]!, sorted[3]!]);
       out.push(
         makeMcq({
           id: `${idPrefix}-lo-${i}-cl`,
+          topicSlug: 'competitive-logical',
+          difficulty: 'medium',
+          question_text: qText,
+          options: opts,
+          correctLetter: letter,
+          explanation: null,
+        }),
+      );
+    } else if (mode === 3) {
+      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const today = pickInt(rng, 0, 6);
+      const offset = pickInt(rng, 3, 14);
+      const future = days[(today + offset) % 7]!;
+      const qText = `If today is ${days[today]}, what day will it be ${offset} days from now?`;
+      const correct = future;
+      const { options: opts, letter } = shuffleMcqOptions(rng, correct, [
+        days[(today + offset + 1) % 7]!,
+        days[(today + offset + 6) % 7]!,
+        days[today]!,
+      ]);
+      out.push(
+        makeMcq({
+          id: `${idPrefix}-lo-${i}-dy`,
+          topicSlug: 'competitive-logical',
+          difficulty: 'medium',
+          question_text: qText,
+          options: opts,
+          correctLetter: letter,
+          explanation: null,
+        }),
+      );
+    } else if (mode === 4) {
+      const a = pickInt(rng, 2, 9);
+      const b = pickInt(rng, 2, 9);
+      const qText = `A is ${a} cm taller than B. B is ${b} cm taller than C. How much taller is A than C?`;
+      const correct = `${a + b} cm`;
+      const { options: opts, letter } = shuffleMcqOptions(rng, correct, [
+        `${a} cm`,
+        `${b} cm`,
+        `${Math.abs(a - b)} cm`,
+      ]);
+      out.push(
+        makeMcq({
+          id: `${idPrefix}-lo-${i}-ht`,
+          topicSlug: 'competitive-logical',
+          difficulty: 'medium',
+          question_text: qText,
+          options: opts,
+          correctLetter: letter,
+          explanation: null,
+        }),
+      );
+    } else if (mode === 5) {
+      const n = pickInt(rng, 10, 99);
+      const rev = [...String(n)].reverse().join('');
+      const qText = `If ${n} is reversed digit-wise, the result is:`;
+      const correct = rev;
+      const { options: opts, letter } = shuffleMcqOptions(rng, correct, [
+        String(n),
+        String(Number(rev) + 1),
+        String(Number(rev) - 1),
+      ]);
+      out.push(
+        makeMcq({
+          id: `${idPrefix}-lo-${i}-rv`,
+          topicSlug: 'competitive-logical',
+          difficulty: 'medium',
+          question_text: qText,
+          options: opts,
+          correctLetter: letter,
+          explanation: null,
+        }),
+      );
+    } else {
+      const start = pickInt(rng, 2, 12);
+      const step = pickInt(rng, 2, 7);
+      const seq = [start, start + step, start + step * 2, start + step * 3];
+      const next = start + step * 4;
+      const qText = `Find the next term: ${seq.join(', ')}, ?`;
+      const correct = String(next);
+      const { options: opts, letter } = shuffleMcqOptions(rng, correct, [
+        String(next + step),
+        String(next - step),
+        String(start + step),
+      ]);
+      out.push(
+        makeMcq({
+          id: `${idPrefix}-lo-${i}-sq`,
           topicSlug: 'competitive-logical',
           difficulty: 'medium',
           question_text: qText,
