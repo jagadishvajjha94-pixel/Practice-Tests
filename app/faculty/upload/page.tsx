@@ -138,6 +138,19 @@ export default function FacultyUploadPage() {
   const isElevateXExam = isElevateXBuilderTestType(testType);
   const steps = isManualExam ? MANUAL_STEPS : isElevateXExam ? ELEVATEX_STEPS : SYLLABUS_STEPS;
 
+  useEffect(() => {
+    if (isElevateXExam && !usesSlotScheduling) {
+      setUsesSlotScheduling(true);
+      if (scheduleSlots.length === 0) setScheduleSlots(emptySlots());
+    }
+  }, [isElevateXExam, usesSlotScheduling, scheduleSlots.length]);
+
+  const slotSchedulingActive = isElevateXExam || usesSlotScheduling;
+  const slotValidationError = slotSchedulingActive
+    ? validateScheduleSlots(scheduleSlots)
+    : null;
+  const slotsValid = slotValidationError === null;
+
   const needsSyllabus = Boolean(testDef?.requiresSyllabus);
   const detailsValid =
     department.length > 0 &&
@@ -146,7 +159,7 @@ export default function FacultyUploadPage() {
     duration >= 5 &&
     duration <= 180 &&
     (!needsSyllabus || syllabusTopicIds.length > 0) &&
-    (!isElevateXExam || usesSlotScheduling);
+    (!isElevateXExam || slotSchedulingActive);
 
   const canProceedFromQuestions = validQuestionCount > 0;
 
@@ -214,9 +227,17 @@ export default function FacultyUploadPage() {
     setError(null);
     setMessage(null);
     if (!detailsValid) {
-      setError('Please complete exam details (title, branch, and at least one year).');
+      setError('Please complete exam details (title, department, target years, and syllabus if required).');
       setStep('details');
       return;
+    }
+    if (slotSchedulingActive) {
+      const slotErr = validateScheduleSlots(scheduleSlots);
+      if (slotErr) {
+        setError(slotErr);
+        setStep('details');
+        return;
+      }
     }
     const cleanQuestions = (overrideQuestions ?? questions).filter(questionIsValid);
     if (!isElevateXExam && cleanQuestions.length === 0) {
@@ -271,9 +292,35 @@ export default function FacultyUploadPage() {
     }
   };
 
-  const slotsValid = !usesSlotScheduling || validateScheduleSlots(scheduleSlots) === null;
   const canSubmit =
     (isElevateXExam || canProceedFromQuestions) && detailsValid && slotsValid;
+
+  const submitBlockedReason = useMemo(() => {
+    if (!detailsValid) {
+      if (!department) return 'Select your primary department.';
+      if (!title.trim()) return 'Enter an exam title.';
+      if (!years.length) return 'Select at least one target year.';
+      if (needsSyllabus && !syllabusTopicIds.length) return 'Select syllabus topics.';
+      if (isElevateXExam && !slotSchedulingActive) return 'Enable 8-slot scheduling for ElevateX.';
+      return 'Complete all required exam details.';
+    }
+    if (!isElevateXExam && !canProceedFromQuestions) {
+      return 'Draw or generate questions from the bank first.';
+    }
+    if (slotValidationError) return slotValidationError;
+    return null;
+  }, [
+    detailsValid,
+    department,
+    title,
+    years.length,
+    needsSyllabus,
+    syllabusTopicIds.length,
+    isElevateXExam,
+    slotSchedulingActive,
+    canProceedFromQuestions,
+    slotValidationError,
+  ]);
 
   const handleBankQuestionsReady = (qs: FacultyExamQuestion[], warnings: string[]) => {
     setPaperWarnings(warnings);
@@ -298,7 +345,11 @@ export default function FacultyUploadPage() {
     ? { details: true, questions: detailsValid, review: detailsValid && canProceedFromQuestions }
     : isElevateXExam
       ? { details: true, questions: false, review: detailsValid && slotsValid }
-      : { details: true, questions: false, review: canProceedFromQuestions };
+      : {
+          details: true,
+          questions: false,
+          review: canProceedFromQuestions && detailsValid && slotsValid,
+        };
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -405,7 +456,7 @@ export default function FacultyUploadPage() {
           />
 
           <ExamSlotSchedulePanel
-            enabled={isElevateXExam || usesSlotScheduling}
+            enabled={slotSchedulingActive}
             onEnabledChange={(v) => {
               if (isElevateXExam) return;
               setUsesSlotScheduling(v);
@@ -413,7 +464,17 @@ export default function FacultyUploadPage() {
             }}
             slots={scheduleSlots}
             onSlotsChange={setScheduleSlots}
+            lockEnabled={isElevateXExam}
           />
+
+          {slotValidationError ? (
+            <StatusAlert variant="error">{slotValidationError}</StatusAlert>
+          ) : slotSchedulingActive ? (
+            <StatusAlert variant="info">
+              Complete all 8 slots with exam date, start/end time, and at least one student per slot
+              before submitting.
+            </StatusAlert>
+          ) : null}
 
           <Field
             label="Make available to additional branches"
@@ -523,10 +584,15 @@ export default function FacultyUploadPage() {
                     </Button>
                   </>
                 ) : (
-                  <p className="text-sm text-slate-600">
-                    Use <strong>Draw from bank</strong> or <strong>Generate with AI</strong> above, then
-                    submit for admin approval.
-                  </p>
+                  <div className="text-sm text-slate-600 space-y-1">
+                    <p>
+                      Use <strong>Draw from bank</strong> or <strong>Generate with AI</strong> above, then
+                      submit for admin approval.
+                    </p>
+                    {submitBlockedReason ? (
+                      <p className="text-amber-900 text-xs">{submitBlockedReason}</p>
+                    ) : null}
+                  </div>
                 )}
               </>
             )}
@@ -722,6 +788,10 @@ export default function FacultyUploadPage() {
               Complete exam details (title, department, target years) on the previous step before
               submitting.
             </StatusAlert>
+          ) : null}
+
+          {submitBlockedReason && !canSubmit ? (
+            <StatusAlert variant="info">{submitBlockedReason}</StatusAlert>
           ) : null}
 
           <div className="flex justify-between pt-2">

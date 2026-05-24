@@ -33,6 +33,8 @@ type Props = {
   onEnabledChange: (v: boolean) => void;
   slots: ExamScheduleSlotInput[];
   onSlotsChange: (slots: ExamScheduleSlotInput[]) => void;
+  /** When true, slot scheduling cannot be turned off (ElevateX). */
+  lockEnabled?: boolean;
 };
 
 export function ExamSlotSchedulePanel({
@@ -40,6 +42,7 @@ export function ExamSlotSchedulePanel({
   onEnabledChange,
   slots,
   onSlotsChange,
+  lockEnabled = false,
 }: Props) {
   const [activeSlot, setActiveSlot] = useState(1);
   const [importNote, setImportNote] = useState<string | null>(null);
@@ -169,9 +172,11 @@ export function ExamSlotSchedulePanel({
           >
             Clear all rosters
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={() => onEnabledChange(false)}>
-            Disable slots
-          </Button>
+          {lockEnabled ? null : (
+            <Button type="button" variant="ghost" size="sm" onClick={() => onEnabledChange(false)}>
+              Disable slots
+            </Button>
+          )}
         </div>
       </div>
 

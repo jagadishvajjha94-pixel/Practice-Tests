@@ -75,15 +75,17 @@ export async function POST(request: NextRequest) {
   }
 
   const isElevateX = isElevateXBuilderTestType(body.test_type);
+  const usesSlotScheduling = Boolean(body.uses_slot_scheduling) || isElevateX;
+  const scheduleSlots = usesSlotScheduling ? parseScheduleSlotsJson(body.schedule_slots) : [];
   const questions = isElevateX
     ? ELEVATEX_PLACEHOLDER_QUESTIONS
     : parseQuestionsJson(body.questions);
   if (!isElevateX && questions.length === 0) {
     return NextResponse.json({ error: 'Add at least one MCQ question' }, { status: 400 });
   }
-  if (isElevateX && !body.uses_slot_scheduling) {
+  if (isElevateX && scheduleSlots.length === 0) {
     return NextResponse.json(
-      { error: 'ElevateX requires 8-slot scheduling with student roster.' },
+      { error: 'ElevateX requires 8-slot scheduling with student roster in each slot.' },
       { status: 400 },
     );
   }
@@ -132,10 +134,8 @@ export async function POST(request: NextRequest) {
       questionsPerTopic: body.questions_per_topic ?? null,
       status: 'pending',
       autoPublish: false,
-      usesSlotScheduling: Boolean(body.uses_slot_scheduling),
-      scheduleSlots: body.uses_slot_scheduling
-        ? parseScheduleSlotsJson(body.schedule_slots)
-        : undefined,
+      usesSlotScheduling,
+      scheduleSlots: usesSlotScheduling ? scheduleSlots : undefined,
     });
 
     const { data } = await admin
