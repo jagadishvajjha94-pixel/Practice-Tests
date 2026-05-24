@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ElevateXLiveInfo } from '@/components/elevatex/elevatex-live-info';
 import { isElevateXModule } from '@/lib/elevatex';
 import type { PortalExamItem, StudentPortalPayload } from '@/lib/student-portal';
+import type { StudentSlotExamPortalNotice } from '@/lib/exam-schedule-slots';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { COLLEGE } from '@/lib/college-brand';
 
@@ -67,6 +68,7 @@ export function StudentExamsPortal() {
   }, [router]);
 
   const liveExams = data?.live ?? [];
+  const slotNotices = data?.slot_notices ?? [];
   const featured = liveExams[0] ?? null;
 
   return (
@@ -100,6 +102,14 @@ export function StudentExamsPortal() {
               </Card>
             ) : null}
 
+            {slotNotices.length > 0 ? (
+              <div className="space-y-3">
+                {slotNotices.map((notice) => (
+                  <SlotExamNoticeCard key={notice.faculty_exam_request_id} notice={notice} />
+                ))}
+              </div>
+            ) : null}
+
             <FeaturedLiveExamCard exam={featured} />
 
             {liveExams.length > 1 ? (
@@ -131,6 +141,31 @@ export function StudentExamsPortal() {
   );
 }
 
+function SlotExamNoticeCard({ notice }: { notice: StudentSlotExamPortalNotice }) {
+  const isWarning = notice.tone === 'warning';
+  return (
+    <Card
+      className={`p-5 sm:p-6 lux-surface rounded-2xl border ${
+        isWarning
+          ? 'border-amber-300/90 bg-gradient-to-br from-amber-50/95 via-white to-white ring-1 ring-amber-200/60'
+          : 'border-indigo-200/90 bg-gradient-to-br from-indigo-50/90 via-white to-white ring-1 ring-indigo-200/50'
+      }`}
+    >
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">
+        {notice.exam_title}
+      </p>
+      <p
+        className={`text-base sm:text-lg font-semibold leading-snug ${
+          isWarning ? 'text-amber-950' : 'text-[#0c2340]'
+        }`}
+      >
+        {notice.headline}
+      </p>
+      <p className="text-sm text-slate-700 mt-2 leading-relaxed">{notice.detail}</p>
+    </Card>
+  );
+}
+
 function FeaturedLiveExamCard({ exam }: { exam: PortalExamItem | null }) {
   if (!exam) {
     return (
@@ -139,8 +174,8 @@ function FeaturedLiveExamCard({ exam }: { exam: PortalExamItem | null }) {
           No live examination right now
         </p>
         <p className="text-sm text-slate-600 mt-3 max-w-md mx-auto leading-relaxed">
-          When your exam cell opens a test window for your department, it will appear here with a
-          start button. This page refreshes automatically every 15 seconds.
+          When your examination cell opens your assigned slot, the start button will appear here.
+          This page refreshes automatically every 15 seconds.
         </p>
       </Card>
     );
@@ -159,6 +194,12 @@ function FeaturedLiveExamCard({ exam }: { exam: PortalExamItem | null }) {
           <h2 className="text-2xl sm:text-[1.75rem] font-bold text-[#0c2340] leading-tight font-[family-name:var(--font-display),ui-serif,Georgia,serif]">
             {exam.title}
           </h2>
+          {exam.slot_number ? (
+            <p className="text-sm font-semibold text-emerald-800 mt-2">
+              Your slot: Slot {exam.slot_number}
+              {exam.slot_window_label ? ` · ${exam.slot_window_label}` : ''} · Live now
+            </p>
+          ) : null}
           {exam.badge ? <p className="text-sm text-slate-500 mt-1">{exam.badge}</p> : null}
         </div>
       </div>

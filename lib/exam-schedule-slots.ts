@@ -3,6 +3,7 @@ import { rollNumberFromUser } from '@/lib/admin/roll-number';
 import {
   isScheduleWindowOpen,
   scheduleMatchesStudent,
+  scheduleStartMs,
   type ExamScheduleRow,
 } from '@/lib/exam-schedule';
 
@@ -621,4 +622,236 @@ export function filterSchedulesForStudentSlots(
     (s) => (s as ExamScheduleRow & { slot_number?: number }).slot_number === assignedSlotNumber,
   );
   return slotSchedules.length > 0 ? slotSchedules : schedules;
+}
+
+export type StudentSlotExamPortalNotice = {
+  faculty_exam_request_id: string;
+  exam_title: string;
+  assigned_slot: number;
+  headline: string;
+  detail: string;
+  tone: 'info' | 'warning';
+};
+
+export function formatSlotWindowLabel(slot: {
+  exam_date?: string;
+  start_time?: string;
+  end_time?: string;
+  starts_at?: string;
+  ends_at?: string | null;
+}): string {
+  if (slot.exam_date?.trim() && slot.start_time?.trim() && slot.end_time?.trim()) {
+    const date = new Date(`${slot.exam_date.trim()}T12:00:00`).toLocaleDateString(undefined, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    return `${date} · ${slot.start_time.trim()}–${slot.end_time.trim()}`;
+  }
+
+  if (slot.starts_at) {
+    const start = new Date(slot.starts_at);
+    if (!Number.isNaN(start.getTime())) {
+      const startLabel = start.toLocaleString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      if (slot.ends_at) {
+        const end = new Date(slot.ends_at);
+        if (!Number.isNaN(end.getTime())) {
+          const endLabel = end.toLocaleString(undefined, {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          return `${startLabel} – ${endLabel}`;
+        }
+      }
+      return startLabel;
+    }
+  }
+
+  return 'See examination schedule';
+}
+
+function scheduleSlotNumber(schedule: ExamScheduleRow): number | null {
+  const direct = Number((schedule as ExamScheduleRow & { slot_number?: number }).slot_number);
+  if (Number.isFinite(direct) && direct >= 1) return Math.floor(direct);
+  const match = schedule.title.match(/Slot\s+(\d+)/i);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? Math.floor(parsed) : null;
+}
+
+/** Portal card when the student's assigned slot is not open (includes wrong-slot-live case). */
+export function resolveStudentSlotPortalNotice(input: {
+  examTitle: string;
+  facultyExamRequestId: string;
+  assignedSlot: number;
+  windowLabel: string;
+  mySchedule: ExamScheduleRow | null;
+  relatedSchedules: ExamScheduleRow[];
+  now?: number;
+}): StudentSlotExamPortalNotice | null {
+  const now = input.now ?? Date.now();
+  const slotNum = input.assignedSlot;
+  const windowLabel = input.windowLabel.trim() || 'See examination schedule';
+  const headlineBase = `Your slot: Slot ${slotNum} · ${windowLabel}`;
+
+  const mySchedule =
+    input.mySchedule ??
+    input.relatedSchedules.find((s) => scheduleSlotNumber(s) === slotNum) ??
+    null;
+
+  if (mySchedule && isScheduleWindowOpen(mySchedule, now)) {
+    return null;
+  }
+
+  const liveSchedules = input.relatedSchedules.filter((s) => isScheduleWindowOpen(s, now));
+  const otherLive = liveSchedules.find((s) => scheduleSlotNumber(s) !== slotNum);
+
+  if (otherLive) {
+    const otherNum = scheduleSlotNumber(otherLive) ?? '?';
+    return {
+      faculty_exam_request_id: input.facultyExamRequestId,
+      exam_title: input.examTitle,
+      assigned_slot: slotNum,
+      headline: `${headlineBase} · Not live yet`,
+      detail: `Slot ${otherNum} is live right now. You can only start this exam during your assigned slot (Slot ${slotNum}).`,
+      tone: 'warning',
+    };
+  }
+
+  if (!mySchedule) {
+    return {
+      faculty_exam_request_id: input.facultyExamRequestId,
+      exam_title: input.examTitle,
+      assigned_slot: slotNum,
+      headline: `${headlineBase} · Not live yet`,
+      detail:
+        'Your slot schedule is not published yet. Wait for the examination cell to open Slot ' +
+        `${slotNum}.`,
+      tone: 'info',
+    };
+  }
+
+  if (mySchedule.status !== 'live') {
+    return {
+      faculty_exam_request_id: input.facultyExamRequestId,
+      exam_title: input.examTitle,
+      assigned_slot: slotNum,
+      headline: `${headlineBase} · Not live yet`,
+      detail: `Slot ${slotNum} has not been opened by the examination cell. Check back at your slot time.`,
+      tone: 'info',
+    };
+  }
+
+  const start = scheduleStartMs(mySchedule.starts_at);
+  if (now < start) {
+    return {
+      faculty_exam_request_id: input.facultyExamRequestId,
+      exam_title: input.examTitle,
+      assigned_slot: slotNum,
+      headline: `${headlineBase} · Not started yet`,
+      detail: `Opens ${new Date(mySchedule.starts_at).toLocaleString()}. Log in at your slot time to begin.`,
+      tone: 'info',
+    };
+  }
+
+  return {
+    faculty_exam_request_id: input.facultyExamRequestId,
+    exam_title: input.examTitle,
+    assigned_slot: slotNum,
+    headline: `${headlineBase} · Window closed`,
+    detail: 'Your slot time has ended. Contact your faculty or the examination cell if you need help.',
+    tone: 'info',
+  };
+}
+
+export async function buildStudentSlotExamPortalNotices(
+  admin: SupabaseClient,
+  input: {
+    schedules: ExamScheduleRow[];
+    department: string;
+    year: string;
+    rollNumber: string;
+    examTitlesByRequestId: Map<string, string>;
+    now?: number;
+  },
+): Promise<StudentSlotExamPortalNotice[]> {
+  const roll = normalizeRoll(input.rollNumber);
+  if (!roll) return [];
+
+  const byRequest = new Map<string, ExamScheduleRow[]>();
+  for (const schedule of input.schedules) {
+    const requestId = schedule.faculty_exam_request_id;
+    if (!requestId) continue;
+    const list = byRequest.get(requestId) ?? [];
+    list.push(schedule);
+    byRequest.set(requestId, list);
+  }
+
+  if (byRequest.size === 0) return [];
+
+  const requestIds = [...byRequest.keys()];
+  const { data: requestRows } = await admin
+    .from('faculty_exam_requests')
+    .select('id, title, uses_slot_scheduling')
+    .in('id', requestIds);
+
+  const slotRequestIds = new Set(
+    (requestRows ?? [])
+      .filter((row) => Boolean(row.uses_slot_scheduling))
+      .map((row) => String(row.id)),
+  );
+
+  const notices: StudentSlotExamPortalNotice[] = [];
+
+  for (const requestId of requestIds) {
+    if (!slotRequestIds.has(requestId)) continue;
+
+    const related = byRequest.get(requestId) ?? [];
+    if (!related.some((s) => scheduleMatchesStudent(s, input.department, input.year))) {
+      continue;
+    }
+
+    const assignment = await findStudentSlotAssignment(admin, requestId, roll);
+    if (!assignment) continue;
+
+    const { slots } = await loadSlotsForRequest(admin, requestId);
+    const parsed = enrichScheduleSlots(slots);
+    const mySlotConfig = parsed.find((s) => s.slot_number === assignment.slot_number);
+    const windowLabel = mySlotConfig
+      ? formatSlotWindowLabel(mySlotConfig)
+      : formatSlotWindowLabel({
+          starts_at: related.find((s) => scheduleSlotNumber(s) === assignment.slot_number)
+            ?.starts_at,
+          ends_at:
+            related.find((s) => scheduleSlotNumber(s) === assignment.slot_number)?.ends_at ?? null,
+        });
+
+    const mySchedule =
+      related.find((s) => scheduleSlotNumber(s) === assignment.slot_number) ?? null;
+
+    const examTitle =
+      input.examTitlesByRequestId.get(requestId) ??
+      requestRows?.find((r) => String(r.id) === requestId)?.title ??
+      'Department examination';
+
+    const notice = resolveStudentSlotPortalNotice({
+      examTitle: String(examTitle),
+      facultyExamRequestId: requestId,
+      assignedSlot: assignment.slot_number,
+      windowLabel,
+      mySchedule,
+      relatedSchedules: related,
+      now: input.now,
+    });
+
+    if (notice) notices.push(notice);
+  }
+
+  return notices.sort((a, b) => a.assigned_slot - b.assigned_slot);
 }

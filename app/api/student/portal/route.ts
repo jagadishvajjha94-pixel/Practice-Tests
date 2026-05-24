@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { partitionEvaloraModulesForStudent, type EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
 import { partitionSchedulesForStudent, type ExamScheduleRow } from '@/lib/exam-schedule';
-import { findStudentSlotAssignment } from '@/lib/exam-schedule-slots';
+import { findStudentSlotAssignment, buildStudentSlotExamPortalNotices } from '@/lib/exam-schedule-slots';
 import { rollNumberFromUser } from '@/lib/admin/roll-number';
 import { syncExpiredLiveExamSchedules } from '@/lib/exam-schedule-sync';
 import { listLiveFacultyExamsForStudent } from '@/lib/live-faculty-exams';
@@ -21,6 +21,7 @@ export async function GET() {
         evaloraUpcoming: [],
         facultyLive: [],
         facultyUpcoming: [],
+        slotNotices: [],
         department: null,
         year: null,
       }),
@@ -45,6 +46,7 @@ export async function GET() {
         evaloraUpcoming: [],
         facultyLive: [],
         facultyUpcoming: [],
+        slotNotices: [],
         department,
         year,
         message: 'Complete your profile (department and year) to see scheduled examinations.',
@@ -162,12 +164,34 @@ export async function GET() {
   }
   const facultyLive = Array.from(mergedLiveByTest.values());
 
+  const examTitlesByRequestId = new Map<string, string>();
+  for (const row of approvedRequests ?? []) {
+    examTitlesByRequestId.set(String(row.id), String(row.title));
+  }
+  for (const schedule of schedules) {
+    const reqId = schedule.faculty_exam_request_id;
+    if (!reqId || examTitlesByRequestId.has(reqId)) continue;
+    const baseTitle = schedule.title.split(' · Slot')[0]?.trim();
+    if (baseTitle) examTitlesByRequestId.set(reqId, baseTitle);
+  }
+
+  const slotNotices = rollNumber
+    ? await buildStudentSlotExamPortalNotices(admin, {
+        schedules,
+        department,
+        year,
+        rollNumber,
+        examTitlesByRequestId,
+      })
+    : [];
+
   return NextResponse.json({
     ...buildStudentPortalPayload({
       evaloraLive: evalora.live,
       evaloraUpcoming: evalora.upcoming,
       facultyLive,
       facultyUpcoming: faculty.upcoming,
+      slotNotices,
       department,
       year,
     }),

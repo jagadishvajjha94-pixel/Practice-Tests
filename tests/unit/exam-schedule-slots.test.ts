@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ExamScheduleRow } from '@/lib/exam-schedule';
 import {
   EXAM_SLOT_CAPACITY_DEFAULT,
   EXAM_SLOT_COUNT,
@@ -7,8 +8,34 @@ import {
   normalizeRoll,
   parseRosterCsv,
   parseScheduleSlotsJson,
+  resolveStudentSlotPortalNotice,
   validateScheduleSlots,
 } from '@/lib/exam-schedule-slots';
+
+function mockSchedule(
+  slot: number,
+  status: ExamScheduleRow['status'],
+  startsAt: string,
+  endsAt: string,
+): ExamScheduleRow {
+  return {
+    id: `sched-slot-${slot}`,
+    title: `Midterm · Slot ${slot}`,
+    description: null,
+    notice: null,
+    faculty_exam_request_id: 'req-1',
+    test_id: 'test-1',
+    status,
+    starts_at: startsAt,
+    ends_at: endsAt,
+    target_departments: ['CSE'],
+    target_years: ['3'],
+    slot_number: slot,
+    created_by: null,
+    created_at: '2026-06-01T00:00:00Z',
+    updated_at: '2026-06-01T00:00:00Z',
+  };
+}
 
 function makeValidSlots(): ExamScheduleSlotInput[] {
   return Array.from({ length: EXAM_SLOT_COUNT }, (_, i) => ({
@@ -83,6 +110,86 @@ describe('parseScheduleSlotsJson', () => {
     ]);
     expect(slots.map((s) => s.slot_number)).toEqual([1, 2]);
     expect(slots[0].roster[0].roll_number).toBe('A1');
+  });
+});
+
+describe('resolveStudentSlotPortalNotice', () => {
+  const windowLabel = '15 Jun 2026, 10:00 – 12:00';
+  const now = new Date('2026-06-15T10:30:00Z').getTime();
+
+  it('returns null when the student slot window is open', () => {
+    const mySchedule = mockSchedule(
+      4,
+      'live',
+      '2026-06-15T09:00:00Z',
+      '2026-06-15T12:00:00Z',
+    );
+    expect(
+      resolveStudentSlotPortalNotice({
+        examTitle: 'Midterm',
+        facultyExamRequestId: 'req-1',
+        assignedSlot: 4,
+        windowLabel,
+        mySchedule,
+        relatedSchedules: [mySchedule],
+        now,
+      }),
+    ).toBeNull();
+  });
+
+  it('warns when another slot is live (Slot 4 student during Slot 1)', () => {
+    const slot1Live = mockSchedule(
+      1,
+      'live',
+      '2026-06-15T09:00:00Z',
+      '2026-06-15T12:00:00Z',
+    );
+    const slot4Scheduled = mockSchedule(
+      4,
+      'scheduled',
+      '2026-06-15T14:00:00Z',
+      '2026-06-15T16:00:00Z',
+    );
+
+    const notice = resolveStudentSlotPortalNotice({
+      examTitle: 'Midterm',
+      facultyExamRequestId: 'req-1',
+      assignedSlot: 4,
+      windowLabel,
+      mySchedule: slot4Scheduled,
+      relatedSchedules: [slot1Live, slot4Scheduled],
+      now,
+    });
+
+    expect(notice?.headline).toBe(
+      `Your slot: Slot 4 · ${windowLabel} · Not live yet`,
+    );
+    expect(notice?.detail).toContain('Slot 1 is live right now');
+    expect(notice?.detail).toContain('Slot 4');
+    expect(notice?.tone).toBe('warning');
+  });
+
+  it('shows not live yet when the assigned slot is not opened', () => {
+    const slot2Scheduled = mockSchedule(
+      2,
+      'scheduled',
+      '2026-06-15T14:00:00Z',
+      '2026-06-15T16:00:00Z',
+    );
+
+    const notice = resolveStudentSlotPortalNotice({
+      examTitle: 'Midterm',
+      facultyExamRequestId: 'req-1',
+      assignedSlot: 2,
+      windowLabel,
+      mySchedule: slot2Scheduled,
+      relatedSchedules: [slot2Scheduled],
+      now,
+    });
+
+    expect(notice?.headline).toContain('Slot 2');
+    expect(notice?.headline).toContain('Not live yet');
+    expect(notice?.detail).toContain('Slot 2 has not been opened');
   });
 });
 

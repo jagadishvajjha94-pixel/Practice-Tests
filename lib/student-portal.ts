@@ -1,5 +1,7 @@
 import type { StudentEvaloraModule } from '@/lib/evalora/module-schedule';
 import type { StudentExamSchedule } from '@/lib/exam-schedule';
+import type { StudentSlotExamPortalNotice } from '@/lib/exam-schedule-slots';
+import { formatSlotWindowLabel } from '@/lib/exam-schedule-slots';
 
 export type PortalExamItem = {
   id: string;
@@ -15,12 +17,15 @@ export type PortalExamItem = {
   badge?: string;
   duration_minutes?: number | null;
   module_key?: string;
+  slot_number?: number | null;
+  slot_window_label?: string | null;
 };
 
 export type StudentPortalPayload = {
   featured: PortalExamItem | null;
   live: PortalExamItem[];
   upcoming: PortalExamItem[];
+  slot_notices: StudentSlotExamPortalNotice[];
   department: string | null;
   year: string | null;
   message?: string;
@@ -44,6 +49,11 @@ function fromEvalora(mod: StudentEvaloraModule): PortalExamItem {
 }
 
 function fromFaculty(exam: StudentExamSchedule): PortalExamItem {
+  const slotNumber =
+    exam.slot_number != null && Number.isFinite(Number(exam.slot_number))
+      ? Number(exam.slot_number)
+      : null;
+
   return {
     id: exam.id,
     source: 'faculty',
@@ -57,6 +67,10 @@ function fromFaculty(exam: StudentExamSchedule): PortalExamItem {
     icon: '🏫',
     badge: exam.duration_minutes ? `${exam.duration_minutes} min` : undefined,
     duration_minutes: exam.duration_minutes,
+    slot_number: slotNumber,
+    slot_window_label: slotNumber
+      ? formatSlotWindowLabel({ starts_at: exam.starts_at, ends_at: exam.ends_at })
+      : null,
   };
 }
 
@@ -65,6 +79,7 @@ export function buildStudentPortalPayload(input: {
   evaloraUpcoming: StudentEvaloraModule[];
   facultyLive: StudentExamSchedule[];
   facultyUpcoming: StudentExamSchedule[];
+  slotNotices?: StudentSlotExamPortalNotice[];
   department: string | null;
   year: string | null;
   message?: string;
@@ -88,6 +103,7 @@ export function buildStudentPortalPayload(input: {
     featured,
     live,
     upcoming,
+    slot_notices: input.slotNotices ?? [],
     department: input.department,
     year: input.year,
     message: input.message,
