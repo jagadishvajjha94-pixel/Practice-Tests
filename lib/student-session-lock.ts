@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isStudentSessionLockSchemaError } from '@/lib/ensure-student-session-lock';
 
 /** No heartbeat for this long → session lock is released automatically. */
 export const STUDENT_SESSION_STALE_MS = 45 * 60 * 1000;
@@ -40,10 +41,11 @@ export async function purgeStaleStudentSessions(
   admin: SupabaseClient,
   now = Date.now(),
 ): Promise<void> {
-  await admin
+  const { error } = await admin
     .from('student_active_sessions')
     .delete()
     .lt('last_seen_at', staleCutoffIso(now));
+  if (error && isStudentSessionLockSchemaError(error)) return;
 }
 
 export async function getActiveStudentSession(
@@ -56,18 +58,29 @@ export async function getActiveStudentSession(
 
   await purgeStaleStudentSessions(admin, now);
 
-  const { data } = await admin
+  const { data, error } = await admin
     .from('student_active_sessions')
     .select('*')
     .eq('roll_number', roll)
     .maybeSingle();
 
+  if (error) {
+    if (isStudentSessionLockSchemaError(error)) return null;
+    return null;
+  }
+
   return (data as StudentSessionRow | null) ?? null;
 }
 
 export type ClaimStudentSessionResult =
-  | { ok: true }
+  | { ok: true; lockActive: boolean }
   | { ok: false; code: 'already_logged_in'; message: string };
+
+async function sessionLockTableReady(admin: SupabaseClient): Promise<boolean> {
+  const { error } = await admin.from('student_active_sessions').select('roll_number').limit(1);
+  if (!error) return true;
+  return !isStudentSessionLockSchemaError(error);
+}
 
 export async function claimStudentSession(
   admin: SupabaseClient,
@@ -79,6 +92,12 @@ export async function claimStudentSession(
   const roll = normalizeStudentRoll(rollNumber);
   if (!roll || !userId || !sessionId) {
     return { ok: false, code: 'already_logged_in', message: 'Unable to start session.' };
+  }
+
+  const lockReady = await sessionLockTableReady(admin);
+  if (!lockReady) {
+    console.warn('[student-session-lock] student_active_sessions table missing — login allowed without lock');
+    return { ok: true, lockActive: false };
   }
 
   await purgeStaleStudentSessions(admin, now);
@@ -107,6 +126,11 @@ export async function claimStudentSession(
   );
 
   if (error) {
+    if (isStudentSessionLockSchemaError(error)) {
+      console.warn('[student-session-lock] upsert failed — table missing, allowing login');
+      return { ok: true, lockActive: false };
+    }
+    console.error('[student-session-lock] upsert failed:', error.message);
     return {
       ok: false,
       code: 'already_logged_in',
@@ -114,7 +138,7 @@ export async function claimStudentSession(
     };
   }
 
-  return { ok: true };
+  return { ok: true, lockActive: true };
 }
 
 export async function touchStudentSession(
@@ -125,11 +149,13 @@ export async function touchStudentSession(
   const roll = normalizeStudentRoll(rollNumber);
   if (!roll || !sessionId) return;
 
-  await admin
+  const { error } = await admin
     .from('student_active_sessions')
     .update({ last_seen_at: new Date().toISOString() })
     .eq('roll_number', roll)
     .eq('session_id', sessionId);
+
+  if (error && isStudentSessionLockSchemaError(error)) return;
 }
 
 export async function releaseStudentSession(
@@ -144,7 +170,8 @@ export async function releaseStudentSession(
   if (sessionId) {
     query = query.eq('session_id', sessionId);
   }
-  await query;
+  const { error } = await query;
+  if (error && isStudentSessionLockSchemaError(error)) return;
 }
 
 export const STUDENT_ALREADY_LOGGED_IN_MESSAGE =

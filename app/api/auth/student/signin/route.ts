@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 import { studentAuthEmail } from '@/lib/college-auth';
 import { getServiceSupabase } from '@/lib/server-auth';
+import { ensureStudentSessionLockTableIfPossible } from '@/lib/ensure-student-session-lock';
 import {
   claimStudentSession,
   sessionIdFromAccessToken,
@@ -86,7 +87,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unable to start session.' }, { status: 500 });
   }
 
-  const claim = await claimStudentSession(admin, rollNumber, data.user.id, sessionId);
+  let claim = await claimStudentSession(admin, rollNumber, data.user.id, sessionId);
+  if (!claim.ok && /unable to register login session/i.test(claim.message)) {
+    const ensured = await ensureStudentSessionLockTableIfPossible();
+    if (ensured) {
+      claim = await claimStudentSession(admin, rollNumber, data.user.id, sessionId);
+    }
+  }
   if (!claim.ok) {
     await supabase.auth.signOut();
     return NextResponse.json(
