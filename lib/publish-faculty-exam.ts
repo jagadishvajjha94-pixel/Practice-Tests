@@ -19,7 +19,11 @@ import {
   rebuildSlotsFromRosterEntries,
   syncExamStudentRosters,
 } from '@/lib/exam-schedule-slots';
-import { provisionStudentsFromSlotRoster } from '@/lib/roster-student-provision';
+import {
+  assertRosterProvisionSucceeded,
+  provisionStudentsFromSlotRoster,
+} from '@/lib/roster-student-provision';
+import { enrichSlotsWithPasswords } from '@/lib/roster-credentials-export';
 
 const DEPT_EXAMS_SLUG = 'department-exams';
 
@@ -84,15 +88,19 @@ async function finalizeSlotSchedulesOnPublish(
   slots = filterConfiguredScheduleSlots(slots);
   if (slots.length === 0) return;
 
+  slots = enrichSlotsWithPasswords(slots);
+
   const targetDepartments = Array.from(
     new Set([String(request.department), ...((request.target_branches as string[]) ?? [])]),
   );
 
-  await provisionStudentsFromSlotRoster(admin, {
+  const rosterStudents = slots.reduce((n, slot) => n + slot.roster.length, 0);
+  const provision = await provisionStudentsFromSlotRoster(admin, {
     slots,
     defaultDepartment: String(request.department),
     defaultYears: (request.target_years as string[]) ?? [],
   });
+  assertRosterProvisionSucceeded(provision, rosterStudents);
 
   const { data: existingSchedules } = await admin
     .from('exam_schedules')

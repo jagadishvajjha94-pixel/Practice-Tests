@@ -64,6 +64,27 @@ export function ElevateXSlotAdminSection() {
       prev.includes(year) ? prev.filter((y) => y !== year) : [...prev, year],
     );
 
+  const reprovisionLogins = async () => {
+    if (!state?.requestId) return;
+    setActing(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch('/api/admin/elevatex', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'provision_logins', requestId: state.requestId }),
+      });
+      const json = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) throw new Error(json.error ?? 'Could not create logins');
+      setSuccess(json.message ?? 'Student logins updated.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create logins');
+    } finally {
+      setActing(false);
+    }
+  };
+
   const publish = async () => {
     setError(null);
     setSuccess(null);
@@ -164,7 +185,8 @@ export function ElevateXSlotAdminSection() {
           </h3>
           <p className="text-sm text-slate-600 mt-1 max-w-2xl">
             Upload slot-wise student rosters. Publish when Slot 1 is ready — it goes live immediately.
-            Slots 2–8 can be added later; only one slot is live at a time.
+            Students sign in with <strong>roll number</strong> (not email) and the password from your CSV or
+            the default (<code className="text-xs">Exam2026</code>). Download the credentials CSV after import.
           </p>
         </div>
         <ElevateXLiveInfo compact />
@@ -309,10 +331,19 @@ export function ElevateXSlotAdminSection() {
             {acting ? 'Publishing…' : 'Publish ElevateX & open Slot 1'}
           </Button>
         ) : (
-          <p className="text-sm text-slate-600">
-            ElevateX is published. Save additional slots above, then go live one at a time (Slot 1 →
-            2 → …).
-          </p>
+          <>
+            <p className="text-sm text-slate-600">
+              ElevateX is published. Save additional slots above, then go live one at a time (Slot 1 →
+              2 → …).
+            </p>
+            <Button
+              variant="outline"
+              disabled={acting}
+              onClick={() => void reprovisionLogins()}
+            >
+              {acting ? 'Working…' : 'Reset student logins from roster'}
+            </Button>
+          </>
         )}
         <Link href="/admin/exam-schedules">
           <Button variant="outline">Exam schedules →</Button>

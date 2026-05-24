@@ -109,14 +109,16 @@ export async function provisionStudentsFromSlotRoster(
 
   await mapConcurrent(students, 8, async (student) => {
     const roll = student.roll_number;
-    const email = (student.email?.trim() || studentAuthEmail(roll)).toLowerCase();
+    /** Login always uses roll → studentAuthEmail(roll); CSV "email" is contact only. */
+    const authEmail = studentAuthEmail(roll).toLowerCase();
+    const contactEmail = student.email?.trim().toLowerCase();
     const branch = (student.branch?.trim() || input.defaultDepartment).trim();
     const yearRaw = student.academic_year?.trim() || defaultYear;
     const academicYear = isValidAcademicYear(yearRaw) ? yearRaw : defaultYear;
     const password = student.password?.trim() || defaultPassword;
     const fullName = student.student_name?.trim() || roll;
 
-    const metadata = {
+    const metadata: Record<string, unknown> = {
       role: 'student',
       roll_number: roll,
       department: branch,
@@ -129,12 +131,33 @@ export async function provisionStudentsFromSlotRoster(
         roll_number: roll,
       },
     };
+    if (contactEmail && contactEmail !== authEmail) {
+      metadata.contact_email = contactEmail;
+    }
 
-    const existing = usersByEmail.get(email);
+    let existing = usersByEmail.get(authEmail);
+    if (!existing?.id && contactEmail && contactEmail !== authEmail) {
+      const legacy = usersByEmail.get(contactEmail);
+      if (legacy?.id) {
+        const { error: migrateErr } = await admin.auth.admin.updateUserById(legacy.id, {
+          email: authEmail,
+          password,
+          email_confirm: true,
+          user_metadata: metadata,
+        });
+        if (!migrateErr) {
+          usersByEmail.delete(contactEmail);
+          usersByEmail.set(authEmail, { id: legacy.id });
+          existing = legacy;
+        }
+      }
+    }
+
     let userId: string;
 
     if (existing?.id) {
       const { error: updateError } = await admin.auth.admin.updateUserById(existing.id, {
+        email: authEmail,
         password,
         email_confirm: true,
         user_metadata: metadata,
@@ -148,7 +171,7 @@ export async function provisionStudentsFromSlotRoster(
       result.updated += 1;
     } else {
       const { data: created, error: createError } = await admin.auth.admin.createUser({
-        email,
+        email: authEmail,
         password,
         email_confirm: true,
         user_metadata: metadata,
@@ -159,14 +182,14 @@ export async function provisionStudentsFromSlotRoster(
         return;
       }
       userId = created.user.id;
-      usersByEmail.set(email, { id: userId });
+      usersByEmail.set(authEmail, { id: userId });
       result.created += 1;
     }
 
     const { error: profileError } = await admin.from('users').upsert(
       {
         id: userId,
-        email,
+        email: authEmail,
         full_name: fullName,
         branch,
         academic_year: academicYear,
@@ -184,4 +207,19 @@ export async function provisionStudentsFromSlotRoster(
   });
 
   return result;
+}
+
+/** Fail publish when no roster logins could be created (surfaces misconfig to admin). */
+export function assertRosterProvisionSucceeded(
+  result: RosterProvisionResult,
+  studentCount: number,
+): void {
+  if (studentCount === 0) return;
+  if (result.created + result.updated > 0) return;
+  const detail = result.errors.slice(0, 5).join(' ');
+  throw new Error(
+    detail
+      ? `Could not create student login accounts: ${detail}`
+      : 'Could not create student login accounts. Check Supabase service role key and Auth settings.',
+  );
 }

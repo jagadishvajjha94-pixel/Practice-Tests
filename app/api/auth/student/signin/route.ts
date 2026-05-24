@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 import { studentAuthEmail } from '@/lib/college-auth';
+import { normalizeRoll } from '@/lib/exam-schedule-slots';
 import { getServiceSupabase } from '@/lib/server-auth';
 import { ensureStudentSessionLockTableIfPossible } from '@/lib/ensure-student-session-lock';
 import {
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const rollNumber = body.rollNumber?.trim() ?? '';
+  const rollNumber = normalizeRoll(body.rollNumber ?? '');
   const password = body.password ?? '';
   const department = body.department?.trim() ?? '';
   const year = body.year?.trim() ?? '';

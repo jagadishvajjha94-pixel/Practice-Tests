@@ -17,6 +17,7 @@ import {
   ELEVATEX_PLACEHOLDER_QUESTIONS,
   isElevateXBuilderTestType,
 } from '@/lib/exam-builder/elevatex-exam';
+import { enrichSlotsWithPasswords } from '@/lib/roster-credentials-export';
 
 export type CreateExamRequestInput = {
   creatorUserId: string;
@@ -135,10 +136,15 @@ export async function createFacultyExamRequestRecord(
     insertPayload.department_group_id = groupId;
   }
 
+  let scheduleSlotsForDb = input.scheduleSlots;
+  if (input.usesSlotScheduling && scheduleSlotsForDb?.length) {
+    scheduleSlotsForDb = enrichSlotsWithPasswords(scheduleSlotsForDb);
+  }
+
   if (input.usesSlotScheduling) {
     insertPayload.uses_slot_scheduling = true;
-    if (input.scheduleSlots?.length) {
-      insertPayload.schedule_slots_json = input.scheduleSlots;
+    if (scheduleSlotsForDb?.length) {
+      insertPayload.schedule_slots_json = scheduleSlotsForDb;
     }
   }
 
@@ -200,9 +206,9 @@ export async function createFacultyExamRequestRecord(
 
   const requestId = row.id as string;
 
-  if (input.usesSlotScheduling && input.scheduleSlots?.length) {
+  if (input.usesSlotScheduling && scheduleSlotsForDb?.length) {
     try {
-      await persistSlotRoster(admin, requestId, input.scheduleSlots);
+      await persistSlotRoster(admin, requestId, scheduleSlotsForDb);
     } catch (err) {
       console.warn('exam_slot_roster_entries persist skipped:', err);
     }

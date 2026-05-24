@@ -15,9 +15,15 @@ import {
   validateElevateXPublishSlots,
   validateOptionalConfiguredSlots,
   validateSingleScheduleSlot,
+  filterConfiguredScheduleSlots,
 } from '@/lib/exam-schedule-slots';
 import type { ExamScheduleRow } from '@/lib/exam-schedule';
-import { provisionStudentsFromSlotRoster } from '@/lib/roster-student-provision';
+import {
+  assertRosterProvisionSucceeded,
+  provisionStudentsFromSlotRoster,
+  type RosterProvisionResult,
+} from '@/lib/roster-student-provision';
+import { enrichSlotsWithPasswords } from '@/lib/roster-credentials-export';
 
 export type ElevateXAdminSlotStatus = {
   slot_number: number;
@@ -146,9 +152,11 @@ export async function publishElevateXFromAdmin(
     );
   }
 
+  const enrichedSlots = enrichSlotsWithPasswords(input.scheduleSlots);
+
   const slotErr =
-    validateElevateXPublishSlots(input.scheduleSlots) ??
-    validateOptionalConfiguredSlots(input.scheduleSlots);
+    validateElevateXPublishSlots(enrichedSlots) ??
+    validateOptionalConfiguredSlots(enrichedSlots);
   if (slotErr) throw new Error(slotErr);
 
   const result = await createFacultyExamRequestRecord(admin, {
@@ -163,7 +171,7 @@ export async function publishElevateXFromAdmin(
     status: 'approved',
     autoPublish: true,
     usesSlotScheduling: true,
-    scheduleSlots: input.scheduleSlots,
+    scheduleSlots: enrichedSlots,
     goLiveSlotNumbers: input.openSlot1Now ? [1] : undefined,
     goLiveNotice: input.notice ?? `${ELEVATEX_EXAM_NAME} is now live for your slot.`,
   });
@@ -230,13 +238,15 @@ export async function saveElevateXSlot(
     })
     .eq('id', input.requestId);
 
-  await persistSlotRosterForSlot(admin, input.requestId, input.slot);
+  const enrichedSlot = enrichSlotsWithPasswords([input.slot])[0]!;
+  await persistSlotRosterForSlot(admin, input.requestId, enrichedSlot);
 
-  await provisionStudentsFromSlotRoster(admin, {
-    slots: [input.slot],
+  const provision = await provisionStudentsFromSlotRoster(admin, {
+    slots: [enrichedSlot],
     defaultDepartment: String(request.department ?? 'All departments'),
     defaultYears: (request.target_years as string[]) ?? [],
   });
+  assertRosterProvisionSucceeded(provision, enrichedSlot.roster.length);
 
   const testId = String(request.published_test_id ?? ELEVATEX_TEST_ID);
   if (!request.published_test_id) {
@@ -316,4 +326,38 @@ export async function goLiveElevateXSlot(
   if (scheduleSlotNumber(liveRow) === 1) {
     await syncElevateXEvaloraModuleFromSchedule(admin, liveRow, adminUserId);
   }
+}
+
+/** Re-create / reset Supabase logins from the published ElevateX roster (fixes CSV login issues). */
+export async function reprovisionElevateXRoster(
+  admin: SupabaseClient,
+  requestId: string,
+): Promise<RosterProvisionResult & { message: string }> {
+  const { data: request, error } = await admin
+    .from('faculty_exam_requests')
+    .select('department, target_years, target_branches, schedule_slots_json')
+    .eq('id', requestId)
+    .maybeSingle();
+
+  if (error || !request) throw new Error('ElevateX exam request not found');
+
+  let slots = enrichSlotsWithPasswords(
+    filterConfiguredScheduleSlots(parseScheduleSlotsJson(request.schedule_slots_json)),
+  );
+  if (slots.length === 0) {
+    throw new Error('No configured slots with rosters to provision.');
+  }
+
+  const rosterStudents = slots.reduce((n, slot) => n + slot.roster.length, 0);
+  const provision = await provisionStudentsFromSlotRoster(admin, {
+    slots,
+    defaultDepartment: String(request.department ?? 'All departments'),
+    defaultYears: (request.target_years as string[]) ?? [],
+  });
+  assertRosterProvisionSucceeded(provision, rosterStudents);
+
+  return {
+    ...provision,
+    message: `Student logins updated: ${provision.created} created, ${provision.updated} passwords reset.`,
+  };
 }

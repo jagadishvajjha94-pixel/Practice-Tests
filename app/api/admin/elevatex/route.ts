@@ -7,6 +7,7 @@ import {
   publishElevateXFromAdmin,
   saveElevateXSlot,
   goLiveElevateXSlot,
+  reprovisionElevateXRoster,
 } from '@/lib/elevatex-admin';
 import { parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
 import { ELEVATEX_EXAM_NAME } from '@/lib/elevatex';
@@ -64,6 +65,15 @@ export async function POST(request: NextRequest) {
         adminUserId: auth.ctx.user.id,
         goLiveNow: Boolean(body.goLiveNow),
       });
+      return NextResponse.json(result);
+    }
+
+    if (action === 'provision_logins') {
+      const requestId = String(body.requestId ?? '');
+      if (!requestId) {
+        return NextResponse.json({ error: 'requestId required' }, { status: 400 });
+      }
+      const result = await reprovisionElevateXRoster(admin, requestId);
       return NextResponse.json(result);
     }
 
