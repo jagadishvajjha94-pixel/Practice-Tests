@@ -1,5 +1,5 @@
 /**
- * Seed 15 ElevateX sample students + go-live placement_full (ElevateX) schedule.
+ * Seed 42 ElevateX Slot 1 test students; remove legacy EX26001–EX26015; go live 10:00 IST today.
  * Usage: node scripts/seed-elevatex-sample.mjs
  * Writes docs/ELEVATEX_SAMPLE_CREDENTIALS.md
  */
@@ -12,27 +12,51 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 
 const EMAIL_DOMAIN = 'ramachandra.edu';
-/** No @ symbol — easier to type; override with ELEVATEX_SAMPLE_PASSWORD in .env.local */
 const DEFAULT_PASSWORD = process.env.ELEVATEX_SAMPLE_PASSWORD || 'ElevateX2026';
 const MODULE_KEY = 'placement_full';
+const SLOT = 1;
+const COUNT = 42;
 
-const STUDENTS = [
-  { roll: 'EX26001', fullName: 'ElevateX Sample 01', department: 'Computer Science Engineering', year: 'III Year' },
-  { roll: 'EX26002', fullName: 'ElevateX Sample 02', department: 'Electronics & Communication Engineering', year: 'III Year' },
-  { roll: 'EX26003', fullName: 'ElevateX Sample 03', department: 'Mechanical Engineering', year: 'III Year' },
-  { roll: 'EX26004', fullName: 'ElevateX Sample 04', department: 'Civil Engineering', year: 'III Year' },
-  { roll: 'EX26005', fullName: 'ElevateX Sample 05', department: 'Computer Science Engineering (Cyber Security)', year: 'III Year' },
-  { roll: 'EX26006', fullName: 'ElevateX Sample 06', department: 'Artificial Intelligence and Data Science', year: 'III Year' },
-  { roll: 'EX26007', fullName: 'ElevateX Sample 07', department: 'Artificial Intelligence & Machine Learning', year: 'III Year' },
-  { roll: 'EX26008', fullName: 'ElevateX Sample 08', department: 'Electrical & Electronics Engineering', year: 'III Year' },
-  { roll: 'EX26009', fullName: 'ElevateX Sample 09', department: 'Computer Science Engineering (Internet of Things)', year: 'III Year' },
-  { roll: 'EX26010', fullName: 'ElevateX Sample 10', department: 'Business Administration', year: 'III Year' },
-  { roll: 'EX26011', fullName: 'ElevateX Sample 11', department: 'Computer Science Engineering', year: 'III Year' },
-  { roll: 'EX26012', fullName: 'ElevateX Sample 12', department: 'Electronics & Communication Engineering', year: 'III Year' },
-  { roll: 'EX26013', fullName: 'ElevateX Sample 13', department: 'Mechanical Engineering', year: 'III Year' },
-  { roll: 'EX26014', fullName: 'ElevateX Sample 14', department: 'Civil Engineering', year: 'III Year' },
-  { roll: 'EX26015', fullName: 'ElevateX Sample 15', department: 'Artificial Intelligence and Data Science', year: 'III Year' },
+const DEPARTMENTS = [
+  'Civil Engineering',
+  'Mechanical Engineering',
+  'Electrical & Electronics Engineering',
+  'Electronics & Communication Engineering',
+  'Computer Science Engineering',
+  'Computer Science Engineering (Cyber Security)',
+  'Computer Science Engineering (Internet of Things)',
+  'Artificial Intelligence and Data Science',
+  'Artificial Intelligence & Machine Learning',
+  'Business Administration',
 ];
+
+const LEGACY_ROLLS = Array.from({ length: 15 }, (_, i) => `EX260${String(i + 1).padStart(2, '0')}`);
+
+const STUDENTS = Array.from({ length: COUNT }, (_, i) => {
+  const n = i + 1;
+  return {
+    roll: `EXS1${String(n).padStart(3, '0')}`,
+    fullName: `ElevateX Slot ${SLOT} Test ${String(n).padStart(2, '0')}`,
+    department: DEPARTMENTS[i % DEPARTMENTS.length],
+    year: 'III Year',
+  };
+});
+
+function todayIsoInIst() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function slot1Window(dateIso) {
+  return {
+    startsAt: new Date(`${dateIso}T10:00:00+05:30`).toISOString(),
+    endsAt: new Date(`${dateIso}T12:00:00+05:30`).toISOString(),
+  };
+}
 
 function loadEnvLocal() {
   const envPath = path.join(ROOT, '.env.local');
@@ -55,14 +79,33 @@ function studentEmail(roll) {
   return `${roll.trim().toLowerCase()}@student.${EMAIL_DOMAIN}`;
 }
 
-async function findUserByEmail(supabaseUrl, serviceKey, email) {
-  const res = await fetch(`${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(email)}`, {
+async function listAllUsers(supabaseUrl, serviceKey) {
+  const res = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1000`, {
     headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
   });
-  if (!res.ok) return null;
+  if (!res.ok) return [];
   const payload = await res.json();
-  const users = payload.users ?? [];
-  return users.find((u) => (u.email || '').toLowerCase() === email.toLowerCase()) ?? null;
+  return payload.users ?? [];
+}
+
+async function deleteLegacy(admin, supabaseUrl, serviceKey) {
+  const users = await listAllUsers(supabaseUrl, serviceKey);
+  const removed = [];
+  for (const roll of LEGACY_ROLLS) {
+    const email = studentEmail(roll);
+    const user = users.find((u) => (u.email || '').toLowerCase() === email.toLowerCase());
+    if (!user?.id) continue;
+    const delRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user.id}`, {
+      method: 'DELETE',
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+    });
+    if (delRes.ok) {
+      await admin.from('users').delete().eq('id', user.id);
+      removed.push(roll);
+      console.log(`  🗑 Removed legacy ${roll}`);
+    }
+  }
+  return removed;
 }
 
 async function upsertStudent(admin, supabaseUrl, serviceKey, student, password) {
@@ -75,9 +118,11 @@ async function upsertStudent(admin, supabaseUrl, serviceKey, student, password) 
     year: student.year,
     academic_year: student.year,
     roll: student.roll,
+    roll_number: student.roll,
   };
 
-  const existing = await findUserByEmail(supabaseUrl, serviceKey, email);
+  const users = await listAllUsers(supabaseUrl, serviceKey);
+  const existing = users.find((u) => (u.email || '').toLowerCase() === email.toLowerCase());
   let userId;
 
   if (existing?.id) {
@@ -131,36 +176,44 @@ async function upsertStudent(admin, supabaseUrl, serviceKey, student, password) 
   return { email, userId };
 }
 
-function writeCredentialsDoc(rows, scheduleId) {
+function writeCredentialsCsv(rows) {
+  const lines = ['roll,email,password,department,year'];
+  for (const r of rows) {
+    const row = [r.roll, r.email, DEFAULT_PASSWORD, r.department, r.year]
+      .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+      .join(',');
+    lines.push(row);
+  }
+  const outPath = path.join(ROOT, 'public', 'elevatex-slot1-credentials.csv');
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  fs.writeFileSync(outPath, lines.join('\n'), 'utf8');
+  return outPath;
+}
+
+function writeCredentialsDoc(rows, scheduleId, slotDate, window) {
   const lines = [
-    '# ElevateX — Sample Test Credentials',
+    '# ElevateX — Slot 1 test credentials (42 students)',
     '',
     'Generated by `node scripts/seed-elevatex-sample.mjs`.',
     '',
-    '## Exam',
+    '## Exam window',
     '',
-    '- **Name:** ElevateX (placement_full)',
-    '- **Duration:** 60 minutes · **Total marks:** 100',
-    '- **Sections:** Technical 20 · Aptitude 20 · Logic 15 · IQ 15 · Psychometric 15 · Speaking 5 prompts (15 marks)',
-    '- **Student login:** `/auth/login/student`',
-    '- **Take exam:** `/placement` → Start assessment (hall ticket = roll number)',
+    `- **Slot:** ${SLOT}`,
+    `- **Date:** ${slotDate} (IST)`,
+    `- **Time:** 10:00 AM – 12:00 PM IST (exam ~60 minutes)`,
+    `- **Rolls:** EXS1001 – EXS1042`,
+    '- **Legacy removed:** EX26001 – EX26015',
     '',
     scheduleId ? `- **Schedule id:** \`${scheduleId}\`` : '',
+    '',
+    '- **Student login:** `/auth/login/student`',
+    '- **Take exam:** `/placement` → Start assessment (hall ticket = roll number)',
     '',
     '## Shared password',
     '',
     `\`${DEFAULT_PASSWORD}\``,
     '',
-    '## Sample syllabus sets (4 topic bundles)',
-    '',
-    '| Set | Topics |',
-    '|-----|--------|',
-    '| **A — STEM Core** | Technical, Aptitude, Logic, Intelligence |',
-    '| **B — Industry Ready** | Technical, Aptitude, Psychometric, Speaking |',
-    '| **C — Reasoning & Behaviour** | Aptitude, Logic, Intelligence, Psychometric |',
-    '| **D — Full paper (live)** | All six sections (official ElevateX) |',
-    '',
-    '## Student logins (15)',
+    '## Student logins',
     '',
     '| # | Roll | Email | Department | Year |',
     '|---|------|-------|------------|------|',
@@ -170,7 +223,17 @@ function writeCredentialsDoc(rows, scheduleId) {
     lines.push(`| ${i + 1} | ${r.roll} | ${r.email} | ${r.department} | ${r.year} |`);
   });
 
-  lines.push('', '## Quick test', '', '1. Sign in as `EX26001` with the password above.', '2. Open **ElevateX** from the student home or `/placement`.', '3. Enter hall ticket `EX26001` and matching department.', '');
+  lines.push(
+    '',
+    '## Quick test',
+    '',
+    '1. Sign in as `EXS1001` with the password above.',
+    '2. Open **ElevateX** from `/placement` after **10:00 AM IST** on exam day.',
+    '3. Hall ticket = roll number; pick the matching department.',
+    '',
+    `Window: ${window.startsAt} → ${window.endsAt}`,
+    '',
+  );
 
   const outPath = path.join(ROOT, 'docs', 'ELEVATEX_SAMPLE_CREDENTIALS.md');
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
@@ -192,7 +255,14 @@ const admin = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-console.log('▶ Creating 15 ElevateX sample students…');
+const slotDate = todayIsoInIst();
+const window = slot1Window(slotDate);
+
+console.log('▶ Removing legacy EX26001–EX26015…');
+const legacyRemoved = await deleteLegacy(admin, url, serviceKey);
+console.log(`  Removed ${legacyRemoved.length} legacy account(s)`);
+
+console.log(`▶ Creating ${COUNT} ElevateX Slot 1 students…`);
 const created = [];
 for (const s of STUDENTS) {
   const row = await upsertStudent(admin, url, serviceKey, s, DEFAULT_PASSWORD);
@@ -200,8 +270,7 @@ for (const s of STUDENTS) {
   console.log(`  ✅ ${s.roll}`);
 }
 
-console.log('▶ Go-live ElevateX (placement_full)…');
-const endsAt = new Date('2026-06-30T18:30:00+05:30').toISOString();
+console.log('▶ Go-live ElevateX Slot 1 (10:00 AM IST)…');
 
 const { data: liveRows } = await admin
   .from('evalora_module_schedules')
@@ -223,12 +292,11 @@ const { data: schedule, error: schedErr } = await admin
   .from('evalora_module_schedules')
   .insert({
     module_key: MODULE_KEY,
-    title: 'ElevateX — Sample Test (May 2026)',
-    notice:
-      'Sample ElevateX paper: Technical 20, Aptitude 20, Logic 15, IQ 15, Psychometric 15, Speaking 5 prompts. Use roll EX26001–EX26015.',
+    title: `ElevateX — Slot ${SLOT} test (${slotDate})`,
+    notice: `Slot ${SLOT} · 10:00 AM IST · EXS1001–EXS1042 · 60 min paper.`,
     status: 'live',
-    starts_at: new Date().toISOString(),
-    ends_at: endsAt,
+    starts_at: window.startsAt,
+    ends_at: window.endsAt,
     target_departments: [],
     target_years: ['III Year'],
     updated_at: new Date().toISOString(),
@@ -239,16 +307,16 @@ const { data: schedule, error: schedErr } = await admin
 let scheduleId = schedule?.id ?? null;
 if (schedErr) {
   console.error('❌ Schedule insert failed:', schedErr.message);
-  console.warn('  Run supabase/migrations/014_evalora_module_schedules.sql in Supabase SQL editor, then re-run this script.');
-  console.warn('  Or go live manually: Admin → Evalora modules → ElevateX → Go live.');
 } else {
-  console.log(`  ✅ Schedule ${scheduleId} (live until ${endsAt})`);
+  console.log(`  ✅ Schedule ${scheduleId} (${slotDate} 10:00–12:00 IST)`);
 }
 
-const docPath = writeCredentialsDoc(created, scheduleId);
+const docPath = writeCredentialsDoc(created, scheduleId, slotDate, window);
+const csvPath = writeCredentialsCsv(created);
 console.log('');
-console.log('✅ ElevateX sample students ready (15 accounts)');
+console.log(`✅ ${COUNT} ElevateX test accounts ready`);
 console.log(`   Credentials: ${docPath}`);
+console.log(`   CSV:         ${csvPath}`);
 console.log(`   Password:    ${DEFAULT_PASSWORD}`);
 if (!scheduleId) {
   process.exit(schedErr ? 1 : 0);

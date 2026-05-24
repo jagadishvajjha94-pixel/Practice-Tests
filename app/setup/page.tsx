@@ -1,28 +1,73 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { studentAuthEmail } from '@/lib/college-auth';
+import {
+  ELEVATEX_SAMPLE_PASSWORD,
+  ELEVATEX_SAMPLE_STUDENTS,
+} from '@/lib/elevatex-sample-credentials';
+
+type SeedAccount = {
+  roll: string;
+  email: string;
+  department: string;
+  year: string;
+  status?: string;
+};
 
 export default function SetupPage() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
-  const [elevatexStatus, setElevatexStatus] = useState<string | null>(null);
   const [elevatexLoading, setElevatexLoading] = useState(false);
+  const [elevatexPassword, setElevatexPassword] = useState<string | null>(null);
+  const [elevatexAccounts, setElevatexAccounts] = useState<SeedAccount[]>([]);
+  const [elevatexMeta, setElevatexMeta] = useState<string | null>(null);
+
+  const defaultElevatexAccounts = useMemo(
+    () =>
+      ELEVATEX_SAMPLE_STUDENTS.map((s) => ({
+        roll: s.roll,
+        email: studentAuthEmail(s.roll),
+        department: s.department,
+        year: s.year,
+      })),
+    [],
+  );
+
+  const displayedAccounts =
+    elevatexAccounts.length > 0 ? elevatexAccounts : defaultElevatexAccounts;
 
   const handleSeedElevateX = async () => {
     setElevatexLoading(true);
-    setElevatexStatus(null);
+    setElevatexMeta(null);
     setError(null);
     try {
       const res = await fetch('/api/setup/seed-elevatex-sample', { method: 'POST' });
-      const json = await res.json();
+      const json = (await res.json()) as {
+        error?: string;
+        password?: string;
+        supabaseProject?: string;
+        scheduleLabel?: string;
+        scheduleWarning?: string;
+        legacyRemoved?: string[];
+        accounts?: SeedAccount[];
+      };
       if (!res.ok) throw new Error(json.error ?? 'ElevateX seed failed');
-      setElevatexStatus(
-        `ElevateX ready on Supabase project "${json.supabaseProject}". Password: ${json.password}. Try roll EX26001.`,
-      );
+      setElevatexPassword(json.password ?? ELEVATEX_SAMPLE_PASSWORD);
+      setElevatexAccounts(json.accounts ?? defaultElevatexAccounts);
+      const parts = [
+        `Created ${json.accounts?.length ?? 42} accounts on Supabase project "${json.supabaseProject}".`,
+        json.scheduleLabel ? `Schedule: ${json.scheduleLabel}.` : null,
+        json.scheduleWarning ? `Schedule note: ${json.scheduleWarning}` : null,
+        json.legacyRemoved?.length
+          ? `Removed old rolls: ${json.legacyRemoved.join(', ')}.`
+          : null,
+      ].filter(Boolean);
+      setElevatexMeta(parts.join(' '));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ElevateX seed failed');
     } finally {
@@ -36,7 +81,6 @@ export default function SetupPage() {
     setError(null);
 
     try {
-      // Initialize database with direct SQL
       const initResponse = await fetch('/api/setup/init-direct', { method: 'POST' });
       if (!initResponse.ok) {
         const errorData = await initResponse.json();
@@ -45,23 +89,16 @@ export default function SetupPage() {
 
       setStatus('Seeding sample data...');
 
-      // Seed with sample data
       const seedResponse = await fetch('/api/setup/seed-direct', { method: 'POST' });
       if (!seedResponse.ok) {
-        throw new Error('Data seeding failed');
+        const errorData = await seedResponse.json();
+        throw new Error(errorData.error || 'Data seeding failed');
       }
 
       setStatus('Setup completed successfully!');
       setCompleted(true);
-
-      // Redirect to home after 2 seconds
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 2000);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Setup failed';
-      console.error('Setup error:', errorMsg);
-      setError(errorMsg);
+      setError(err instanceof Error ? err.message : 'Setup failed');
       setStatus(null);
     } finally {
       setLoading(false);
@@ -69,35 +106,26 @@ export default function SetupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4 flex items-center justify-center">
-      <Card className="w-full max-w-md">
-        <div className="p-6 sm:p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">PrepIndia Setup</h1>
-          <p className="text-gray-600 mb-6">Initialize the database for the first time</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <Card className="w-full max-w-4xl p-8">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Database Setup</h1>
+          <p className="text-gray-600">Initialize your PrepIndia database with sample data</p>
+        </div>
 
-          {completed && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
-              Setup completed! Redirecting...
-            </div>
-          )}
+        {error ? (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">{error}</div>
+        ) : null}
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-              Error: {error}
-            </div>
-          )}
+        {status ? (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">{status}</div>
+        ) : null}
 
-          {status && !completed && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
-              {status}
-            </div>
-          )}
-
-          <div className="bg-gray-50 p-4 rounded-lg mb-6">
-            <h2 className="font-semibold text-gray-900 mb-3">This will:</h2>
-            <ul className="space-y-2 text-sm text-gray-700">
-              <li>✓ Create database tables</li>
-              <li>✓ Set up indexes and constraints</li>
+        <div className="space-y-4">
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h2 className="font-semibold text-gray-900 mb-2">What will be created:</h2>
+            <ul className="text-sm text-gray-600 space-y-1">
+              <li>✓ Database tables (users, tests, questions, etc.)</li>
               <li>✓ Load sample test categories</li>
               <li>✓ Load sample tests and questions</li>
               <li>✓ Load sample blog posts</li>
@@ -105,7 +133,7 @@ export default function SetupPage() {
           </div>
 
           <Button
-            onClick={handleInitialize}
+            onClick={() => void handleInitialize()}
             disabled={loading || completed}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white"
           >
@@ -113,16 +141,11 @@ export default function SetupPage() {
           </Button>
 
           <div className="mt-6 pt-6 border-t border-gray-200 space-y-3">
-            <h2 className="font-semibold text-gray-900">ElevateX sample logins</h2>
+            <h2 className="font-semibold text-gray-900">ElevateX Slot 1 — 42 test logins</h2>
             <p className="text-sm text-gray-600">
-              Creates EX26001–EX26015 on <strong>this deployment&apos;s</strong> Supabase project (fixes
-              &quot;Invalid login credentials&quot; on production).
+              Creates <strong>EXS1001–EXS1042</strong> (replaces old EX26001–15). Password for all:{' '}
+              <strong>ElevateX2026</strong>. Year on login: <strong>III Year</strong>.
             </p>
-            {elevatexStatus ? (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
-                {elevatexStatus}
-              </div>
-            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -130,17 +153,62 @@ export default function SetupPage() {
               disabled={elevatexLoading}
               className="w-full"
             >
-              {elevatexLoading ? 'Seeding ElevateX…' : 'Seed ElevateX sample students'}
+              {elevatexLoading ? 'Seeding ElevateX…' : 'Seed / refresh 42 ElevateX credentials'}
             </Button>
-          </div>
 
-          <p className="mt-6 text-center text-sm text-gray-600">
-            You only need to do this once. After that, you can{' '}
-            <a href="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium">
-              log in
-            </a>{' '}
-            normally.
-          </p>
+            {elevatexMeta ? (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-900">
+                {elevatexMeta}
+              </div>
+            ) : null}
+
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="font-semibold text-gray-900">
+                  Shared password:{' '}
+                  <code className="bg-gray-100 px-2 py-0.5 rounded">
+                    {elevatexPassword ?? ELEVATEX_SAMPLE_PASSWORD}
+                  </code>
+                </span>
+                <a
+                  href="/elevatex-slot1-credentials.csv"
+                  download
+                  className="text-blue-600 hover:underline font-medium"
+                >
+                  Download CSV (42 rows)
+                </a>
+                <a href="/auth/login/student" className="text-blue-600 hover:underline font-medium">
+                  Student login →
+                </a>
+              </div>
+              <div className="max-h-96 overflow-auto border border-gray-200 rounded-lg">
+                <table className="w-full text-xs sm:text-sm">
+                  <thead className="bg-gray-100 sticky top-0">
+                    <tr>
+                      <th className="text-left p-2 font-semibold">#</th>
+                      <th className="text-left p-2 font-semibold">Roll</th>
+                      <th className="text-left p-2 font-semibold">Email</th>
+                      <th className="text-left p-2 font-semibold">Department</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedAccounts.map((a, i) => (
+                      <tr key={a.roll} className="border-t border-gray-100 odd:bg-white even:bg-gray-50/80">
+                        <td className="p-2 text-gray-500">{i + 1}</td>
+                        <td className="p-2 font-mono font-semibold text-gray-900">{a.roll}</td>
+                        <td className="p-2 font-mono text-gray-700">{a.email}</td>
+                        <td className="p-2 text-gray-700">{a.department}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-gray-500">
+                Click &quot;Seed / refresh&quot; above to create these accounts in Supabase (required before
+                login works on this deployment).
+              </p>
+            </div>
+          </div>
         </div>
       </Card>
     </div>

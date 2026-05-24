@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { ELEVATEX_SAMPLE_PASSWORD } from '@/lib/elevatex-sample-credentials';
+import { writeElevateXCredentialsPublicCsv } from '@/lib/elevatex-credentials-export';
 import { seedElevateXSample } from '@/lib/elevatex-sample-seed';
+import path from 'node:path';
 
 function getServiceRoleKey(): string | undefined {
   const raw = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -10,8 +12,8 @@ function getServiceRoleKey(): string | undefined {
 }
 
 /**
- * Creates ElevateX sample students (EX26001–EX26015) in the **same** Supabase project
- * as NEXT_PUBLIC_SUPABASE_URL (local .env.local or Vercel production).
+ * Creates 42 ElevateX Slot 1 test students (EXS1001–EXS1042), removes legacy EX26001–15,
+ * and go-lives ElevateX for 10:00 AM IST today on this Supabase project.
  */
 export async function POST() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
@@ -43,16 +45,20 @@ export async function POST() {
     );
   }
 
+  writeElevateXCredentialsPublicCsv(path.join(process.cwd()), password);
+
   return NextResponse.json({
     success: true,
     message:
-      'ElevateX sample students are ready on this Supabase project. Sign in with roll EX26001 and the password below.',
+      'ElevateX Slot 1 test students are ready (EXS1001–EXS1042). Legacy EX26001–15 removed.',
     password: result.password,
     supabaseProject: result.supabaseProject,
     scheduleId: result.scheduleId,
     scheduleWarning: result.scheduleWarning,
+    scheduleLabel: result.scheduleLabel,
+    legacyRemoved: result.legacyRemoved,
     accounts: result.accounts,
     studentLogin: '/auth/login/student',
-    credentialsDoc: '/docs/ELEVATEX_SAMPLE_CREDENTIALS.md',
+    credentialsCsv: '/elevatex-slot1-credentials.csv',
   });
 }

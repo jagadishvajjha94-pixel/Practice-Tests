@@ -4,9 +4,35 @@ import { studentAuthEmail } from '@/lib/college-auth';
 import { ELEVATEX_MODULE_KEY } from '@/lib/elevatex';
 import {
   ELEVATEX_SAMPLE_PASSWORD,
+  ELEVATEX_SAMPLE_SLOT,
   ELEVATEX_SAMPLE_STUDENTS,
+  LEGACY_ELEVATEX_SAMPLE_ROLLS,
   type ElevateXSampleStudent,
 } from '@/lib/elevatex-sample-credentials';
+
+/** Slot 1 window: 10:00–12:00 IST on the given calendar day (YYYY-MM-DD). */
+export function getElevateXSlot1ScheduleWindow(dateIso: string): {
+  startsAt: string;
+  endsAt: string;
+  label: string;
+} {
+  const startsAt = new Date(`${dateIso}T10:00:00+05:30`).toISOString();
+  const endsAt = new Date(`${dateIso}T12:00:00+05:30`).toISOString();
+  return {
+    startsAt,
+    endsAt,
+    label: `Slot ${ELEVATEX_SAMPLE_SLOT} · ${dateIso} · 10:00–12:00 IST`,
+  };
+}
+
+function todayIsoInIst(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
 
 async function upsertAuthStudent(
   supabase: SupabaseClient,
@@ -67,6 +93,38 @@ async function upsertStudentProfile(
   return error?.message ?? null;
 }
 
+async function deleteLegacySampleStudents(
+  supabase: SupabaseClient,
+): Promise<{ deleted: string[]; errors: string[] }> {
+  const deleted: string[] = [];
+  const errors: string[] = [];
+
+  const { data: listed, error: listError } = await supabase.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+  if (listError) {
+    errors.push(listError.message);
+    return { deleted, errors };
+  }
+
+  for (const roll of LEGACY_ELEVATEX_SAMPLE_ROLLS) {
+    const email = studentAuthEmail(roll);
+    const user = listed.users.find((u) => (u.email ?? '').toLowerCase() === email.toLowerCase());
+    if (!user?.id) continue;
+
+    const { error: delErr } = await supabase.auth.admin.deleteUser(user.id);
+    if (delErr) {
+      errors.push(`${roll}: ${delErr.message}`);
+      continue;
+    }
+    await supabase.from('users').delete().eq('id', user.id);
+    deleted.push(roll);
+  }
+
+  return { deleted, errors };
+}
+
 export type ElevateXSeedAccountResult = {
   roll: string;
   email: string;
@@ -82,13 +140,17 @@ export type ElevateXSeedResult = {
   accounts: ElevateXSeedAccountResult[];
   scheduleId: string | null;
   scheduleWarning: string | null;
+  scheduleLabel: string;
+  legacyRemoved: string[];
+  legacyRemoveErrors: string[];
 };
 
-/** Create/update all ElevateX sample auth users on the configured Supabase project. */
+/** Create/update ElevateX test students; remove legacy EX26001–15; go live Slot 1 window. */
 export async function seedElevateXSample(
   supabase: SupabaseClient,
   supabaseUrl: string,
   password: string = ELEVATEX_SAMPLE_PASSWORD,
+  options?: { slotDateIso?: string },
 ): Promise<ElevateXSeedResult | { error: string; partial?: ElevateXSeedAccountResult[] }> {
   const project = (() => {
     try {
@@ -97,6 +159,9 @@ export async function seedElevateXSample(
       return supabaseUrl;
     }
   })();
+
+  const { deleted: legacyRemoved, errors: legacyRemoveErrors } =
+    await deleteLegacySampleStudents(supabase);
 
   const accounts: ElevateXSeedAccountResult[] = [];
 
@@ -130,9 +195,11 @@ export async function seedElevateXSample(
     });
   }
 
+  const slotDate = options?.slotDateIso ?? todayIsoInIst();
+  const { startsAt, endsAt, label: scheduleLabel } = getElevateXSlot1ScheduleWindow(slotDate);
+
   let scheduleId: string | null = null;
   let scheduleWarning: string | null = null;
-  const endsAt = new Date('2026-06-30T18:30:00+05:30').toISOString();
 
   const { data: liveRows } = await supabase
     .from('evalora_module_schedules')
@@ -150,15 +217,16 @@ export async function seedElevateXSample(
       );
   }
 
+  const rollRange = `${ELEVATEX_SAMPLE_STUDENTS[0]?.roll}–${ELEVATEX_SAMPLE_STUDENTS[ELEVATEX_SAMPLE_STUDENTS.length - 1]?.roll}`;
+
   const { data: schedule, error: schedErr } = await supabase
     .from('evalora_module_schedules')
     .insert({
       module_key: ELEVATEX_MODULE_KEY,
-      title: 'ElevateX — Sample Test (May 2026)',
-      notice:
-        'Sample ElevateX paper: Technical 20, Aptitude 20, Logic 15, IQ 15, Psychometric 15, Speaking 5 prompts. Use roll EX26001–EX26015.',
+      title: `ElevateX — Slot ${ELEVATEX_SAMPLE_SLOT} test (${slotDate})`,
+      notice: `Slot ${ELEVATEX_SAMPLE_SLOT} · 10:00 AM IST · ${rollRange} · 60 min paper.`,
       status: 'live',
-      starts_at: new Date().toISOString(),
+      starts_at: startsAt,
       ends_at: endsAt,
       target_departments: [],
       target_years: ['III Year'],
@@ -179,5 +247,8 @@ export async function seedElevateXSample(
     accounts,
     scheduleId,
     scheduleWarning,
+    scheduleLabel,
+    legacyRemoved,
+    legacyRemoveErrors,
   };
 }

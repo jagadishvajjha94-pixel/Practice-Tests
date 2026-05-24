@@ -11,7 +11,13 @@
     "check": "tsc --noEmit && next build",
     "migrate:admin": "node scripts/apply-admin-setup.mjs",
     "migrate:question-bank": "node scripts/apply-question-bank-migration.mjs",
-    "seed:elevatex": "node scripts/seed-elevatex-sample.mjs"
+    "seed:elevatex": "node scripts/seed-elevatex-sample.mjs",
+    "test": "pnpm run test:unit && pnpm run test:e2e",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -73,6 +79,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4.2.0",
     "@types/node": "^22",
     "@types/react": "^19",
@@ -81,6 +88,7 @@
     "postgres": "^3.4.9",
     "tailwindcss": "^4.2.0",
     "tw-animate-css": "1.3.3",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "vitest": "^4.1.7"
   }
 }
