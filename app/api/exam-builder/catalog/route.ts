@@ -8,7 +8,7 @@ import { buildSyllabusCatalogForGroup } from '@/lib/exam-builder/build-syllabus-
 import type { SyllabusGroupKey } from '@/lib/exam-builder/syllabus';
 
 export async function GET() {
-  const auth = await requireAuth(['admin', 'faculty']);
+  const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
   const admin = getServiceSupabase();

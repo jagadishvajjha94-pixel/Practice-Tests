@@ -38,7 +38,6 @@ export default function CollegeSiteHeader() {
       const metaRole = String(meta.role ?? '').toLowerCase();
       let role: AppRole = 'student';
       if (metaRole === 'admin') role = 'admin';
-      else if (metaRole === 'faculty') role = 'faculty';
       setHomeHref(homeHrefForRole(role));
     };
 
@@ -57,7 +56,6 @@ export default function CollegeSiteHeader() {
 
   const isPortalRoute =
     pathname?.startsWith('/admin') ||
-    pathname?.startsWith('/faculty') ||
     pathname?.startsWith('/auth');
 
   return (

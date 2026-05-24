@@ -15,6 +15,7 @@ import {
   ExamSlotSchedulePanel,
   emptySlots,
 } from '@/components/exam-builder/exam-slot-schedule-panel';
+import { McqUploadFormatGuide } from '@/components/exam-builder/mcq-upload-format-guide';
 import { ACADEMIC_YEARS, DEPARTMENTS } from '@/lib/college-brand';
 import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
 import { isElevateXBuilderTestType } from '@/lib/exam-builder/elevatex-exam';
@@ -22,6 +23,7 @@ import { ELEVATEX_EXAM_NAME } from '@/lib/elevatex';
 import type { ExamScheduleSlotInput } from '@/lib/exam-schedule-slots';
 import { validateScheduleSlots } from '@/lib/exam-schedule-slots';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
+import { parseMcqCsv, parseMcqPlainText } from '@/lib/exam-builder/parse-manual-mcqs';
 import { cn } from '@/lib/utils';
 
 export default function AdminExamBuilderPage() {
@@ -51,6 +53,8 @@ export default function AdminExamBuilderPage() {
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const [usesSlotScheduling, setUsesSlotScheduling] = useState(false);
   const [scheduleSlots, setScheduleSlots] = useState<ExamScheduleSlotInput[]>(emptySlots);
+  const [manualPaste, setManualPaste] = useState('');
+  const [parsingManual, setParsingManual] = useState(false);
 
   const testDef = getExamBuilderTestType(testType);
   const isManual = testType === 'department-manual';
@@ -94,6 +98,33 @@ export default function AdminExamBuilderPage() {
     }
   };
 
+  const parseManualPaper = (raw: string, format: 'text' | 'csv' = 'text') => {
+    const parsed = format === 'csv' ? parseMcqCsv(raw) : parseMcqPlainText(raw);
+    if (!parsed.questions.length) {
+      setError('Could not parse any MCQs. Check the format guide and try again.');
+      return;
+    }
+    setQuestions(parsed.questions);
+    setWarnings(parsed.warnings);
+    setSuccess(`Parsed ${parsed.questions.length} MCQs from ${format === 'csv' ? 'CSV' : 'text'}.`);
+    setError(null);
+  };
+
+  const onManualFile = async (file: File | null) => {
+    if (!file) return;
+    setParsingManual(true);
+    setError(null);
+    try {
+      const name = file.name.toLowerCase();
+      const text = await file.text();
+      parseManualPaper(text, name.endsWith('.csv') ? 'csv' : 'text');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not read file');
+    } finally {
+      setParsingManual(false);
+    }
+  };
+
   const publish = async () => {
     setError(null);
     setSuccess(null);
@@ -112,7 +143,7 @@ export default function AdminExamBuilderPage() {
       return;
     }
     if (!questions.length && !needsSyllabus && !isElevateX) {
-      setError('Manual exams need questions — use faculty upload for typed MCQs.');
+      setError('Add MCQs by pasting or uploading a question paper below.');
       return;
     }
     if (!departmentGroupId && !department) {
@@ -162,7 +193,7 @@ export default function AdminExamBuilderPage() {
     <div className="space-y-6 max-w-4xl">
       <AdminPageHeader
         title="Exam builder"
-        description="Same controls as faculty — pick test type, syllabus topics, and department group. Admin can publish and go live immediately."
+        description="Create exams, configure slot schedules, and publish directly. Go live per slot from Exam schedules."
       />
 
       {error ? <StatusAlert variant="error">{error}</StatusAlert> : null}
@@ -195,18 +226,53 @@ export default function AdminExamBuilderPage() {
           onSelectedTopicIdsChange={setSyllabusTopicIds}
           questionsPerTopic={questionsPerTopic}
           onQuestionsPerTopicChange={setQuestionsPerTopic}
-            onQuestionsGenerated={(qs, w) => {
+          onQuestionsGenerated={(qs, w) => {
             setQuestions(qs);
             setWarnings(w);
           }}
           catalogRefreshToken={catalogRefresh}
         />
 
-        {!isElevateX ? (
+        {!isElevateX && !isManual ? (
           <QuestionBankUploadPanel
             tagIds={syllabusTopicIds}
             onBankUpdated={() => setCatalogRefresh((n) => n + 1)}
           />
+        ) : null}
+
+        {!isElevateX && isManual ? (
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <h4 className="text-sm font-semibold text-[#0c2340]">Manual MCQ paper</h4>
+            <p className="text-xs text-slate-600">
+              Paste questions or upload CSV / plain text. Use the format guide for PDF-style blocks.
+            </p>
+            <McqUploadFormatGuide />
+            <textarea
+              className="w-full min-h-[140px] rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono"
+              value={manualPaste}
+              onChange={(e) => setManualPaste(e.target.value)}
+              placeholder="Paste MCQs here…"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={parsingManual || !manualPaste.trim()}
+                onClick={() => parseManualPaper(manualPaste.trim(), 'text')}
+              >
+                Parse pasted text
+              </Button>
+              <label className="inline-flex cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                <input
+                  type="file"
+                  accept=".csv,.txt,text/csv,text/plain"
+                  className="sr-only"
+                  onChange={(e) => void onManualFile(e.target.files?.[0] ?? null)}
+                />
+                {parsingManual ? 'Reading…' : 'Upload CSV / text file'}
+              </label>
+            </div>
+          </div>
         ) : null}
 
         <div className="grid md:grid-cols-2 gap-4">
@@ -341,23 +407,17 @@ export default function AdminExamBuilderPage() {
           <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
             ElevateX uses the fixed 6-section placement paper. Configure all 8 slots with roster, then publish.
           </p>
-        ) : null}
-
-        {isManual ? (
-          <StatusAlert variant="info">
-            For manual department MCQs, faculty use{' '}
-            <Link href="/faculty/upload" className="font-semibold underline">
-              Create exam
-            </Link>{' '}
-            — admin approves then schedules from Faculty approvals.
-          </StatusAlert>
+        ) : isManual ? (
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Parse or upload MCQs above before publishing.
+          </p>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3 pt-2">
           <Button
             disabled={
               publishing ||
-              isManual ||
+              (isManual && !questions.length) ||
               (needsSyllabus && !questions.length) ||
               (isElevateX && (!usesSlotScheduling || !slotsValid)) ||
               (usesSlotScheduling && !slotsValid)
@@ -387,7 +447,7 @@ export default function AdminExamBuilderPage() {
       <Card className="p-6 space-y-4">
         <h3 className="font-semibold text-[#0c2340]">Create department group</h3>
         <p className="text-sm text-slate-600">
-          Bundle branches so exams reach the right students and faculty in those branches track progress.
+          Bundle branches so exams reach the right students in those departments.
         </p>
         <Input
           value={newGroupName}

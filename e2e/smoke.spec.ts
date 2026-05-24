@@ -8,11 +8,10 @@ test.describe('Public portal smoke', () => {
     await expect(page.getByRole('link', { name: /sign in to portal/i })).toBeVisible();
   });
 
-  test('role selection shows student, faculty, and admin entry points', async ({ page }) => {
+  test('role selection shows student and admin entry points', async ({ page }) => {
     await page.goto('/auth/role', gotoOpts);
     await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /student login/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /faculty login/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /admin login/i })).toBeVisible();
   });
 

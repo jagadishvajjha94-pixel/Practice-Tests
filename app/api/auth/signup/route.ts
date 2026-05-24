@@ -221,22 +221,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      if (userId && role === 'faculty' && metadata.department) {
-        const admin = getAdminSupabase();
-        if (admin) {
-          await admin.from('faculty_profiles').upsert(
-            {
-              user_id: userId,
-              department: metadata.department,
-              employee_id: metadata.employee_id ?? null,
-              full_name: fullName,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'user_id' },
-          );
-        }
-      }
-
       return NextResponse.json({ ok: true, user_id: userId, email_confirmed: true });
     }
 

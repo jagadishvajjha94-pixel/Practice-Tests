@@ -30,8 +30,7 @@ export type CreateExamRequestInput = {
   slotKey?: string | null;
   syllabusTopicIds?: string[];
   questionsPerTopic?: number | null;
-  /** pending = faculty submit; approved = admin direct publish */
-  status: 'pending' | 'approved';
+  status: 'approved';
   autoPublish?: boolean;
   autoGoLive?: boolean;
   goLiveNotice?: string | null;
@@ -109,7 +108,7 @@ export async function createFacultyExamRequestRecord(
     target_branches,
     duration_minutes: input.durationMinutes,
     questions_json: examQuestions,
-    status: 'pending',
+    status: input.status,
     test_type: input.testType?.trim() || null,
     slot_key: input.slotKey?.trim() || null,
     syllabus_topic_ids: syllabusTopicUuids,

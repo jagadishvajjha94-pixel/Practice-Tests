@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { resolveSyllabusTopicsForBuilder } from '@/lib/exam-builder/draw-questions';
-import { MCQ_UPLOAD_FORMAT_HINT } from '@/lib/faculty/parse-exam-text';
+import { MCQ_UPLOAD_FORMAT_HINT } from '@/lib/exam-builder/parse-exam-text';
 import {
   extractTextFromUpload,
   parseMcqCsv,
@@ -22,7 +22,7 @@ function chunks<T>(arr: T[], size: number): T[][] {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth(['admin', 'faculty'], request);
+  const auth = await requireAuth(['admin'], request);
   if ('response' in auth) return auth.response;
 
   const admin = getServiceSupabase();

@@ -1,4 +1,4 @@
-import { departmentsMatch } from '@/lib/faculty/department-match';
+import { departmentsMatch } from '@/lib/department-match';
 import {
   getEvaloraModule,
   type EvaloraModuleDef,

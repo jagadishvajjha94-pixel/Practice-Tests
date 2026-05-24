@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { GraduationCap, Shield, Users } from 'lucide-react';
+import { GraduationCap, Shield } from 'lucide-react';
 import { PortalShell } from '@/components/auth/portal-shell';
 import { AuthFlowPanel } from '@/components/auth/auth-flow-panel';
 import { RoleCard } from '@/components/auth/role-card';
@@ -38,23 +38,17 @@ export default async function RoleSelectionPage({ searchParams }: Props) {
             icon={GraduationCap}
           />
           <RoleCard
-            href={`/auth/login/faculty${suffix}`}
-            title="Faculty Login"
-            description="Employee ID and password"
-            icon={Users}
-          />
-          <RoleCard
             href={`/auth/login/admin${suffix}`}
             title="Admin Login"
-            description="Examination cell and system administrators"
+            description="Examination cell — create exams, slots, and go live"
             icon={Shield}
           />
         </div>
         {signupOpen ? (
           <p className="mt-6 text-center text-sm text-slate-700 border-t border-slate-200 pt-5">
             New to the portal?{' '}
-            <Link href={`/auth/signup${suffix}`} className="font-semibold text-[#1e3a5f] hover:underline">
-              Create student or faculty account
+            <Link href={`/auth/signup/student${suffix}`} className="font-semibold text-[#1e3a5f] hover:underline">
+              Create student account
             </Link>
           </p>
         ) : null}

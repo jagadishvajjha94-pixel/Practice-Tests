@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isAllowlistedAdminEmail } from '@/lib/admin-defaults';
 import { DEPARTMENTS, ACADEMIC_YEARS, type Department, type AcademicYear } from '@/lib/college-brand';
 
-export type AppRole = 'student' | 'faculty' | 'admin' | 'guest';
+export type AppRole = 'student' | 'admin' | 'guest';
 
 export type ResolvedUser = {
   id: string;
@@ -30,7 +30,6 @@ export const STUDENT_ONLY_PREFIXES = [
   '/pricing',
 ] as const;
 
-export const FACULTY_PREFIX = '/faculty';
 export const ADMIN_PREFIX = '/admin';
 
 export function isStudentExperienceRoute(pathname: string): boolean {
@@ -46,10 +45,6 @@ export function isStudentExperienceRoute(pathname: string): boolean {
   return STUDENT_ONLY_PREFIXES.some(
     (p) => pathname === p || (p.endsWith('/') ? pathname.slice(0, -1) === pathname : pathname.startsWith(p)),
   );
-}
-
-export function isFacultyRoute(pathname: string): boolean {
-  return pathname.startsWith(FACULTY_PREFIX);
 }
 
 export function isAdminRoute(pathname: string): boolean {
@@ -108,18 +103,11 @@ export async function resolveAppUserFromAuthUser(
   const metaRole = String(meta.role ?? '');
 
   if (metaRole === 'faculty') {
-    const { data: fp } = await supabase
-      .from('faculty_profiles')
-      .select('department, employee_id')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
     return {
       id: user.id,
       email,
-      role: 'faculty',
-      department: fp?.department ?? (meta.department as string) ?? null,
-      employeeId: fp?.employee_id ?? (meta.employee_id as string) ?? null,
+      role: 'student',
+      department: (meta.department as string) ?? null,
     };
   }
 
@@ -156,6 +144,5 @@ export function isValidAcademicYear(value: string): value is AcademicYear {
 
 export function defaultRedirectForRole(role: AppRole): string {
   if (role === 'admin') return '/admin/dashboard';
-  if (role === 'faculty') return '/faculty/dashboard';
   return '/exams';
 }

@@ -28,7 +28,7 @@ export default function DashboardRedirectPage() {
         return;
       }
       if (role === 'faculty') {
-        router.replace('/faculty/dashboard');
+        router.replace('/auth/role');
         return;
       }
       const { data: adminRow } = await supabase

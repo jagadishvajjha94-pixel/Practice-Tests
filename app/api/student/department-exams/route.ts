@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { academicYearInList } from '@/lib/academic-year-match';
-import { examMatchesDepartment } from '@/lib/faculty/department-match';
+import { examMatchesDepartment } from '@/lib/department-match';
 import { isFacultyExamLiveForStudent } from '@/lib/exam-schedule';
 import type { ExamScheduleRow } from '@/lib/exam-schedule';
 import { resolveStudentTargeting } from '@/lib/student-profile-sync';

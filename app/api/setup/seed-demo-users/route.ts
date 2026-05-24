@@ -154,6 +154,5 @@ export async function POST() {
     message: 'Demo accounts are ready. Use roll number / employee ID on the login screens.',
     accounts: results,
     studentLogin: '/auth/login/student',
-    facultyLogin: '/auth/login/faculty',
   });
 }

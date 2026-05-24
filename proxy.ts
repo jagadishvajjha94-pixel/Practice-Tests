@@ -3,7 +3,6 @@ import { NextResponse, type NextRequest } from 'next/server'
 import {
   defaultRedirectForRole,
   isAdminRoute,
-  isFacultyRoute,
   isStudentExperienceRoute,
   resolveAppUser,
 } from '@/lib/roles'
@@ -15,13 +14,27 @@ import {
 
 export async function proxy(request: NextRequest) {
   if (process.env.NEXT_PUBLIC_SIGNUP_DISABLED === 'true') {
-    const signupPaths = ['/auth/signup', '/auth/signup/student', '/auth/signup/faculty'];
+    const signupPaths = ['/auth/signup', '/auth/signup/student'];
     if (signupPaths.includes(request.nextUrl.pathname)) {
       const url = request.nextUrl.clone();
       url.pathname = '/auth/role';
       url.searchParams.set('notice', 'signup_closed');
       return NextResponse.redirect(url);
     }
+  }
+
+  const pathname = request.nextUrl.pathname
+
+  if (pathname.startsWith('/faculty') || pathname.startsWith('/auth/login/faculty') || pathname.startsWith('/auth/signup/faculty')) {
+    const url = request.nextUrl.clone();
+    url.pathname = pathname.startsWith('/auth/') ? '/auth/role' : '/admin/exam-builder';
+    return NextResponse.redirect(url);
+  }
+
+  if (pathname.startsWith('/admin/approvals')) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/admin/exam-builder';
+    return NextResponse.redirect(url);
   }
 
   let response = NextResponse.next({
@@ -36,7 +49,6 @@ export async function proxy(request: NextRequest) {
 
   const supabaseUrl = getPublicSupabaseUrl()!
   const supabaseAnonKey = getPublicSupabaseAnonKey()!
-  const pathname = request.nextUrl.pathname
 
   const supabase = createServerClient(
     supabaseUrl,
@@ -79,16 +91,12 @@ export async function proxy(request: NextRequest) {
       pathname.startsWith('/placement') ||
       pathname.startsWith('/tests/rmset') ||
       pathname.startsWith('/admin') ||
-      pathname.startsWith('/faculty') ||
       pathname.startsWith('/profile') ||
       pathname.startsWith('/checkout') ||
       pathname.startsWith('/ai') ||
       pathname.startsWith('/tests/competitive-exam'))
   ) {
-    const loginUrl = new URL(
-      pathname.startsWith('/faculty') ? '/auth/login/faculty' : '/auth/role',
-      request.url,
-    )
+    const loginUrl = new URL('/auth/role', request.url)
     loginUrl.searchParams.set('redirect', `${pathname}${request.nextUrl.search}`)
     return NextResponse.redirect(loginUrl)
   }
@@ -101,20 +109,14 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL(defaultRedirectForRole(role), request.url))
     }
 
-    if (role === 'faculty') {
-      if (isAdminRoute(pathname) || isStudentExperienceRoute(pathname)) {
-        return NextResponse.redirect(new URL(defaultRedirectForRole('faculty'), request.url))
-      }
-    }
-
     if (role === 'admin') {
-      if (isFacultyRoute(pathname) || isStudentExperienceRoute(pathname)) {
+      if (isStudentExperienceRoute(pathname)) {
         return NextResponse.redirect(new URL(defaultRedirectForRole('admin'), request.url))
       }
     }
 
     if (role === 'student') {
-      if (isFacultyRoute(pathname) || isAdminRoute(pathname)) {
+      if (isAdminRoute(pathname)) {
         return NextResponse.redirect(new URL('/exams', request.url))
       }
       if (

@@ -14,18 +14,10 @@ import { isFacultyCodingQuestion } from '@/lib/exam-builder/programming-syllabus
 import { parseQuestionsJson, type FacultyExamQuestion, type FacultyMcqQuestion } from '@/lib/faculty-exams';
 import {
   createSchedulesFromSlots,
-  createScheduleForSlot,
   parseScheduleSlotsJson,
-  persistSlotRosterForSlot,
   rebuildSlotsFromRosterEntries,
   syncExamStudentRosters,
 } from '@/lib/exam-schedule-slots';
-import {
-  allSlotsApproved,
-  markSlotApproved,
-  parseSlotsWithApproval,
-  slotForApproval,
-} from '@/lib/exam-slot-approval';
 import { provisionStudentsFromSlotRoster } from '@/lib/roster-student-provision';
 
 const DEPT_EXAMS_SLUG = 'department-exams';
@@ -44,7 +36,7 @@ async function ensureDepartmentExamsCategory(admin: SupabaseClient): Promise<str
     .insert({
       name: 'Department Exams',
       slug: DEPT_EXAMS_SLUG,
-      description: 'Faculty-submitted exams approved by the examination cell',
+      description: 'Department examinations created by the examination cell',
       icon: '🏫',
     })
     .select('id')
@@ -306,198 +298,4 @@ export async function publishFacultyExamRequest(
 
   await finalizeSlotSchedulesOnPublish(admin, request, requestId, testIdStr, adminUserId);
   return { testId: testIdStr };
-}
-
-async function ensurePublishedTestForRequest(
-  admin: SupabaseClient,
-  request: Record<string, unknown>,
-  requestId: string,
-): Promise<string> {
-  const existing = request.published_test_id ? String(request.published_test_id) : '';
-  if (existing) return existing;
-
-  const isElevateX = isElevateXBuilderTestType(String(request.test_type ?? ''));
-  if (isElevateX) {
-    await admin
-      .from('faculty_exam_requests')
-      .update({ published_test_id: ELEVATEX_TEST_ID, updated_at: new Date().toISOString() })
-      .eq('id', requestId);
-    return ELEVATEX_TEST_ID;
-  }
-
-  const questions = parseQuestionsJson(request.questions_json) as FacultyExamQuestion[];
-  if (questions.length === 0) {
-    throw new Error('Exam has no questions');
-  }
-
-  const categoryId = await ensureDepartmentExamsCategory(admin);
-  const { data: testRow, error: testError } = await admin
-    .from('tests')
-    .insert({
-      category_id: categoryId,
-      title: request.title,
-      description: request.description ?? `Department: ${request.department}`,
-      duration_minutes: request.duration_minutes,
-      total_questions: questions.length,
-      difficulty: 'medium',
-    })
-    .select('id')
-    .single();
-
-  if (testError || !testRow?.id) {
-    throw new Error(testError?.message ?? 'Failed to create test');
-  }
-
-  const testsIdKind = await detectTestsIdKind(admin);
-  const questionsIdKind = await detectQuestionsIdKind(admin);
-  const testId = normalizeTestId(testRow.id, testsIdKind);
-  const testIdStr = String(testId);
-
-  const mcqQuestions = questions.filter((q): q is FacultyMcqQuestion => !isFacultyCodingQuestion(q));
-  const questionRows = mcqQuestions.map((q) => ({
-    question_text: q.question_text,
-    question_type: 'mcq',
-    option_a: q.option_a,
-    option_b: q.option_b,
-    option_c: q.option_c,
-    option_d: q.option_d,
-    correct_answer: q.correct_answer,
-    explanation: q.explanation ?? '',
-    marks: 1,
-    test_id: testsIdKind === 'bigint' ? Number(testIdStr) : testId,
-  }));
-
-  let { data: inserted, error: qError } = await admin
-    .from('questions')
-    .insert(questionRows)
-    .select('id');
-
-  if (qError && isUuidTypeMismatchError(String(qError.message ?? ''))) {
-    const fallbackRows = questionRows.map((r) => {
-      const { test_id: _t, ...rest } = r;
-      return rest;
-    });
-    const retry = await admin.from('questions').insert(fallbackRows).select('id');
-    inserted = retry.data;
-    qError = retry.error;
-  }
-  if (qError) throw new Error(qError.message);
-  if (inserted?.length) {
-    await linkTestQuestions(admin, testIdStr, inserted);
-  }
-
-  const publishedCandidates: Array<string | number> = [
-    testId,
-    testIdStr,
-    ...(testsIdKind === 'bigint' ? [Number(testIdStr)] : []),
-  ];
-
-  for (const publishedTestId of publishedCandidates) {
-    const { error } = await admin
-      .from('faculty_exam_requests')
-      .update({ published_test_id: publishedTestId, updated_at: new Date().toISOString() })
-      .eq('id', requestId);
-    if (!error) return testIdStr;
-    if (!isUuidTypeMismatchError(String(error.message ?? ''))) {
-      throw new Error(error.message);
-    }
-  }
-
-  await admin
-    .from('faculty_exam_requests')
-    .update({ published_test_id: testIdStr, updated_at: new Date().toISOString() })
-    .eq('id', requestId);
-
-  return testIdStr;
-}
-
-/** Approve one slot at a time for slot-scheduled exams (ElevateX / 8-slot roster). */
-export async function publishFacultyExamSlot(
-  admin: SupabaseClient,
-  requestId: string,
-  slotNumber: number,
-  adminUserId: string,
-): Promise<{ testId: string; slot_number: number; all_slots_approved: boolean }> {
-  const { data: request, error: fetchError } = await admin
-    .from('faculty_exam_requests')
-    .select('*')
-    .eq('id', requestId)
-    .maybeSingle();
-
-  if (fetchError) throw new Error(fetchError.message);
-  if (!request) throw new Error('Exam request not found');
-  if (!request.uses_slot_scheduling) {
-    throw new Error('This exam does not use slot scheduling. Use full approval instead.');
-  }
-  if (request.status === 'rejected') {
-    throw new Error('This exam request was rejected');
-  }
-
-  const slots = parseSlotsWithApproval(request.schedule_slots_json);
-  const pendingSlot = slotForApproval(slots, slotNumber);
-  if (!pendingSlot) {
-    throw new Error(`Slot ${slotNumber} is not pending approval.`);
-  }
-
-  const testIdStr = await ensurePublishedTestForRequest(admin, request, requestId);
-
-  const targetDepartments = Array.from(
-    new Set([String(request.department), ...((request.target_branches as string[]) ?? [])]),
-  );
-
-  await provisionStudentsFromSlotRoster(admin, {
-    slots: [pendingSlot],
-    defaultDepartment: String(request.department),
-    defaultYears: (request.target_years as string[]) ?? [],
-  });
-
-  const { data: existingSchedule } = await admin
-    .from('exam_schedules')
-    .select('id')
-    .eq('faculty_exam_request_id', requestId)
-    .eq('slot_number', slotNumber)
-    .maybeSingle();
-
-  let scheduleRow: { scheduleId: string; slot_number: number } | null = null;
-  if (existingSchedule?.id) {
-    scheduleRow = { scheduleId: String(existingSchedule.id), slot_number: slotNumber };
-  } else {
-    scheduleRow = await createScheduleForSlot(admin, {
-      requestId,
-      testId: testIdStr,
-      title: String(request.title),
-      description: (request.description as string | null) ?? null,
-      targetDepartments,
-      targetYears: (request.target_years as string[]) ?? [],
-      createdBy: adminUserId,
-      slot: pendingSlot,
-    });
-  }
-
-  if (scheduleRow) {
-    await syncExamStudentRosters(admin, [scheduleRow], [pendingSlot]);
-  }
-
-  await persistSlotRosterForSlot(admin, requestId, pendingSlot);
-
-  const updatedSlots = markSlotApproved(slots, slotNumber);
-  const complete = allSlotsApproved(updatedSlots);
-
-  const updatePayload: Record<string, unknown> = {
-    schedule_slots_json: updatedSlots,
-    reviewed_by: adminUserId,
-    reviewed_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    published_test_id: testIdStr,
-    status: complete ? 'approved' : 'pending',
-  };
-
-  const { error: updateError } = await admin
-    .from('faculty_exam_requests')
-    .update(updatePayload)
-    .eq('id', requestId);
-
-  if (updateError) throw new Error(updateError.message);
-
-  return { testId: testIdStr, slot_number: slotNumber, all_slots_approved: complete };
 }

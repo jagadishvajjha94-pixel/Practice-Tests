@@ -1,4 +1,4 @@
-import { examMatchesDepartment } from '@/lib/faculty/department-match';
+import { examMatchesDepartment } from '@/lib/department-match';
 import { academicYearInList } from '@/lib/academic-year-match';
 import {
   isFacultyExamLiveForStudent,

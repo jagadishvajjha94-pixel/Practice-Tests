@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { departmentsMatch } from '@/lib/faculty/department-match';
+import { departmentsMatch } from '@/lib/department-match';
 import type { EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
 
 function isRmsetScheduleLive(

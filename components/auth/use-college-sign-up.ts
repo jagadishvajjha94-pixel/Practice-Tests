@@ -96,32 +96,6 @@ export function useCollegeSignUp() {
             setError(signinJson.error ?? 'Account created. Sign in with your roll number.');
             return;
           }
-        } else {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-
-          if (signInError) {
-            router.push('/auth/login/faculty');
-            return;
-          }
-
-          if (Object.keys(metadata).length > 0) {
-            await supabase.auth.updateUser({ data: metadata });
-          }
-        }
-
-        if (role === 'faculty' && metadata.department) {
-          await fetch('/api/faculty/profile', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              department: metadata.department,
-              employee_id: metadata.employee_id,
-              full_name: fullName,
-            }),
-          });
         }
 
         router.push(redirectTo);

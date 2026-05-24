@@ -250,7 +250,7 @@ export default function AdminExamSchedulesPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="Live & upcoming exams"
-        description="Schedule a faculty exam, then go live when students should see it on their dashboard."
+        description="Publish exams from Exam builder, then go live per slot when students should see them on their dashboard."
       />
 
       {loadWarning ? (
@@ -263,9 +263,9 @@ export default function AdminExamSchedulesPage() {
         <h3 className="font-semibold text-[#0c2340] mb-4">Schedule new exam</h3>
         {approvedExams.length === 0 ? (
           <p className="text-sm text-slate-600">
-            No approved faculty exams yet.{' '}
-            <Link href="/admin/approvals" className="font-semibold text-[#1e3a5f] hover:underline">
-              Approve an exam first →
+            No published exams yet.{' '}
+            <Link href="/admin/exam-builder" className="font-semibold text-[#1e3a5f] hover:underline">
+              Create an exam in Exam builder →
             </Link>
           </p>
         ) : (
@@ -273,7 +273,7 @@ export default function AdminExamSchedulesPage() {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Approved faculty exam
+                  Published exam
                 </label>
                 <select
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -456,7 +456,7 @@ export default function AdminExamSchedulesPage() {
 
       {approvedExams.length > 0 ? (
         <Card className="p-6">
-          <h3 className="font-semibold text-[#0c2340] mb-4">Published faculty exams</h3>
+          <h3 className="font-semibold text-[#0c2340] mb-4">Published exams</h3>
           <p className="text-sm text-slate-600 mb-4">
             Delete removes the full exam (test, schedules, and attempts). Use schedule Delete above
             to remove only one time window.
@@ -501,7 +501,7 @@ export default function AdminExamSchedulesPage() {
       <Card className="p-6 border-amber-200 bg-amber-50/40">
         <h3 className="font-semibold text-[#0c2340] mb-2">Clean up old exams</h3>
         <p className="text-sm text-slate-600 mb-4">
-          Keeps only faculty exams and schedules from <strong>today (IST)</strong>. Removes older
+          Keeps only exams and schedules from <strong>today (IST)</strong>. Removes older
           requests, schedules, department tests, and related attempts. ElevateX data is not deleted.
         </p>
         <div className="flex flex-wrap gap-2">

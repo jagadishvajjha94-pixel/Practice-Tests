@@ -12,7 +12,7 @@ export const runtime = 'nodejs';
 
 /** Creates question bank tables (migrations 020 + 021) when POSTGRES_URL or SUPABASE_DB_PASSWORD is set. */
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth(['admin', 'faculty'], request);
+  const auth = await requireAuth(['admin'], request);
   if ('response' in auth) return auth.response;
 
   const result = await applyQuestionBankSchemaMigrations();

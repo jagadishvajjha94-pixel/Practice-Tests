@@ -45,7 +45,7 @@ export function StudentExamsPortal() {
       }
       const role = String(user.user_metadata?.role ?? '');
       if (role === 'faculty') {
-        router.replace('/faculty/dashboard');
+        router.replace('/auth/role');
         return;
       }
       const { data: adminRow } = await supabase

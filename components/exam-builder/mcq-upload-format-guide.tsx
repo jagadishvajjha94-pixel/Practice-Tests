@@ -1,6 +1,6 @@
 'use client';
 
-import { MCQ_UPLOAD_FORMAT_HINT } from '@/lib/faculty/parse-exam-text';
+import { MCQ_UPLOAD_FORMAT_HINT } from '@/lib/exam-builder/parse-exam-text';
 
 export function McqUploadFormatGuide({ className = '' }: { className?: string }) {
   return (

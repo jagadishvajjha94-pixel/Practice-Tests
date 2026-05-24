@@ -261,7 +261,7 @@ export function ExamBuilderControls({
           <ElevateXLiveInfo compact />
           <StatusAlert variant="info">
             ElevateX uses a fixed 6-section paper (60 minutes, 100 marks). Configure the 8 student
-            time slots and roster below, then submit for admin approval.
+            time slots and roster below, then publish.
           </StatusAlert>
         </>
       ) : null}

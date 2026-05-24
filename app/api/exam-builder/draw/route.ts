@@ -4,7 +4,7 @@ import { drawExamQuestionsFromTopics } from '@/lib/exam-builder/draw-questions';
 import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth(['admin', 'faculty']);
+  const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
   const admin = getServiceSupabase();

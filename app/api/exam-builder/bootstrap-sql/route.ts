@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 
 /** Returns combined 020+021 SQL for Supabase SQL editor (when POSTGRES_URL is not configured). */
 export async function GET() {
-  const auth = await requireAuth(['admin', 'faculty']);
+  const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
   try {

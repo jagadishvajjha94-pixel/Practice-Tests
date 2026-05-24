@@ -1,5 +1,6 @@
-import { GraduationCap, Users } from 'lucide-react';
+import { GraduationCap } from 'lucide-react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { PortalShell } from '@/components/auth/portal-shell';
 import { AuthFlowPanel } from '@/components/auth/auth-flow-panel';
 import { RoleCard } from '@/components/auth/role-card';
@@ -38,33 +39,5 @@ export default async function SignupRolePage({ searchParams }: Props) {
     );
   }
 
-  return (
-    <PortalShell>
-      <AuthFlowPanel
-        title="Create account"
-        subtitle="Students and faculty can register. Admin access is issued by the examination cell only."
-      >
-        <div className="space-y-3">
-          <RoleCard
-            href={`/auth/signup/student${suffix}`}
-            title="Student registration"
-            description="Roll number, department, year, and password"
-            icon={GraduationCap}
-          />
-          <RoleCard
-            href={`/auth/signup/faculty${suffix}`}
-            title="Faculty registration"
-            description="Employee ID and password"
-            icon={Users}
-          />
-        </div>
-        <p className="mt-6 text-center text-sm text-slate-700">
-          Already registered?{' '}
-          <Link href={`/auth/role${suffix}`} className="font-semibold text-[#1e3a5f] hover:underline">
-            Sign in
-          </Link>
-        </p>
-      </AuthFlowPanel>
-    </PortalShell>
-  );
+  redirect(`/auth/signup/student${suffix}`);
 }

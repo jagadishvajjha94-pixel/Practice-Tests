@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
         ? 'Exam published with 8 slot schedules. Go live per slot on Exam schedules when ready.'
         : goLiveNow
           ? 'Exam published and is live for the selected department group.'
-          : 'Exam published. Go live from Faculty exam schedules when ready.',
+          : 'Exam published. Go live from Exam schedules when ready.',
     });
   } catch (err) {
     return NextResponse.json(

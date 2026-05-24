@@ -4,7 +4,7 @@ import { seedCuratedQuestionBank } from '@/lib/question-bank/seed-curated-bank';
 import { supabaseSqlEditorUrl } from '@/lib/postgres-url';
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth(['admin', 'faculty'], request);
+  const auth = await requireAuth(['admin'], request);
   if ('response' in auth) return auth.response;
 
   const admin = getServiceSupabase();

@@ -4,7 +4,7 @@ import { supabaseSqlEditorUrl } from '@/lib/postgres-url';
 import { isPostgresConfigured } from '@/lib/question-bank/apply-bank-schema';
 
 export async function GET() {
-  const auth = await requireAuth(['admin', 'faculty']);
+  const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
   const admin = getServiceSupabase();

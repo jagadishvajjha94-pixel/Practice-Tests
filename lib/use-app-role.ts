@@ -32,11 +32,6 @@ export function useAppRole() {
         }
       }
 
-      if (String(user.user_metadata?.role ?? '') === 'faculty') {
-        setRole('faculty');
-        return;
-      }
-
       setRole('student');
     };
     void run();

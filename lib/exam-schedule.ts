@@ -1,5 +1,5 @@
 import { academicYearInList } from '@/lib/academic-year-match';
-import { departmentsMatch } from '@/lib/faculty/department-match';
+import { departmentsMatch } from '@/lib/department-match';
 import { studentTakeUrlForTestId } from '@/lib/exam-builder/elevatex-exam';
 
 export type ExamScheduleStatus = 'scheduled' | 'live' | 'ended';

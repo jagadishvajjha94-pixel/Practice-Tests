@@ -42,7 +42,7 @@ async function insertViolationRows(
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuth(['student', 'faculty', 'admin']);
+  const auth = await requireAuth(['student', 'admin']);
   if ('response' in auth) return auth.response;
 
   const body = (await request.json()) as {

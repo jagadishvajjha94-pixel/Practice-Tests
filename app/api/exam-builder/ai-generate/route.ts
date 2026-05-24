@@ -31,7 +31,7 @@ Example shape (do not copy text):
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth(['admin', 'faculty']);
+  const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
   const admin = getServiceSupabase();
