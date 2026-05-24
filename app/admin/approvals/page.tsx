@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import type { FacultyExamRequest } from '@/lib/faculty-exams';
 import { enrichScheduleSlots, parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
+import { downloadRosterCredentialsCsv } from '@/lib/roster-credentials-export';
 
 type EnrichedRequest = FacultyExamRequest & {
   faculty?: { full_name?: string; employee_id?: string; department?: string } | null;
@@ -191,6 +192,22 @@ export default function AdminApprovalsPage() {
                       On approval, eight scheduled windows are created. Admin goes live per slot on
                       Faculty exam schedules. Students only access during their assigned slot.
                     </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-indigo-300 text-indigo-900"
+                      onClick={() => {
+                        const slots = parseScheduleSlotsJson(r.schedule_slots_json);
+                        const ok = downloadRosterCredentialsCsv(
+                          slots,
+                          `${r.title.replace(/[^a-zA-Z0-9_-]+/g, '_')}-credentials.csv`,
+                        );
+                        if (!ok) alert('No roster students found for this exam.');
+                      }}
+                    >
+                      Download student credentials CSV
+                    </Button>
                   </div>
                 ) : null}
               </Card>

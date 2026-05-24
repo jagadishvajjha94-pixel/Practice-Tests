@@ -4,6 +4,12 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusAlert } from '@/components/ui/status-alert';
+import { RosterSheetImportDialog } from '@/components/exam-builder/roster-sheet-import-dialog';
+import {
+  DEFAULT_EXAM_STUDENT_PASSWORD,
+  downloadRosterCredentialsCsv,
+  enrichSlotsWithPasswords,
+} from '@/lib/roster-credentials-export';
 import {
   EXAM_SLOT_CAPACITY_DEFAULT,
   EXAM_SLOT_COUNT,
@@ -37,6 +43,18 @@ export function ExamSlotSchedulePanel({
 }: Props) {
   const [activeSlot, setActiveSlot] = useState(1);
   const [importNote, setImportNote] = useState<string | null>(null);
+  const [sheetImportOpen, setSheetImportOpen] = useState(false);
+  const [defaultPassword, setDefaultPassword] = useState(DEFAULT_EXAM_STUDENT_PASSWORD);
+
+  const slotsWithPasswords = useMemo(
+    () => enrichSlotsWithPasswords(slots, defaultPassword),
+    [slots, defaultPassword],
+  );
+
+  const totalStudents = useMemo(
+    () => slotsWithPasswords.reduce((sum, slot) => sum + slot.roster.length, 0),
+    [slotsWithPasswords],
+  );
 
   const current = useMemo(
     () => slots.find((s) => s.slot_number === activeSlot) ?? slots[0],
@@ -63,11 +81,21 @@ export function ExamSlotSchedulePanel({
         setImportNote(
           `Imported ${roster.length} rows — maximum ${EXAM_SLOT_CAPACITY_DEFAULT} per slot. Only the first ${EXAM_SLOT_CAPACITY_DEFAULT} were kept.`,
         );
-        updateSlot(slotNumber, { roster: roster.slice(0, EXAM_SLOT_CAPACITY_DEFAULT) });
+        updateSlot(slotNumber, {
+          roster: enrichSlotsWithPasswords(
+            [{ slot_number: slotNumber, exam_date: '', start_time: '09:00', end_time: '11:00', roster: roster.slice(0, EXAM_SLOT_CAPACITY_DEFAULT) }],
+            defaultPassword,
+          )[0]!.roster,
+        });
         return;
       }
       setImportNote(`Slot ${slotNumber}: imported ${roster.length} student(s).`);
-      updateSlot(slotNumber, { roster });
+      updateSlot(slotNumber, {
+        roster: enrichSlotsWithPasswords(
+          [{ slot_number: slotNumber, exam_date: '', start_time: '09:00', end_time: '11:00', roster }],
+          defaultPassword,
+        )[0]!.roster,
+      });
     };
     reader.readAsText(file);
   };
@@ -96,16 +124,73 @@ export function ExamSlotSchedulePanel({
         <div>
           <p className="text-sm font-semibold text-[#0c2340]">8 slots · {EXAM_SLOT_CAPACITY_DEFAULT} students each</p>
           <p className="text-xs text-slate-600 mt-1">
-            Set exam date and timings per slot. Upload a CSV of roll numbers for each slot (max{' '}
-            {EXAM_SLOT_CAPACITY_DEFAULT}).
+            Set exam date and timings per slot. Import an Excel/CSV roster, map columns, then assign students to slots (max{' '}
+            {EXAM_SLOT_CAPACITY_DEFAULT} per slot).
           </p>
         </div>
-        <Button type="button" variant="ghost" size="sm" onClick={() => onEnabledChange(false)}>
-          Disable slots
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" onClick={() => setSheetImportOpen(true)}>
+            Import Excel / CSV
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => onEnabledChange(false)}>
+            Disable slots
+          </Button>
+        </div>
       </div>
 
       {importNote ? <StatusAlert variant="info">{importNote}</StatusAlert> : null}
+
+      <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
+        <div>
+          <p className="text-xs font-semibold text-slate-800">Student login passwords</p>
+          <p className="text-[11px] text-slate-600 mt-1">
+            Set a default password for students without one in the sheet. Download the credentials CSV and share with students.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3 items-end">
+          <label className="block text-xs font-medium text-slate-600 min-w-[180px]">
+            Default password
+            <Input
+              className="mt-1 h-9"
+              value={defaultPassword}
+              onChange={(e) => setDefaultPassword(e.target.value)}
+              placeholder={DEFAULT_EXAM_STUDENT_PASSWORD}
+            />
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!current?.roster.length}
+            onClick={() => {
+              const ok = downloadRosterCredentialsCsv(
+                slotsWithPasswords.filter((slot) => slot.slot_number === activeSlot),
+                `slot-${activeSlot}-credentials.csv`,
+                defaultPassword,
+              );
+              if (!ok) setImportNote('No students in this slot to export.');
+            }}
+          >
+            Download Slot {activeSlot} credentials
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={totalStudents === 0}
+            onClick={() => {
+              const ok = downloadRosterCredentialsCsv(
+                slotsWithPasswords,
+                'all-slots-credentials.csv',
+                defaultPassword,
+              );
+              if (!ok) setImportNote('Upload roster students before downloading credentials.');
+            }}
+          >
+            Download all slots ({totalStudents})
+          </Button>
+        </div>
+      </div>
 
       <div className="flex flex-wrap gap-1.5">
         {slots.map((s) => {
@@ -196,7 +281,7 @@ export function ExamSlotSchedulePanel({
             Upload CSV
           </label>
           <span className="text-[10px] text-slate-500">
-            Columns: roll, name, email, department, year (password optional)
+            Quick CSV for this slot only, or use Import Excel / CSV above for column mapping.
           </span>
         </div>
         {current && current.roster.length > 0 ? (
@@ -207,6 +292,7 @@ export function ExamSlotSchedulePanel({
                 {r.student_name ? ` · ${r.student_name}` : ''}
                 {r.branch ? ` · ${r.branch}` : ''}
                 {r.academic_year ? ` · Y${r.academic_year}` : ''}
+                {r.password ? ` · pwd: ${r.password}` : ''}
               </div>
             ))}
             {current.roster.length > 8 ? (
@@ -217,6 +303,17 @@ export function ExamSlotSchedulePanel({
           <p className="text-xs text-amber-700">No students uploaded for this slot yet.</p>
         )}
       </div>
+
+      <RosterSheetImportDialog
+        open={sheetImportOpen}
+        onOpenChange={setSheetImportOpen}
+        slots={slots}
+        defaultPassword={defaultPassword}
+        onImport={(nextSlots, message) => {
+          onSlotsChange(enrichSlotsWithPasswords(nextSlots, defaultPassword));
+          setImportNote(`${message} · Credentials CSV downloaded if enabled.`);
+        }}
+      />
     </div>
   );
 }

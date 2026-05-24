@@ -261,6 +261,7 @@ export async function persistSlotRoster(
         email: student.email ?? null,
         branch: student.branch ?? null,
         academic_year: student.academic_year ?? null,
+        login_password: student.password ?? null,
       });
     }
   }
@@ -269,7 +270,15 @@ export async function persistSlotRoster(
   let { error } = await admin.from('exam_slot_roster_entries').insert(rows);
   if (error?.message?.includes('branch') || error?.message?.includes('academic_year')) {
     const fallbackRows = rows.map((row) => {
-      const { branch: _b, academic_year: _y, ...rest } = row;
+      const { branch: _b, academic_year: _y, login_password: _p, ...rest } = row;
+      return rest;
+    });
+    const retry = await admin.from('exam_slot_roster_entries').insert(fallbackRows);
+    error = retry.error;
+  }
+  if (error?.message?.includes('login_password')) {
+    const fallbackRows = rows.map((row) => {
+      const { login_password: _p, ...rest } = row;
       return rest;
     });
     const retry = await admin.from('exam_slot_roster_entries').insert(fallbackRows);
@@ -287,7 +296,7 @@ export async function rebuildSlotsFromRosterEntries(
 ): Promise<ExamScheduleSlotInput[]> {
   const { data: entries, error } = await admin
     .from('exam_slot_roster_entries')
-    .select('slot_number, roll_number, student_name, email, branch, academic_year')
+    .select('slot_number, roll_number, student_name, email, branch, academic_year, login_password')
     .eq('faculty_exam_request_id', requestId)
     .order('slot_number');
 
@@ -306,6 +315,7 @@ export async function rebuildSlotsFromRosterEntries(
       email: (row.email as string | null) ?? undefined,
       branch: (row.branch as string | null) ?? undefined,
       academic_year: (row.academic_year as string | null) ?? undefined,
+      password: (row.login_password as string | null) ?? undefined,
     });
     bySlot.set(slotNum, list);
   }
