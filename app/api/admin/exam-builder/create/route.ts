@@ -61,9 +61,11 @@ export async function POST(request: NextRequest) {
     ? (body.extraBranches as string[])
     : [];
   const goLiveNow = Boolean(body.goLiveNow) && !usesSlotScheduling;
-  const goLiveSlotNumbers = (Array.isArray(body.goLiveSlotNumbers) ? body.goLiveSlotNumbers : [])
+  const goLiveSlotNumbersRaw = Array.isArray(body.goLiveSlotNumbers) ? body.goLiveSlotNumbers : [];
+  const goLiveSlotNumbers = goLiveSlotNumbersRaw
     .map((n) => Math.floor(Number(n)))
-    .filter((n) => Number.isFinite(n) && n >= 1 && n <= 8);
+    .filter((n) => Number.isFinite(n) && n >= 1 && n <= 8)
+    .slice(0, 1);
 
   let questions = parseQuestionsJson(body.questions);
 
@@ -133,8 +135,8 @@ export async function POST(request: NextRequest) {
     });
 
     const goLiveMsg =
-      goLiveSlotNumbers.length > 0
-        ? ` ${goLiveSlotNumbers.length} slot(s) marked live (Slot ${goLiveSlotNumbers.join(', ')}).`
+      goLiveSlotNumbers.includes(1)
+        ? ' Slot 1 is live. End Slot 1, then go live Slot 2, and so on from Exam schedules.'
         : '';
 
     return NextResponse.json({
@@ -144,7 +146,7 @@ export async function POST(request: NextRequest) {
       takeUrl: result.testId ? studentTakeUrlForTestId(result.testId) : undefined,
       targetDepartments: [result.department, ...result.target_branches],
       message: usesSlotScheduling
-        ? `Exam published with 8 slot schedules.${goLiveMsg} Go live remaining slots from Exam schedules when ready.`
+        ? `Exam published with 8 slot schedules.${goLiveMsg} Open slots one at a time from Exam schedules.`
         : goLiveNow
           ? 'Exam published and is live for the selected department group.'
           : 'Exam published. Go live from Exam schedules when ready.',

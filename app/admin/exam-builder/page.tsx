@@ -54,7 +54,7 @@ export default function AdminExamBuilderPage() {
   const [usesSlotScheduling, setUsesSlotScheduling] = useState(false);
   const [scheduleSlots, setScheduleSlots] = useState<ExamScheduleSlotInput[]>(emptySlots);
   const [manualPaste, setManualPaste] = useState('');
-  const [goLiveOnPublish, setGoLiveOnPublish] = useState<number[]>([]);
+  const [goLiveSlot1OnPublish, setGoLiveSlot1OnPublish] = useState(false);
 
   const testDef = getExamBuilderTestType(testType);
   const isManual = testType === 'department-manual';
@@ -179,9 +179,7 @@ export default function AdminExamBuilderPage() {
           usesSlotScheduling: isElevateX || usesSlotScheduling,
           scheduleSlots: isElevateX || usesSlotScheduling ? scheduleSlots : undefined,
           goLiveSlotNumbers:
-            (isElevateX || usesSlotScheduling) && goLiveOnPublish.length
-              ? goLiveOnPublish
-              : undefined,
+            (isElevateX || usesSlotScheduling) && goLiveSlot1OnPublish ? [1] : undefined,
           questions: questions.length ? questions : undefined,
         }),
       });
@@ -398,47 +396,24 @@ export default function AdminExamBuilderPage() {
         ) : (
           <div className="space-y-3">
             <StatusAlert variant="info">
-              Slot-scheduled exams are saved with all 8 time windows. Choose which slots to open
-              immediately below, or go live later from{' '}
+              Slots go live <strong>one at a time</strong> in order (Slot 1 → 2 → … → 8). After
+              publish, open Slot 1, then end it and open Slot 2 from{' '}
               <Link href="/admin/exam-schedules" className="font-semibold underline">
                 Exam schedules
               </Link>
-              . Only students on each slot roster can take the exam during that slot window.
+              . Only roster students for that slot can take the exam during its window.
             </StatusAlert>
             {slotsValid ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Go live on publish
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {scheduleSlots.map((slot) => {
-                    const active = goLiveOnPublish.includes(slot.slot_number);
-                    const hasRoster = slot.roster.length > 0;
-                    return (
-                      <button
-                        key={slot.slot_number}
-                        type="button"
-                        disabled={!hasRoster}
-                        onClick={() => toggleGoLiveSlot(slot.slot_number)}
-                        className={cn(
-                          'px-3 py-1.5 rounded-full text-xs font-medium border transition',
-                          !hasRoster && 'opacity-40 cursor-not-allowed',
-                          active
-                            ? 'bg-emerald-600 text-white border-emerald-600'
-                            : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400',
-                        )}
-                      >
-                        Slot {slot.slot_number}
-                        {hasRoster ? ` (${slot.roster.length})` : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Selected slots open for roster students only, during each slot&apos;s configured
-                  date and time.
-                </p>
-              </div>
+              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer rounded-xl border border-slate-200 bg-white p-4">
+                <input
+                  type="checkbox"
+                  checked={goLiveSlot1OnPublish}
+                  onChange={(e) => setGoLiveSlot1OnPublish(e.target.checked)}
+                  disabled={!scheduleSlots[0]?.roster.length}
+                  className="rounded border-slate-300"
+                />
+                Open Slot 1 immediately on publish (Slot 2+ only after you end the previous slot)
+              </label>
             ) : slotValidationError ? (
               <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 {slotValidationError}

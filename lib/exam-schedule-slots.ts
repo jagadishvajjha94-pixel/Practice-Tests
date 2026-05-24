@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { rollNumberFromUser } from '@/lib/admin/roll-number';
 import {
   isScheduleWindowOpen,
+  normalizeEndsAtForGoLive,
+  resolveExamScheduleStatus,
   scheduleMatchesStudent,
   scheduleStartMs,
   type ExamScheduleRow,
@@ -691,18 +693,163 @@ export async function createSchedulesFromSlots(
   return created;
 }
 
-/** Mark selected slot schedules live without changing their configured start/end times. */
+export function scheduleSlotNumber(schedule: ExamScheduleRow): number | null {
+  const direct = Number((schedule as ExamScheduleRow & { slot_number?: number }).slot_number);
+  if (Number.isFinite(direct) && direct >= 1) return Math.floor(direct);
+  const match = schedule.title.match(/Slot\s+(\d+)/i);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? Math.floor(parsed) : null;
+}
+
+export function schedulesForExamRequest(
+  schedules: ExamScheduleRow[],
+  requestId: string,
+): ExamScheduleRow[] {
+  return schedules.filter((s) => s.faculty_exam_request_id === requestId);
+}
+
+/** Only one slot live at a time; slot N after slots 1…N−1 have ended. */
+export function validateSequentialSlotGoLive(
+  related: ExamScheduleRow[],
+  targetSlotNumber: number,
+): string | null {
+  if (targetSlotNumber < 1 || targetSlotNumber > EXAM_SLOT_COUNT) {
+    return 'Invalid slot number.';
+  }
+
+  for (let n = 1; n < targetSlotNumber; n++) {
+    const prev = related.find((s) => scheduleSlotNumber(s) === n);
+    if (!prev) return `Slot ${n} schedule is missing.`;
+    if (prev.status === 'live') {
+      return `End Slot ${n} before opening Slot ${targetSlotNumber}.`;
+    }
+    const prevResolved = resolveExamScheduleStatus(prev);
+    if (prev.status !== 'ended' && prevResolved.display !== 'window_ended') {
+      return `Open slots in order: end Slot ${n} before Slot ${targetSlotNumber} can go live.`;
+    }
+  }
+
+  const otherLive = related.find(
+    (s) => s.status === 'live' && scheduleSlotNumber(s) !== targetSlotNumber,
+  );
+  if (otherLive) {
+    const other = scheduleSlotNumber(otherLive) ?? '?';
+    return `End Slot ${other} first. Only one slot can be live at a time.`;
+  }
+
+  return null;
+}
+
+/** Lowest slot number that may go live next for this exam request. */
+export function nextSequentialSlotToGoLive(related: ExamScheduleRow[]): number | null {
+  const anyLive = related.find((s) => s.status === 'live');
+  if (anyLive) return null;
+
+  for (let n = 1; n <= EXAM_SLOT_COUNT; n++) {
+    const row = related.find((s) => scheduleSlotNumber(s) === n);
+    if (!row) continue;
+    if (row.status === 'live') return null;
+    const resolved = resolveExamScheduleStatus(row);
+    const reopenable =
+      row.status === 'scheduled' ||
+      row.status === 'ended' ||
+      resolved.display === 'window_ended';
+    if (!reopenable) continue;
+    if (!validateSequentialSlotGoLive(related, n)) return n;
+  }
+  return null;
+}
+
+/** Go live one slot; ends any other live slot on the same exam first. */
+export async function goLiveExamScheduleSlotSequential(
+  admin: SupabaseClient,
+  scheduleId: string,
+): Promise<ExamScheduleRow> {
+  const { data: existing, error: fetchErr } = await admin
+    .from('exam_schedules')
+    .select('*')
+    .eq('id', scheduleId)
+    .maybeSingle();
+
+  if (fetchErr || !existing) {
+    throw new Error('Schedule not found');
+  }
+
+  const row = existing as ExamScheduleRow;
+  const requestId = row.faculty_exam_request_id;
+  const slotNum = scheduleSlotNumber(row);
+
+  if (!requestId || slotNum == null) {
+    throw new Error('This schedule is not part of a slot-based exam.');
+  }
+
+  const { data: relatedRows, error: relatedErr } = await admin
+    .from('exam_schedules')
+    .select('*')
+    .eq('faculty_exam_request_id', requestId);
+
+  if (relatedErr) throw new Error(relatedErr.message);
+
+  const related = (relatedRows ?? []) as ExamScheduleRow[];
+  const seqErr = validateSequentialSlotGoLive(related, slotNum);
+  if (seqErr) throw new Error(seqErr);
+
+  const now = new Date().toISOString();
+  for (const other of related) {
+    if (other.id === scheduleId || other.status !== 'live') continue;
+    await admin
+      .from('exam_schedules')
+      .update({
+        status: 'ended',
+        ends_at: other.ends_at ?? now,
+        updated_at: now,
+      })
+      .eq('id', other.id);
+  }
+
+  const startsAtIso = String(row.starts_at ?? '');
+  const normalizedEnd = normalizeEndsAtForGoLive(startsAtIso, row.ends_at ?? null);
+
+  const patch: Record<string, unknown> = {
+    status: 'live',
+    updated_at: now,
+  };
+  if (normalizedEnd !== row.ends_at) {
+    patch.ends_at = normalizedEnd;
+  }
+
+  const { data: updated, error: updateErr } = await admin
+    .from('exam_schedules')
+    .update(patch)
+    .eq('id', scheduleId)
+    .select('*')
+    .single();
+
+  if (updateErr || !updated) {
+    throw new Error(updateErr?.message ?? 'Could not go live');
+  }
+
+  return updated as ExamScheduleRow;
+}
+
+/** On publish, at most one slot — must be slot 1. */
 export async function goLiveExamSchedulesForSlots(
   admin: SupabaseClient,
   requestId: string,
   slotNumbers: number[],
 ): Promise<{ updated: number }> {
-  const wanted = new Set(
-    slotNumbers
-      .map((n) => Math.floor(Number(n)))
-      .filter((n) => Number.isFinite(n) && n >= 1 && n <= EXAM_SLOT_COUNT),
-  );
-  if (wanted.size === 0) return { updated: 0 };
+  const nums = slotNumbers
+    .map((n) => Math.floor(Number(n)))
+    .filter((n) => Number.isFinite(n) && n >= 1 && n <= EXAM_SLOT_COUNT);
+
+  if (nums.length === 0) return { updated: 0 };
+  if (nums.length > 1) {
+    throw new Error('Only one slot can go live at a time. Open Slot 1 on publish, then Slot 2, and so on.');
+  }
+  if (nums[0] !== 1) {
+    throw new Error('On publish, only Slot 1 can go live. Open Slot 2 and later from Exam schedules after Slot 1 ends.');
+  }
 
   const { data: rows, error } = await admin
     .from('exam_schedules')
@@ -711,24 +858,16 @@ export async function goLiveExamSchedulesForSlots(
 
   if (error) throw new Error(error.message);
 
-  let updated = 0;
-  for (const row of (rows ?? []) as ExamScheduleRow[]) {
-    const slotNum = scheduleSlotNumber(row);
-    if (slotNum == null || !wanted.has(slotNum)) continue;
+  const target = (rows ?? []).find(
+    (r) => scheduleSlotNumber(r as ExamScheduleRow) === 1,
+  );
 
-    const { error: updateErr } = await admin
-      .from('exam_schedules')
-      .update({
-        status: 'live',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', row.id);
-
-    if (updateErr) throw new Error(updateErr.message);
-    updated += 1;
+  if (!target?.id) {
+    throw new Error('Slot 1 schedule not found for this exam.');
   }
 
-  return { updated };
+  await goLiveExamScheduleSlotSequential(admin, String(target.id));
+  return { updated: 1 };
 }
 
 export function filterSchedulesForStudentSlots(
@@ -792,15 +931,6 @@ export function formatSlotWindowLabel(slot: {
   }
 
   return 'See examination schedule';
-}
-
-function scheduleSlotNumber(schedule: ExamScheduleRow): number | null {
-  const direct = Number((schedule as ExamScheduleRow & { slot_number?: number }).slot_number);
-  if (Number.isFinite(direct) && direct >= 1) return Math.floor(direct);
-  const match = schedule.title.match(/Slot\s+(\d+)/i);
-  if (!match) return null;
-  const parsed = Number(match[1]);
-  return Number.isFinite(parsed) ? Math.floor(parsed) : null;
 }
 
 /** Portal card when the student's assigned slot is not open (includes wrong-slot-live case). */

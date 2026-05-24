@@ -13,6 +13,10 @@ import {
   type ExamScheduleDisplayStatus,
   type ExamScheduleRow,
 } from '@/lib/exam-schedule';
+import {
+  scheduleSlotNumber,
+  validateSequentialSlotGoLive,
+} from '@/lib/exam-schedule-slots';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 
@@ -250,7 +254,7 @@ export default function AdminExamSchedulesPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="Live & upcoming exams"
-        description="Publish exams from Exam builder, then go live per slot when students should see them on their dashboard."
+        description="Slot exams go live one at a time (Slot 1, then 2, …). End the current slot before opening the next."
       />
 
       {loadWarning ? (
@@ -387,6 +391,18 @@ export default function AdminExamSchedulesPage() {
                     s.status === 'scheduled' ||
                     s.status === 'ended' ||
                     resolved.display === 'window_ended';
+                  const slotNum = scheduleSlotNumber(s);
+                  const related =
+                    s.faculty_exam_request_id != null
+                      ? schedules.filter(
+                          (x) => x.faculty_exam_request_id === s.faculty_exam_request_id,
+                        )
+                      : [];
+                  const seqBlock =
+                    slotNum != null && related.length > 1
+                      ? validateSequentialSlotGoLive(related, slotNum)
+                      : null;
+                  const goLiveAllowed = canGoLive && resolved.display !== 'live' && !seqBlock;
                   return (
                     <tr
                       key={s.id}
@@ -413,7 +429,7 @@ export default function AdminExamSchedulesPage() {
                           >
                             Select
                           </Button>
-                          {canGoLive && resolved.display !== 'live' ? (
+                          {goLiveAllowed ? (
                             <Button
                               size="sm"
                               disabled={acting === s.id}
@@ -423,6 +439,13 @@ export default function AdminExamSchedulesPage() {
                                 ? 'Reopen'
                                 : 'Go live'}
                             </Button>
+                          ) : canGoLive && resolved.display !== 'live' && seqBlock ? (
+                            <span
+                              className="text-[10px] text-amber-800 max-w-[140px] leading-tight"
+                              title={seqBlock}
+                            >
+                              {seqBlock}
+                            </span>
                           ) : null}
                           {resolved.windowOpen || s.status === 'live' ? (
                             <Button

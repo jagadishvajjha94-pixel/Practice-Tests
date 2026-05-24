@@ -10,6 +10,7 @@ import {
   parseScheduleSlotsJson,
   resolveStudentSlotPortalNotice,
   validateScheduleSlots,
+  validateSequentialSlotGoLive,
 } from '@/lib/exam-schedule-slots';
 
 function mockSchedule(
@@ -218,5 +219,43 @@ describe('validateScheduleSlots', () => {
       })),
     };
     expect(validateScheduleSlots(slots)).toMatch(/maximum 130/i);
+  });
+});
+
+describe('validateSequentialSlotGoLive', () => {
+  const base = '2026-06-15T03:30:00.000Z';
+  const end = '2026-06-15T05:30:00.000Z';
+
+  it('allows slot 1 when no other slot is live', () => {
+    const related = [
+      mockSchedule(1, 'scheduled', base, end),
+      mockSchedule(2, 'scheduled', base, end),
+    ];
+    expect(validateSequentialSlotGoLive(related, 1)).toBeNull();
+  });
+
+  it('blocks slot 2 while slot 1 is still scheduled', () => {
+    const related = [
+      mockSchedule(1, 'scheduled', base, end),
+      mockSchedule(2, 'scheduled', base, end),
+    ];
+    expect(validateSequentialSlotGoLive(related, 2)).toMatch(/end Slot 1/i);
+  });
+
+  it('allows slot 2 after slot 1 ended', () => {
+    const related = [
+      mockSchedule(1, 'ended', base, end),
+      mockSchedule(2, 'scheduled', base, end),
+    ];
+    expect(validateSequentialSlotGoLive(related, 2)).toBeNull();
+  });
+
+  it('blocks slot 3 when slot 2 is still live', () => {
+    const related = [
+      mockSchedule(1, 'ended', base, end),
+      mockSchedule(2, 'live', base, end),
+      mockSchedule(3, 'scheduled', base, end),
+    ];
+    expect(validateSequentialSlotGoLive(related, 3)).toMatch(/End Slot 2/i);
   });
 });

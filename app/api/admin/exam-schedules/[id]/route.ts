@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { examSchedulesMigrationHint } from '@/lib/db-migration-hints';
-import { normalizeEndsAtForGoLive } from '@/lib/exam-schedule';
+import { goLiveExamScheduleSlotSequential } from '@/lib/exam-schedule-slots';
 import { deleteExamScheduleById } from '@/lib/delete-faculty-exam';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -38,14 +38,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (action === 'go_live') {
-    patch.status = 'live';
-    const startsAtIso = String(existing.starts_at ?? '');
-    const normalizedEnd = normalizeEndsAtForGoLive(
-      startsAtIso,
-      (existing.ends_at as string | null) ?? null,
-    );
-    if (normalizedEnd !== (existing.ends_at as string | null)) {
-      patch.ends_at = normalizedEnd;
+    try {
+      const updated = await goLiveExamScheduleSlotSequential(admin, id);
+      return NextResponse.json({ schedule: updated });
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Could not go live' },
+        { status: 400 },
+      );
     }
   } else if (action === 'end') {
     patch.status = 'ended';
