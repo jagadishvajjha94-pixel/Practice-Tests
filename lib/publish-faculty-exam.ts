@@ -147,8 +147,13 @@ export async function publishFacultyExamRequest(
     await finalizeSlotSchedulesOnPublish(admin, request, requestId, testIdStr, adminUserId);
     return { testId: testIdStr };
   }
-  if (request.status !== 'pending') {
-    throw new Error('Only pending requests can be approved');
+
+  const canPublishFresh =
+    request.status === 'pending' ||
+    (request.status === 'approved' && !request.published_test_id);
+
+  if (!canPublishFresh) {
+    throw new Error(`Exam request cannot be published (status: ${request.status})`);
   }
 
   const isElevateX = isElevateXBuilderTestType(String(request.test_type ?? ''));

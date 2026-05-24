@@ -8,6 +8,7 @@ import { publishFacultyExamRequest } from '@/lib/publish-faculty-exam';
 import {
   persistSlotRoster,
   validateScheduleSlots,
+  goLiveExamSchedulesForSlots,
   type ExamScheduleSlotInput,
 } from '@/lib/exam-schedule-slots';
 import {
@@ -36,6 +37,8 @@ export type CreateExamRequestInput = {
   goLiveNotice?: string | null;
   usesSlotScheduling?: boolean;
   scheduleSlots?: ExamScheduleSlotInput[];
+  /** Slot numbers (1–8) to mark live immediately after publish. */
+  goLiveSlotNumbers?: number[];
 };
 
 export type CreateExamRequestResult = {
@@ -202,6 +205,14 @@ export async function createFacultyExamRequestRecord(
   if (input.autoPublish) {
     const published = await publishFacultyExamRequest(admin, requestId, input.creatorUserId);
     testId = published.testId;
+
+    if (
+      input.usesSlotScheduling &&
+      input.goLiveSlotNumbers?.length &&
+      testId
+    ) {
+      await goLiveExamSchedulesForSlots(admin, requestId, input.goLiveSlotNumbers);
+    }
 
     if (input.autoGoLive && testId && !input.usesSlotScheduling) {
       const targetDepartments = Array.from(new Set([department, ...target_branches]));

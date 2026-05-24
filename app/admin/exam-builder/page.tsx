@@ -54,13 +54,21 @@ export default function AdminExamBuilderPage() {
   const [usesSlotScheduling, setUsesSlotScheduling] = useState(false);
   const [scheduleSlots, setScheduleSlots] = useState<ExamScheduleSlotInput[]>(emptySlots);
   const [manualPaste, setManualPaste] = useState('');
-  const [parsingManual, setParsingManual] = useState(false);
+  const [goLiveOnPublish, setGoLiveOnPublish] = useState<number[]>([]);
 
   const testDef = getExamBuilderTestType(testType);
   const isManual = testType === 'department-manual';
   const isElevateX = isElevateXBuilderTestType(testType);
   const needsSyllabus = Boolean(testDef?.requiresSyllabus);
   const slotsValid = !usesSlotScheduling || validateScheduleSlots(scheduleSlots) === null;
+  const slotValidationError = usesSlotScheduling ? validateScheduleSlots(scheduleSlots) : null;
+
+  const toggleGoLiveSlot = (slotNumber: number) =>
+    setGoLiveOnPublish((prev) =>
+      prev.includes(slotNumber)
+        ? prev.filter((n) => n !== slotNumber)
+        : [...prev, slotNumber].sort((a, b) => a - b),
+    );
 
   const toggleYear = (year: string) =>
     setTargetYears((prev) =>
@@ -170,6 +178,10 @@ export default function AdminExamBuilderPage() {
           goLiveNow: usesSlotScheduling ? false : goLiveNow,
           usesSlotScheduling: isElevateX || usesSlotScheduling,
           scheduleSlots: isElevateX || usesSlotScheduling ? scheduleSlots : undefined,
+          goLiveSlotNumbers:
+            (isElevateX || usesSlotScheduling) && goLiveOnPublish.length
+              ? goLiveOnPublish
+              : undefined,
           questions: questions.length ? questions : undefined,
         }),
       });
@@ -384,10 +396,55 @@ export default function AdminExamBuilderPage() {
             Go live immediately for the selected group and years
           </label>
         ) : (
-          <StatusAlert variant="info">
-            Slot-scheduled exams (including ElevateX) are published as scheduled. Go live each slot
-            from <Link href="/admin/exam-schedules" className="font-semibold underline">Exam schedules</Link>.
-          </StatusAlert>
+          <div className="space-y-3">
+            <StatusAlert variant="info">
+              Slot-scheduled exams are saved with all 8 time windows. Choose which slots to open
+              immediately below, or go live later from{' '}
+              <Link href="/admin/exam-schedules" className="font-semibold underline">
+                Exam schedules
+              </Link>
+              . Only students on each slot roster can take the exam during that slot window.
+            </StatusAlert>
+            {slotsValid ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Go live on publish
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {scheduleSlots.map((slot) => {
+                    const active = goLiveOnPublish.includes(slot.slot_number);
+                    const hasRoster = slot.roster.length > 0;
+                    return (
+                      <button
+                        key={slot.slot_number}
+                        type="button"
+                        disabled={!hasRoster}
+                        onClick={() => toggleGoLiveSlot(slot.slot_number)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-full text-xs font-medium border transition',
+                          !hasRoster && 'opacity-40 cursor-not-allowed',
+                          active
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400',
+                        )}
+                      >
+                        Slot {slot.slot_number}
+                        {hasRoster ? ` (${slot.roster.length})` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Selected slots open for roster students only, during each slot&apos;s configured
+                  date and time.
+                </p>
+              </div>
+            ) : slotValidationError ? (
+              <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                {slotValidationError}
+              </p>
+            ) : null}
+          </div>
         )}
 
         {questions.length > 0 ? (

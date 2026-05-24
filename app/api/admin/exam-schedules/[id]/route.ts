@@ -38,9 +38,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (action === 'go_live') {
-    const startsAtIso = new Date().toISOString();
     patch.status = 'live';
-    patch.starts_at = startsAtIso;
+    const startsAtIso = String(existing.starts_at ?? '');
     const normalizedEnd = normalizeEndsAtForGoLive(
       startsAtIso,
       (existing.ends_at as string | null) ?? null,

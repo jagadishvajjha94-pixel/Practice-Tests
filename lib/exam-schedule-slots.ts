@@ -583,7 +583,7 @@ export async function checkStudentSlotExamAccess(
     return {
       allowed: false,
       code: 'NOT_LIVE',
-      message: `Your slot is ${detail.slot_label} (${detail.window_label}). The schedule is not published yet — wait for admin approval.`,
+      message: `Your slot is ${detail.slot_label} (${detail.window_label}). The schedule is not published yet — wait for the examination cell to go live.`,
       schedule: null,
       detail,
     };
@@ -689,6 +689,46 @@ export async function createSchedulesFromSlots(
   }
 
   return created;
+}
+
+/** Mark selected slot schedules live without changing their configured start/end times. */
+export async function goLiveExamSchedulesForSlots(
+  admin: SupabaseClient,
+  requestId: string,
+  slotNumbers: number[],
+): Promise<{ updated: number }> {
+  const wanted = new Set(
+    slotNumbers
+      .map((n) => Math.floor(Number(n)))
+      .filter((n) => Number.isFinite(n) && n >= 1 && n <= EXAM_SLOT_COUNT),
+  );
+  if (wanted.size === 0) return { updated: 0 };
+
+  const { data: rows, error } = await admin
+    .from('exam_schedules')
+    .select('*')
+    .eq('faculty_exam_request_id', requestId);
+
+  if (error) throw new Error(error.message);
+
+  let updated = 0;
+  for (const row of (rows ?? []) as ExamScheduleRow[]) {
+    const slotNum = scheduleSlotNumber(row);
+    if (slotNum == null || !wanted.has(slotNum)) continue;
+
+    const { error: updateErr } = await admin
+      .from('exam_schedules')
+      .update({
+        status: 'live',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', row.id);
+
+    if (updateErr) throw new Error(updateErr.message);
+    updated += 1;
+  }
+
+  return { updated };
 }
 
 export function filterSchedulesForStudentSlots(
