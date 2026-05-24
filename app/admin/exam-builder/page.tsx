@@ -21,7 +21,11 @@ import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
 import { isElevateXBuilderTestType } from '@/lib/exam-builder/elevatex-exam';
 import { ELEVATEX_EXAM_NAME } from '@/lib/elevatex';
 import type { ExamScheduleSlotInput } from '@/lib/exam-schedule-slots';
-import { validateScheduleSlots } from '@/lib/exam-schedule-slots';
+import {
+  validateScheduleSlots,
+  validateElevateXPublishSlots,
+  validateOptionalConfiguredSlots,
+} from '@/lib/exam-schedule-slots';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 import { parseMcqCsv, parseMcqPlainText } from '@/lib/exam-builder/parse-manual-mcqs';
 import { cn } from '@/lib/utils';
@@ -54,21 +58,23 @@ export default function AdminExamBuilderPage() {
   const [usesSlotScheduling, setUsesSlotScheduling] = useState(false);
   const [scheduleSlots, setScheduleSlots] = useState<ExamScheduleSlotInput[]>(emptySlots);
   const [manualPaste, setManualPaste] = useState('');
-  const [goLiveSlot1OnPublish, setGoLiveSlot1OnPublish] = useState(false);
+  const [goLiveSlot1OnPublish, setGoLiveSlot1OnPublish] = useState(true);
 
   const testDef = getExamBuilderTestType(testType);
   const isManual = testType === 'department-manual';
   const isElevateX = isElevateXBuilderTestType(testType);
   const needsSyllabus = Boolean(testDef?.requiresSyllabus);
-  const slotsValid = !usesSlotScheduling || validateScheduleSlots(scheduleSlots) === null;
-  const slotValidationError = usesSlotScheduling ? validateScheduleSlots(scheduleSlots) : null;
-
-  const toggleGoLiveSlot = (slotNumber: number) =>
-    setGoLiveOnPublish((prev) =>
-      prev.includes(slotNumber)
-        ? prev.filter((n) => n !== slotNumber)
-        : [...prev, slotNumber].sort((a, b) => a - b),
-    );
+  const elevateXSlotsValid =
+    validateElevateXPublishSlots(scheduleSlots) === null &&
+    validateOptionalConfiguredSlots(scheduleSlots) === null;
+  const deptSlotsValid = validateScheduleSlots(scheduleSlots) === null;
+  const slotsValid = !usesSlotScheduling || (isElevateX ? elevateXSlotsValid : deptSlotsValid);
+  const slotValidationError = usesSlotScheduling
+    ? isElevateX
+      ? validateElevateXPublishSlots(scheduleSlots) ??
+        validateOptionalConfiguredSlots(scheduleSlots)
+      : validateScheduleSlots(scheduleSlots)
+    : null;
 
   const toggleYear = (year: string) =>
     setTargetYears((prev) =>
@@ -147,7 +153,12 @@ export default function AdminExamBuilderPage() {
       return;
     }
     if (usesSlotScheduling && !slotsValid) {
-      setError('Complete all 8 slots with date, time, and at least one student per slot.');
+      setError(
+        isElevateX
+          ? (slotValidationError ??
+              'Complete Slot 1 with date, time, and at least one student.')
+          : 'Complete all 8 slots with date, time, and at least one student per slot.',
+      );
       return;
     }
     if (!questions.length && !needsSyllabus && !isElevateX) {
@@ -179,7 +190,7 @@ export default function AdminExamBuilderPage() {
           usesSlotScheduling: isElevateX || usesSlotScheduling,
           scheduleSlots: isElevateX || usesSlotScheduling ? scheduleSlots : undefined,
           goLiveSlotNumbers:
-            (isElevateX || usesSlotScheduling) && goLiveSlot1OnPublish ? [1] : undefined,
+            (isElevateX || usesSlotScheduling) && (isElevateX || goLiveSlot1OnPublish) ? [1] : undefined,
           questions: questions.length ? questions : undefined,
         }),
       });
@@ -381,6 +392,12 @@ export default function AdminExamBuilderPage() {
           }}
           slots={scheduleSlots}
           onSlotsChange={setScheduleSlots}
+          lockEnabled={isElevateX}
+          slotPublishHint={
+            isElevateX
+              ? 'Only Slot 1 is required to publish. Slots 2–8 can stay empty until you schedule them.'
+              : undefined
+          }
         />
 
         {!usesSlotScheduling && !isElevateX ? (
@@ -403,7 +420,15 @@ export default function AdminExamBuilderPage() {
               </Link>
               . Only roster students for that slot can take the exam during its window.
             </StatusAlert>
-            {slotsValid ? (
+            {isElevateX && slotsValid ? (
+              <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                Slot 1 opens live on publish. Add Slots 2–8 later from{' '}
+                <Link href="/admin/evalora-modules" className="font-semibold underline">
+                  ElevateX &amp; modules
+                </Link>
+                .
+              </p>
+            ) : slotsValid ? (
               <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer rounded-xl border border-slate-200 bg-white p-4">
                 <input
                   type="checkbox"
@@ -437,7 +462,7 @@ export default function AdminExamBuilderPage() {
           </p>
         ) : isElevateX ? (
           <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-            ElevateX uses the fixed 6-section placement paper. Configure all 8 slots with roster, then publish.
+            ElevateX uses the fixed 6-section placement paper. Configure Slot 1 to publish; add Slots 2–8 when ready.
           </p>
         ) : isManual ? (
           <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">

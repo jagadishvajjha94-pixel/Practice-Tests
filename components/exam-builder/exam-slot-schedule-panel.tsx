@@ -37,6 +37,8 @@ type Props = {
   lockEnabled?: boolean;
   /** Slots that cannot be edited (pending or approved). */
   lockedSlotNumbers?: number[];
+  /** Extra copy for ElevateX (Slot 1 only required). */
+  slotPublishHint?: string;
 };
 
 function slotStatusShort(status: ExamScheduleSlotInput['approval_status']): string {
@@ -59,6 +61,7 @@ export function ExamSlotSchedulePanel({
   onSlotsChange,
   lockEnabled = false,
   lockedSlotNumbers = [],
+  slotPublishHint,
 }: Props) {
   const lockedSet = useMemo(() => new Set(lockedSlotNumbers), [lockedSlotNumbers]);
   const [activeSlot, setActiveSlot] = useState(1);
@@ -175,6 +178,11 @@ export function ExamSlotSchedulePanel({
             Set exam date and timings per slot. Import an Excel/CSV roster, map columns, then assign students to slots (max{' '}
             {EXAM_SLOT_CAPACITY_DEFAULT} per slot).
           </p>
+          {slotPublishHint ? (
+            <p className="text-xs text-emerald-800 mt-2 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5">
+              {slotPublishHint}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" onClick={() => setSheetImportOpen(true)}>

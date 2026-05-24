@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { examSchedulesMigrationHint } from '@/lib/db-migration-hints';
 import { goLiveExamScheduleSlotSequential } from '@/lib/exam-schedule-slots';
+import { goLiveElevateXSlot } from '@/lib/elevatex-admin';
+import { isElevateXTestId } from '@/lib/elevatex';
 import { deleteExamScheduleById } from '@/lib/delete-faculty-exam';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -39,6 +41,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   if (action === 'go_live') {
     try {
+      if (isElevateXTestId(String(existing.test_id ?? ''))) {
+        await goLiveElevateXSlot(admin, id, auth.ctx.user.id);
+        const { data: refreshed } = await admin.from('exam_schedules').select('*').eq('id', id).single();
+        return NextResponse.json({ schedule: refreshed });
+      }
       const updated = await goLiveExamScheduleSlotSequential(admin, id);
       return NextResponse.json({ schedule: updated });
     } catch (err) {

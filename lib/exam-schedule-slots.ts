@@ -103,6 +103,51 @@ export function parseScheduleSlotsJson(raw: unknown): ExamScheduleSlotInput[] {
   return out.sort((a, b) => a.slot_number - b.slot_number);
 }
 
+/** Slot has date, time, and at least one student — ready for schedule creation. */
+export function isScheduleSlotConfigured(slot: ExamScheduleSlotInput): boolean {
+  return Boolean(
+    slot.exam_date?.trim() &&
+      slot.start_time?.trim() &&
+      slot.end_time?.trim() &&
+      slot.roster.length > 0,
+  );
+}
+
+/** Any meaningful progress on a slot (ignores default empty times without a date). */
+export function isScheduleSlotPartiallyFilled(slot: ExamScheduleSlotInput): boolean {
+  if (slot.roster.length > 0) return true;
+  return Boolean(slot.exam_date?.trim());
+}
+
+export function filterConfiguredScheduleSlots(
+  slots: ExamScheduleSlotInput[],
+): ExamScheduleSlotInput[] {
+  return slots.filter(isScheduleSlotConfigured);
+}
+
+/** ElevateX: only Slot 1 is required to publish; Slots 2–8 can be added later. */
+export function validateElevateXPublishSlots(slots: ExamScheduleSlotInput[]): string | null {
+  const slot1 = slots.find((s) => s.slot_number === 1);
+  if (!slot1) {
+    return 'Configure Slot 1 with exam date, start/end time, and student roster.';
+  }
+  return validateSingleScheduleSlot(slot1);
+}
+
+/** If slots 2–8 are partially filled, they must be complete. */
+export function validateOptionalConfiguredSlots(slots: ExamScheduleSlotInput[]): string | null {
+  for (const slot of slots) {
+    if (slot.slot_number === 1) continue;
+    if (!isScheduleSlotPartiallyFilled(slot)) continue;
+    if (!isScheduleSlotConfigured(slot)) {
+      return `Slot ${slot.slot_number}: complete date, time, and roster, or clear the slot.`;
+    }
+    const err = validateSingleScheduleSlot(slot);
+    if (err) return err;
+  }
+  return null;
+}
+
 /** Validate a single slot (date, time, roster) for incremental faculty submit. */
 export function validateSingleScheduleSlot(slot: ExamScheduleSlotInput): string | null {
   if (!slot.exam_date) return `Slot ${slot.slot_number}: exam date is required.`;

@@ -10,6 +10,8 @@ import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { ACADEMIC_YEARS, DEPARTMENTS } from '@/lib/college-brand';
 import type { EvaloraModuleDef } from '@/lib/evalora/modules';
 import type { EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
+import { ELEVATEX_MODULE_KEY } from '@/lib/elevatex';
+import { ElevateXSlotAdminSection } from '@/components/admin/elevatex-slot-admin-section';
 
 function toLocalInputValue(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -31,7 +33,7 @@ export default function AdminEvaloraModulesPage() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
 
-  const [moduleKey, setModuleKey] = useState('psychometric');
+  const [moduleKey, setModuleKey] = useState(ELEVATEX_MODULE_KEY);
   const [title, setTitle] = useState('');
   const [notice, setNotice] = useState('');
   const [startsAt, setStartsAt] = useState('');
@@ -108,6 +110,8 @@ export default function AdminEvaloraModulesPage() {
     }
   };
 
+  const isElevateXModule = moduleKey === ELEVATEX_MODULE_KEY;
+
   if (loading) {
     return <p className="text-gray-600">Loading assessment modules…</p>;
   }
@@ -116,11 +120,20 @@ export default function AdminEvaloraModulesPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="ElevateX & assessment modules"
-        description="Schedule or go live with ElevateX and other assessments. Students open /placement to see only what you trigger."
+        description="Configure ElevateX slot rosters and timings here, or schedule other assessment modules. Students open /placement for live modules."
       />
 
-      <Card className="p-6 space-y-4">
-        <h3 className="font-semibold text-[#0c2340]">Schedule or go live</h3>
+      {isElevateXModule ? <ElevateXSlotAdminSection /> : null}
+
+      <Card className={`p-6 space-y-4 ${isElevateXModule ? 'opacity-95' : ''}`}>
+        <h3 className="font-semibold text-[#0c2340]">
+          {isElevateXModule ? 'Other modules — schedule or go live' : 'Schedule or go live'}
+        </h3>
+        {isElevateXModule ? (
+          <p className="text-sm text-slate-600">
+            ElevateX uses 8-slot scheduling above. Use this section for psychometric, programming, and other modules.
+          </p>
+        ) : null}
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -130,8 +143,9 @@ export default function AdminEvaloraModulesPage() {
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               value={moduleKey}
               onChange={(e) => {
-                setModuleKey(e.target.value);
-                const picked = modules.find((m) => m.key === e.target.value);
+                const key = e.target.value;
+                setModuleKey(key);
+                const picked = modules.find((m) => m.key === key);
                 if (picked) setTitle(picked.name);
               }}
             >

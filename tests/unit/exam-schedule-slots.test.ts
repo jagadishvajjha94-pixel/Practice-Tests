@@ -10,6 +10,8 @@ import {
   parseScheduleSlotsJson,
   resolveStudentSlotPortalNotice,
   validateScheduleSlots,
+  validateElevateXPublishSlots,
+  validateOptionalConfiguredSlots,
   validateSequentialSlotGoLive,
 } from '@/lib/exam-schedule-slots';
 
@@ -191,6 +193,40 @@ describe('resolveStudentSlotPortalNotice', () => {
     expect(notice?.headline).toContain('Slot 2');
     expect(notice?.headline).toContain('Not live yet');
     expect(notice?.detail).toContain('Slot 2 has not been opened');
+  });
+});
+
+describe('validateElevateXPublishSlots', () => {
+  it('accepts only slot 1 configured', () => {
+    const slots: ExamScheduleSlotInput[] = Array.from({ length: EXAM_SLOT_COUNT }, (_, i) => ({
+      slot_number: i + 1,
+      exam_date: i === 0 ? '2026-06-15' : '',
+      start_time: '09:00',
+      end_time: '11:00',
+      roster: i === 0 ? [{ roll_number: 'EXS1001' }] : [],
+    }));
+    expect(validateElevateXPublishSlots(slots)).toBeNull();
+    expect(validateOptionalConfiguredSlots(slots)).toBeNull();
+  });
+
+  it('rejects missing slot 1 roster', () => {
+    const slots: ExamScheduleSlotInput[] = [
+      {
+        slot_number: 1,
+        exam_date: '2026-06-15',
+        start_time: '09:00',
+        end_time: '11:00',
+        roster: [],
+      },
+    ];
+    expect(validateElevateXPublishSlots(slots)).toMatch(/upload at least one student/i);
+  });
+
+  it('rejects partially filled slot 2', () => {
+    const slots = makeValidSlots();
+    slots[1] = { ...slots[1], exam_date: '2026-06-16', roster: [] };
+    expect(validateElevateXPublishSlots(slots)).toBeNull();
+    expect(validateOptionalConfiguredSlots(slots)).toMatch(/complete date, time, and roster/i);
   });
 });
 

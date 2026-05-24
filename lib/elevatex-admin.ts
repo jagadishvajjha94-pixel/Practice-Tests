@@ -1,0 +1,319 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { ELEVATEX_EXAM_NAME, ELEVATEX_MODULE_KEY, ELEVATEX_TEST_ID } from '@/lib/elevatex';
+import { ELEVATEX_BUILDER_TEST_TYPE_ID } from '@/lib/exam-builder/elevatex-exam';
+import { createFacultyExamRequestRecord } from '@/lib/exam-builder/create-exam-request';
+import { publishFacultyExamRequest } from '@/lib/publish-faculty-exam';
+import {
+  combineDateAndTime,
+  createScheduleForSlot,
+  goLiveExamScheduleSlotSequential,
+  parseScheduleSlotsJson,
+  persistSlotRosterForSlot,
+  scheduleSlotNumber,
+  syncExamStudentRosters,
+  type ExamScheduleSlotInput,
+  validateElevateXPublishSlots,
+  validateOptionalConfiguredSlots,
+  validateSingleScheduleSlot,
+} from '@/lib/exam-schedule-slots';
+import type { ExamScheduleRow } from '@/lib/exam-schedule';
+import { provisionStudentsFromSlotRoster } from '@/lib/roster-student-provision';
+
+export type ElevateXAdminSlotStatus = {
+  slot_number: number;
+  roster_count: number;
+  exam_date: string;
+  start_time: string;
+  end_time: string;
+  schedule_id: string | null;
+  schedule_status: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+};
+
+export type ElevateXAdminState = {
+  published: boolean;
+  requestId: string | null;
+  testId: string;
+  title: string;
+  slots: ElevateXAdminSlotStatus[];
+  scheduleSlots: ExamScheduleSlotInput[];
+};
+
+export async function fetchElevateXAdminState(admin: SupabaseClient): Promise<ElevateXAdminState> {
+  const { data: request } = await admin
+    .from('faculty_exam_requests')
+    .select('id, title, published_test_id, schedule_slots_json, uses_slot_scheduling, status')
+    .eq('test_type', ELEVATEX_BUILDER_TEST_TYPE_ID)
+    .eq('status', 'approved')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const requestId = request?.id ? String(request.id) : null;
+  const scheduleSlots = parseScheduleSlotsJson(request?.schedule_slots_json);
+
+  let examSchedules: ExamScheduleRow[] = [];
+  if (requestId) {
+    const { data } = await admin
+      .from('exam_schedules')
+      .select('*')
+      .eq('faculty_exam_request_id', requestId);
+    examSchedules = (data ?? []) as ExamScheduleRow[];
+  }
+
+  const slots: ElevateXAdminSlotStatus[] = Array.from({ length: 8 }, (_, i) => {
+    const slotNumber = i + 1;
+    const meta = scheduleSlots.find((s) => s.slot_number === slotNumber);
+    const schedule = examSchedules.find((s) => scheduleSlotNumber(s) === slotNumber);
+    return {
+      slot_number: slotNumber,
+      roster_count: meta?.roster.length ?? 0,
+      exam_date: meta?.exam_date ?? '',
+      start_time: meta?.start_time ?? '',
+      end_time: meta?.end_time ?? '',
+      schedule_id: schedule?.id ? String(schedule.id) : null,
+      schedule_status: schedule?.status ?? null,
+      starts_at: schedule?.starts_at ?? null,
+      ends_at: schedule?.ends_at ?? null,
+    };
+  });
+
+  return {
+    published: Boolean(request?.published_test_id),
+    requestId,
+    testId: ELEVATEX_TEST_ID,
+    title: String(request?.title ?? ELEVATEX_EXAM_NAME),
+    slots,
+    scheduleSlots: scheduleSlots.length
+      ? scheduleSlots
+      : Array.from({ length: 8 }, (_, i) => ({
+          slot_number: i + 1,
+          exam_date: '',
+          start_time: '09:00',
+          end_time: '11:00',
+          roster: [],
+        })),
+  };
+}
+
+/** Show ElevateX as LIVE on /placement when a slot is live. */
+export async function syncElevateXEvaloraModuleFromSchedule(
+  admin: SupabaseClient,
+  schedule: Pick<ExamScheduleRow, 'starts_at' | 'ends_at' | 'notice'>,
+  adminUserId: string,
+): Promise<void> {
+  const starts_at = schedule.starts_at ?? new Date().toISOString();
+  const ends_at = schedule.ends_at ?? null;
+  const now = new Date().toISOString();
+
+  await admin
+    .from('evalora_module_schedules')
+    .update({ status: 'ended', updated_at: now })
+    .eq('module_key', ELEVATEX_MODULE_KEY)
+    .eq('status', 'live');
+
+  await admin.from('evalora_module_schedules').insert({
+    module_key: ELEVATEX_MODULE_KEY,
+    title: ELEVATEX_EXAM_NAME,
+    notice: schedule.notice ?? null,
+    status: 'live',
+    starts_at,
+    ends_at,
+    target_departments: [],
+    target_years: [],
+    created_by: adminUserId,
+    updated_at: now,
+  });
+}
+
+export async function publishElevateXFromAdmin(
+  admin: SupabaseClient,
+  input: {
+    creatorUserId: string;
+    title: string;
+    description?: string;
+    targetYears: string[];
+    scheduleSlots: ExamScheduleSlotInput[];
+    openSlot1Now: boolean;
+    notice?: string;
+  },
+): Promise<{ requestId: string; testId: string; message: string }> {
+  const existing = await fetchElevateXAdminState(admin);
+  if (existing.published && existing.requestId) {
+    throw new Error(
+      'ElevateX is already published. Add or update slots below, or open slots from Exam schedules.',
+    );
+  }
+
+  const slotErr =
+    validateElevateXPublishSlots(input.scheduleSlots) ??
+    validateOptionalConfiguredSlots(input.scheduleSlots);
+  if (slotErr) throw new Error(slotErr);
+
+  const result = await createFacultyExamRequestRecord(admin, {
+    creatorUserId: input.creatorUserId,
+    primaryDepartment: 'All departments',
+    title: input.title.trim() || ELEVATEX_EXAM_NAME,
+    description: input.description ?? null,
+    targetYears: input.targetYears,
+    durationMinutes: 60,
+    questions: [],
+    testType: ELEVATEX_BUILDER_TEST_TYPE_ID,
+    status: 'approved',
+    autoPublish: true,
+    usesSlotScheduling: true,
+    scheduleSlots: input.scheduleSlots,
+    goLiveSlotNumbers: input.openSlot1Now ? [1] : undefined,
+    goLiveNotice: input.notice ?? `${ELEVATEX_EXAM_NAME} is now live for your slot.`,
+  });
+
+  if (input.openSlot1Now && result.testId) {
+    const { data: slot1 } = await admin
+      .from('exam_schedules')
+      .select('*')
+      .eq('faculty_exam_request_id', result.requestId)
+      .eq('slot_number', 1)
+      .maybeSingle();
+
+    if (slot1) {
+      await syncElevateXEvaloraModuleFromSchedule(
+        admin,
+        { ...slot1, notice: input.notice ?? null } as ExamScheduleRow,
+        input.creatorUserId,
+      );
+    }
+  }
+
+  return {
+    requestId: result.requestId,
+    testId: result.testId ?? ELEVATEX_TEST_ID,
+    message: input.openSlot1Now
+      ? 'ElevateX published and Slot 1 is live. Students in Slot 1 can start from /placement.'
+      : 'ElevateX published. Open Slot 1 from Exam schedules when ready.',
+  };
+}
+
+export async function saveElevateXSlot(
+  admin: SupabaseClient,
+  input: {
+    requestId: string;
+    slot: ExamScheduleSlotInput;
+    adminUserId: string;
+    goLiveNow?: boolean;
+  },
+): Promise<{ scheduleId: string | null; message: string }> {
+  const err = validateSingleScheduleSlot(input.slot);
+  if (err) throw new Error(err);
+
+  const { data: request, error: reqErr } = await admin
+    .from('faculty_exam_requests')
+    .select('*')
+    .eq('id', input.requestId)
+    .maybeSingle();
+
+  if (reqErr || !request) throw new Error('ElevateX exam request not found');
+
+  const slots = parseScheduleSlotsJson(request.schedule_slots_json);
+  const merged = slots.filter((s) => s.slot_number !== input.slot.slot_number);
+  merged.push(input.slot);
+  merged.sort((a, b) => a.slot_number - b.slot_number);
+
+  const optionalErr = validateOptionalConfiguredSlots(merged);
+  if (optionalErr) throw new Error(optionalErr);
+
+  await admin
+    .from('faculty_exam_requests')
+    .update({
+      schedule_slots_json: merged,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', input.requestId);
+
+  await persistSlotRosterForSlot(admin, input.requestId, input.slot);
+
+  await provisionStudentsFromSlotRoster(admin, {
+    slots: [input.slot],
+    defaultDepartment: String(request.department ?? 'All departments'),
+    defaultYears: (request.target_years as string[]) ?? [],
+  });
+
+  const testId = String(request.published_test_id ?? ELEVATEX_TEST_ID);
+  if (!request.published_test_id) {
+    await publishFacultyExamRequest(admin, input.requestId, input.adminUserId);
+  }
+
+  const targetDepartments = Array.from(
+    new Set([String(request.department), ...((request.target_branches as string[]) ?? [])]),
+  );
+
+  const { data: existingSchedule } = await admin
+    .from('exam_schedules')
+    .select('id')
+    .eq('faculty_exam_request_id', input.requestId)
+    .eq('slot_number', input.slot.slot_number)
+    .maybeSingle();
+
+  let scheduleId = existingSchedule?.id ? String(existingSchedule.id) : null;
+
+  if (!scheduleId) {
+    const created = await createScheduleForSlot(admin, {
+      requestId: input.requestId,
+      testId,
+      title: String(request.title),
+      description: (request.description as string | null) ?? null,
+      targetDepartments,
+      targetYears: (request.target_years as string[]) ?? [],
+      createdBy: input.adminUserId,
+      slot: input.slot,
+    });
+    scheduleId = created?.scheduleId ?? null;
+  } else {
+    const starts_at = combineDateAndTime(input.slot.exam_date, input.slot.start_time);
+    const ends_at = combineDateAndTime(input.slot.exam_date, input.slot.end_time);
+    await admin
+      .from('exam_schedules')
+      .update({
+        starts_at,
+        ends_at,
+        notice: `${input.slot.roster.length} students · Slot ${input.slot.slot_number}`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', scheduleId);
+  }
+
+  if (scheduleId) {
+    await syncExamStudentRosters(
+      admin,
+      [{ scheduleId, slot_number: input.slot.slot_number }],
+      [input.slot],
+    );
+  }
+
+  if (input.goLiveNow && scheduleId) {
+    const liveRow = await goLiveExamScheduleSlotSequential(admin, scheduleId);
+    if (input.slot.slot_number === 1) {
+      await syncElevateXEvaloraModuleFromSchedule(admin, liveRow, input.adminUserId);
+    }
+    return {
+      scheduleId,
+      message: `Slot ${input.slot.slot_number} saved and is now live.`,
+    };
+  }
+
+  return {
+    scheduleId,
+    message: `Slot ${input.slot.slot_number} saved. Open it from Exam schedules when ready.`,
+  };
+}
+
+export async function goLiveElevateXSlot(
+  admin: SupabaseClient,
+  scheduleId: string,
+  adminUserId: string,
+): Promise<void> {
+  const liveRow = await goLiveExamScheduleSlotSequential(admin, scheduleId);
+  if (scheduleSlotNumber(liveRow) === 1) {
+    await syncElevateXEvaloraModuleFromSchedule(admin, liveRow, adminUserId);
+  }
+}

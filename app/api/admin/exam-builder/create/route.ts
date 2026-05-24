@@ -12,6 +12,7 @@ import {
   studentTakeUrlForTestId,
 } from '@/lib/exam-builder/elevatex-exam';
 import { parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
+import { syncElevateXEvaloraModuleFromSchedule } from '@/lib/elevatex-admin';
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(['admin']);
@@ -139,6 +140,29 @@ export async function POST(request: NextRequest) {
         ? ' Slot 1 is live. End Slot 1, then go live Slot 2, and so on from Exam schedules.'
         : '';
 
+    if (isElevateX && goLiveSlotNumbers.includes(1) && result.requestId) {
+      const { data: slot1 } = await admin
+        .from('exam_schedules')
+        .select('*')
+        .eq('faculty_exam_request_id', result.requestId)
+        .eq('slot_number', 1)
+        .maybeSingle();
+      if (slot1) {
+        await syncElevateXEvaloraModuleFromSchedule(
+          admin,
+          {
+            starts_at: slot1.starts_at,
+            ends_at: slot1.ends_at,
+            notice:
+              typeof body.notice === 'string'
+                ? body.notice
+                : `${def.name} · Slot 1`,
+          },
+          auth.ctx.user.id,
+        );
+      }
+    }
+
     return NextResponse.json({
       requestId: result.requestId,
       testId: result.testId,
@@ -146,7 +170,9 @@ export async function POST(request: NextRequest) {
       takeUrl: result.testId ? studentTakeUrlForTestId(result.testId) : undefined,
       targetDepartments: [result.department, ...result.target_branches],
       message: usesSlotScheduling
-        ? `Exam published with 8 slot schedules.${goLiveMsg} Open slots one at a time from Exam schedules.`
+        ? isElevateX
+          ? `ElevateX published with configured slot(s).${goLiveMsg} Add Slots 2–8 later from ElevateX & modules or Exam schedules.`
+          : `Exam published with slot schedules.${goLiveMsg} Open slots one at a time from Exam schedules.`
         : goLiveNow
           ? 'Exam published and is live for the selected department group.'
           : 'Exam published. Go live from Exam schedules when ready.',

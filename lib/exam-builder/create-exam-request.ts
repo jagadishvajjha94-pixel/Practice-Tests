@@ -8,6 +8,8 @@ import { publishFacultyExamRequest } from '@/lib/publish-faculty-exam';
 import {
   persistSlotRoster,
   validateScheduleSlots,
+  validateElevateXPublishSlots,
+  validateOptionalConfiguredSlots,
   goLiveExamSchedulesForSlots,
   type ExamScheduleSlotInput,
 } from '@/lib/exam-schedule-slots';
@@ -57,7 +59,7 @@ export async function createFacultyExamRequestRecord(
 
   if (isElevateX) {
     if (!input.usesSlotScheduling || !input.scheduleSlots?.length) {
-      throw new Error('ElevateX requires 8-slot scheduling with a student roster per slot.');
+      throw new Error('ElevateX requires slot scheduling with Slot 1 date, time, and student roster.');
     }
   } else if (!input.questions.length) {
     throw new Error('Add at least one MCQ question');
@@ -66,8 +68,15 @@ export async function createFacultyExamRequestRecord(
     throw new Error('Select at least one target year');
   }
   if (input.usesSlotScheduling && input.scheduleSlots?.length) {
-    const slotErr = validateScheduleSlots(input.scheduleSlots);
-    if (slotErr) throw new Error(slotErr);
+    if (isElevateX) {
+      const slotErr =
+        validateElevateXPublishSlots(input.scheduleSlots) ??
+        validateOptionalConfiguredSlots(input.scheduleSlots);
+      if (slotErr) throw new Error(slotErr);
+    } else {
+      const slotErr = validateScheduleSlots(input.scheduleSlots);
+      if (slotErr) throw new Error(slotErr);
+    }
   }
 
   const groupDepartments = await getGroupDepartments(admin, input.departmentGroupId);

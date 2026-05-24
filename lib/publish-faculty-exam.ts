@@ -14,6 +14,7 @@ import { isFacultyCodingQuestion } from '@/lib/exam-builder/programming-syllabus
 import { parseQuestionsJson, type FacultyExamQuestion, type FacultyMcqQuestion } from '@/lib/faculty-exams';
 import {
   createSchedulesFromSlots,
+  filterConfiguredScheduleSlots,
   parseScheduleSlotsJson,
   rebuildSlotsFromRosterEntries,
   syncExamStudentRosters,
@@ -78,6 +79,9 @@ async function finalizeSlotSchedulesOnPublish(
     }
   }
 
+  if (slots.length === 0) return;
+
+  slots = filterConfiguredScheduleSlots(slots);
   if (slots.length === 0) return;
 
   const targetDepartments = Array.from(

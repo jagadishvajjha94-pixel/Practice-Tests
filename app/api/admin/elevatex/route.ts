@@ -1,0 +1,96 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { isValidAcademicYear } from '@/lib/roles';
+import { ACADEMIC_YEARS } from '@/lib/college-brand';
+import {
+  fetchElevateXAdminState,
+  publishElevateXFromAdmin,
+  saveElevateXSlot,
+  goLiveElevateXSlot,
+} from '@/lib/elevatex-admin';
+import { parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
+import { ELEVATEX_EXAM_NAME } from '@/lib/elevatex';
+
+export async function GET() {
+  const auth = await requireAuth(['admin']);
+  if ('response' in auth) return auth.response;
+
+  const admin = getServiceSupabase();
+  if (!admin) {
+    return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
+  }
+
+  const state = await fetchElevateXAdminState(admin);
+  return NextResponse.json(state);
+}
+
+export async function POST(request: NextRequest) {
+  const auth = await requireAuth(['admin']);
+  if ('response' in auth) return auth.response;
+
+  const admin = getServiceSupabase();
+  if (!admin) {
+    return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  const action = String(body.action ?? 'publish');
+  const scheduleSlots = parseScheduleSlotsJson(body.scheduleSlots);
+  const targetYears = (
+    Array.isArray(body.targetYears) ? body.targetYears : [...ACADEMIC_YEARS]
+  ).filter((y) => isValidAcademicYear(String(y)));
+
+  if (!targetYears.length) {
+    return NextResponse.json({ error: 'Select at least one target year' }, { status: 400 });
+  }
+
+  try {
+    if (action === 'save_slot') {
+      const requestId = String(body.requestId ?? '');
+      const slotNumber = Math.floor(Number(body.slotNumber));
+      const slot = scheduleSlots.find((s) => s.slot_number === slotNumber);
+      if (!requestId || !slot) {
+        return NextResponse.json({ error: 'requestId and slot data required' }, { status: 400 });
+      }
+      const result = await saveElevateXSlot(admin, {
+        requestId,
+        slot,
+        adminUserId: auth.ctx.user.id,
+        goLiveNow: Boolean(body.goLiveNow),
+      });
+      return NextResponse.json(result);
+    }
+
+    if (action === 'go_live') {
+      const scheduleId = String(body.scheduleId ?? '');
+      if (!scheduleId) {
+        return NextResponse.json({ error: 'scheduleId required' }, { status: 400 });
+      }
+      await goLiveElevateXSlot(admin, scheduleId, auth.ctx.user.id);
+      return NextResponse.json({ message: 'Slot is now live.' });
+    }
+
+    const result = await publishElevateXFromAdmin(admin, {
+      creatorUserId: auth.ctx.user.id,
+      title: typeof body.title === 'string' ? body.title : ELEVATEX_EXAM_NAME,
+      description: typeof body.description === 'string' ? body.description : undefined,
+      targetYears,
+      scheduleSlots,
+      openSlot1Now: body.openSlot1Now !== false,
+      notice: typeof body.notice === 'string' ? body.notice : undefined,
+    });
+
+    return NextResponse.json(result);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Request failed' },
+      { status: 400 },
+    );
+  }
+}
