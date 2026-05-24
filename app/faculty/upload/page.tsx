@@ -23,7 +23,11 @@ import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
 import { isElevateXBuilderTestType } from '@/lib/exam-builder/elevatex-exam';
 import { ELEVATEX_EXAM_NAME } from '@/lib/elevatex';
 import type { ExamScheduleSlotInput } from '@/lib/exam-schedule-slots';
-import { validateScheduleSlots } from '@/lib/exam-schedule-slots';
+import {
+  canSubmitSlotNumber,
+  nextSubmittableSlot,
+  parseSlotsWithApproval,
+} from '@/lib/exam-slot-approval';
 
 type Step = 'details' | 'questions' | 'review';
 
@@ -81,6 +85,7 @@ export default function FacultyUploadPage() {
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const [usesSlotScheduling, setUsesSlotScheduling] = useState(false);
   const [scheduleSlots, setScheduleSlots] = useState<ExamScheduleSlotInput[]>(emptySlots);
+  const [savedRequestId, setSavedRequestId] = useState<string | null>(null);
 
   // Step 2 – questions
   const [questions, setQuestions] = useState<FacultyExamQuestion[]>([emptyQuestion()]);
@@ -114,6 +119,29 @@ export default function FacultyUploadPage() {
     void load();
   }, []);
 
+  const refreshSavedRequest = async () => {
+    const res = await fetch('/api/faculty/exams');
+    if (!res.ok) return;
+    const json = (await res.json()) as {
+      requests?: Array<{
+        id: string;
+        status: string;
+        uses_slot_scheduling?: boolean;
+        schedule_slots_json?: unknown;
+        title?: string;
+        test_type?: string | null;
+      }>;
+    };
+    const pending = (json.requests ?? []).find(
+      (r) => r.status === 'pending' && r.uses_slot_scheduling,
+    );
+    if (!pending) return;
+    setSavedRequestId(pending.id);
+    const parsed = parseSlotsWithApproval(pending.schedule_slots_json);
+    setScheduleSlots(parsed);
+    if (pending.title && !title.trim()) setTitle(pending.title);
+  };
+
   const toggleYear = (year: string) =>
     setYears((prev) => (prev.includes(year) ? prev.filter((y) => y !== year) : [...prev, year]));
 
@@ -145,11 +173,34 @@ export default function FacultyUploadPage() {
     }
   }, [isElevateXExam, usesSlotScheduling, scheduleSlots.length]);
 
+  useEffect(() => {
+    if (slotSchedulingActive) void refreshSavedRequest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate pending slot-scheduled request
+  }, [slotSchedulingActive]);
+
   const slotSchedulingActive = isElevateXExam || usesSlotScheduling;
-  const slotValidationError = slotSchedulingActive
-    ? validateScheduleSlots(scheduleSlots)
-    : null;
-  const slotsValid = slotValidationError === null;
+  const slotsWithApproval = useMemo(
+    () => parseSlotsWithApproval(scheduleSlots),
+    [scheduleSlots],
+  );
+  const nextSlotToSubmit = useMemo(
+    () => nextSubmittableSlot(slotsWithApproval),
+    [slotsWithApproval],
+  );
+  const lockedSlotNumbers = useMemo(
+    () =>
+      slotsWithApproval
+        .filter((s) => s.approval_status === 'pending' || s.approval_status === 'approved')
+        .map((s) => s.slot_number),
+    [slotsWithApproval],
+  );
+  const slotSubmitCheck = useMemo(
+    () =>
+      nextSlotToSubmit != null
+        ? canSubmitSlotNumber(slotsWithApproval, nextSlotToSubmit)
+        : { ok: false as const, reason: 'All 8 slots are submitted or approved.' },
+    [slotsWithApproval, nextSlotToSubmit],
+  );
 
   const needsSyllabus = Boolean(testDef?.requiresSyllabus);
   const detailsValid =
@@ -231,14 +282,6 @@ export default function FacultyUploadPage() {
       setStep('details');
       return;
     }
-    if (slotSchedulingActive) {
-      const slotErr = validateScheduleSlots(scheduleSlots);
-      if (slotErr) {
-        setError(slotErr);
-        setStep('details');
-        return;
-      }
-    }
     const cleanQuestions = (overrideQuestions ?? questions).filter(questionIsValid);
     if (!isElevateXExam && cleanQuestions.length === 0) {
       setError(
@@ -250,6 +293,18 @@ export default function FacultyUploadPage() {
       return;
     }
 
+    if (slotSchedulingActive) {
+      if (nextSlotToSubmit == null) {
+        setError('All slots are already submitted or approved.');
+        return;
+      }
+      if (!slotSubmitCheck.ok) {
+        setError(slotSubmitCheck.reason);
+        setStep('details');
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       await fetch('/api/faculty/profile', {
@@ -258,28 +313,49 @@ export default function FacultyUploadPage() {
         body: JSON.stringify({ department }),
       });
 
+      const payload: Record<string, unknown> = {
+        title: title.trim(),
+        topic: topic.trim() || testDef?.name || undefined,
+        description: description.trim() || undefined,
+        target_years: years,
+        target_branches: extraBranches,
+        duration_minutes: duration,
+        questions: cleanQuestions,
+        test_type: testType,
+        slot_key: slotKey,
+        syllabus_topic_ids: syllabusTopicIds,
+        questions_per_topic: questionsPerTopic,
+        department_group_id: departmentGroupId || undefined,
+        uses_slot_scheduling: slotSchedulingActive,
+        schedule_slots: slotSchedulingActive ? scheduleSlots : [],
+      };
+
+      if (slotSchedulingActive && nextSlotToSubmit != null) {
+        payload.submit_slot_number = nextSlotToSubmit;
+        if (savedRequestId) payload.request_id = savedRequestId;
+      }
+
       const res = await fetch('/api/faculty/exams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          topic: topic.trim() || testDef?.name || undefined,
-          description: description.trim() || undefined,
-          target_years: years,
-          target_branches: extraBranches,
-          duration_minutes: duration,
-          questions: cleanQuestions,
-          test_type: testType,
-          slot_key: slotKey,
-          syllabus_topic_ids: syllabusTopicIds,
-          questions_per_topic: questionsPerTopic,
-          department_group_id: departmentGroupId || undefined,
-          uses_slot_scheduling: isElevateXExam || usesSlotScheduling,
-          schedule_slots: isElevateXExam || usesSlotScheduling ? scheduleSlots : [],
-        }),
+        body: JSON.stringify(payload),
       });
-      const json = (await res.json()) as { error?: string };
+      const json = (await res.json()) as {
+        error?: string;
+        request?: { id: string; schedule_slots_json?: unknown };
+        slot_number?: number;
+      };
       if (!res.ok) throw new Error(json.error ?? 'Submit failed');
+
+      if (slotSchedulingActive && json.request) {
+        setSavedRequestId(json.request.id);
+        setScheduleSlots(parseSlotsWithApproval(json.request.schedule_slots_json));
+        const slotNum = json.slot_number ?? nextSlotToSubmit;
+        setMessage(
+          `Slot ${slotNum} submitted for approval. After admin approves it, you can submit Slot ${(slotNum ?? 0) + 1}.`,
+        );
+        return;
+      }
 
       setMessage(
         'Submitted for approval. Students see it once the examination cell approves it.',
@@ -292,8 +368,14 @@ export default function FacultyUploadPage() {
     }
   };
 
-  const canSubmit =
-    (isElevateXExam || canProceedFromQuestions) && detailsValid && slotsValid;
+  const canSubmit = slotSchedulingActive
+    ? detailsValid && slotSubmitCheck.ok && (isElevateXExam || canProceedFromQuestions)
+    : (isElevateXExam || canProceedFromQuestions) && detailsValid;
+
+  const submitButtonLabel =
+    slotSchedulingActive && nextSlotToSubmit != null
+      ? `Submit Slot ${nextSlotToSubmit} for approval`
+      : 'Submit for approval';
 
   const submitBlockedReason = useMemo(() => {
     if (!detailsValid) {
@@ -307,7 +389,7 @@ export default function FacultyUploadPage() {
     if (!isElevateXExam && !canProceedFromQuestions) {
       return 'Draw or generate questions from the bank first.';
     }
-    if (slotValidationError) return slotValidationError;
+    if (slotSchedulingActive && !slotSubmitCheck.ok) return slotSubmitCheck.reason;
     return null;
   }, [
     detailsValid,
@@ -319,7 +401,7 @@ export default function FacultyUploadPage() {
     isElevateXExam,
     slotSchedulingActive,
     canProceedFromQuestions,
-    slotValidationError,
+    slotSubmitCheck,
   ]);
 
   const handleBankQuestionsReady = (qs: FacultyExamQuestion[], warnings: string[]) => {
@@ -344,11 +426,11 @@ export default function FacultyUploadPage() {
   const stepperCanEnter: Record<Step, boolean> = isManualExam
     ? { details: true, questions: detailsValid, review: detailsValid && canProceedFromQuestions }
     : isElevateXExam
-      ? { details: true, questions: false, review: detailsValid && slotsValid }
+      ? { details: true, questions: false, review: detailsValid }
       : {
           details: true,
           questions: false,
-          review: canProceedFromQuestions && detailsValid && slotsValid,
+          review: canProceedFromQuestions && detailsValid,
         };
 
   return (
@@ -465,15 +547,26 @@ export default function FacultyUploadPage() {
             slots={scheduleSlots}
             onSlotsChange={setScheduleSlots}
             lockEnabled={isElevateXExam}
+            lockedSlotNumbers={lockedSlotNumbers}
           />
 
-          {slotValidationError ? (
-            <StatusAlert variant="error">{slotValidationError}</StatusAlert>
-          ) : slotSchedulingActive ? (
+          {slotSchedulingActive ? (
             <StatusAlert variant="info">
-              Complete all 8 slots with exam date, start/end time, and at least one student per slot
-              before submitting.
+              Submit one slot at a time for approval: Slot 1 first, then Slot 2, and so on through
+              Slot 8. Each slot needs date, time, and roster before you submit it. Locked slots are
+              pending or already approved.
+              {nextSlotToSubmit != null ? (
+                <span className="block mt-1 font-medium">
+                  Next to submit: Slot {nextSlotToSubmit}
+                </span>
+              ) : (
+                <span className="block mt-1 font-medium">All slots submitted or approved.</span>
+              )}
             </StatusAlert>
+          ) : null}
+
+          {!slotSchedulingActive && submitBlockedReason ? (
+            <StatusAlert variant="error">{submitBlockedReason}</StatusAlert>
           ) : null}
 
           <Field
@@ -556,7 +649,7 @@ export default function FacultyUploadPage() {
                 <Button
                   variant="outline"
                   onClick={() => setStep('review')}
-                  disabled={!detailsValid || !slotsValid}
+                  disabled={!detailsValid}
                 >
                   Review summary
                 </Button>
@@ -565,7 +658,7 @@ export default function FacultyUploadPage() {
                   onClick={() => void submitExam()}
                   className="bg-emerald-700 hover:bg-emerald-800 text-white min-w-[11rem]"
                 >
-                  {submitting ? 'Submitting…' : 'Submit for approval'}
+                  {submitting ? 'Submitting…' : submitButtonLabel}
                 </Button>
               </>
             ) : (
@@ -580,7 +673,7 @@ export default function FacultyUploadPage() {
                       onClick={() => void submitExam()}
                       className="bg-emerald-700 hover:bg-emerald-800 text-white min-w-[11rem]"
                     >
-                      {submitting ? 'Submitting…' : 'Submit for approval'}
+                      {submitting ? 'Submitting…' : submitButtonLabel}
                     </Button>
                   </>
                 ) : (
@@ -803,7 +896,7 @@ export default function FacultyUploadPage() {
               onClick={() => void submitExam()}
               className="bg-emerald-700 hover:bg-emerald-800 text-white min-w-[11rem]"
             >
-              {submitting ? 'Submitting…' : 'Submit for approval'}
+              {submitting ? 'Submitting…' : submitButtonLabel}
             </Button>
           </div>
         </Card>

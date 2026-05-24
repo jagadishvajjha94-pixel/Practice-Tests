@@ -26,6 +26,9 @@ export type ExamScheduleSlotInput = {
   end_time: string;
   capacity?: number;
   roster: ExamSlotRosterEntry[];
+  approval_status?: 'draft' | 'pending' | 'approved' | 'rejected';
+  submitted_at?: string | null;
+  approved_at?: string | null;
 };
 
 export type ParsedExamScheduleSlot = ExamScheduleSlotInput & {
@@ -86,9 +89,43 @@ export function parseScheduleSlotsJson(raw: unknown): ExamScheduleSlotInput[] {
       end_time: String(row.end_time ?? '').trim(),
       capacity: Number(row.capacity) || EXAM_SLOT_CAPACITY_DEFAULT,
       roster,
+      approval_status: ['draft', 'pending', 'approved', 'rejected'].includes(
+        String(row.approval_status ?? 'draft'),
+      )
+        ? (String(row.approval_status) as ExamScheduleSlotInput['approval_status'])
+        : 'draft',
+      submitted_at: row.submitted_at ? String(row.submitted_at) : null,
+      approved_at: row.approved_at ? String(row.approved_at) : null,
     });
   }
   return out.sort((a, b) => a.slot_number - b.slot_number);
+}
+
+/** Validate a single slot (date, time, roster) for incremental faculty submit. */
+export function validateSingleScheduleSlot(slot: ExamScheduleSlotInput): string | null {
+  if (!slot.exam_date) return `Slot ${slot.slot_number}: exam date is required.`;
+  if (!slot.start_time || !slot.end_time) {
+    return `Slot ${slot.slot_number}: start and end times are required.`;
+  }
+  const starts_at = combineDateAndTime(slot.exam_date, slot.start_time);
+  const ends_at = combineDateAndTime(slot.exam_date, slot.end_time);
+  if (!starts_at || !ends_at) {
+    return `Slot ${slot.slot_number}: invalid date or time.`;
+  }
+  if (new Date(ends_at).getTime() <= new Date(starts_at).getTime()) {
+    return `Slot ${slot.slot_number}: end time must be after start time.`;
+  }
+  const cap = Math.min(
+    EXAM_SLOT_CAPACITY_DEFAULT,
+    Math.max(1, Number(slot.capacity) || EXAM_SLOT_CAPACITY_DEFAULT),
+  );
+  if (slot.roster.length === 0) {
+    return `Slot ${slot.slot_number}: upload at least one student (roll number).`;
+  }
+  if (slot.roster.length > cap) {
+    return `Slot ${slot.slot_number}: maximum ${cap} students allowed (you uploaded ${slot.roster.length}).`;
+  }
+  return null;
 }
 
 export function validateScheduleSlots(slots: ExamScheduleSlotInput[]): string | null {
@@ -246,11 +283,28 @@ export async function persistSlotRoster(
   requestId: string,
   slots: ExamScheduleSlotInput[],
 ): Promise<void> {
+  await admin.from('exam_slot_roster_entries').delete().eq('faculty_exam_request_id', requestId);
+  await insertSlotRosterRows(admin, requestId, slots);
+}
+
+export async function persistSlotRosterForSlot(
+  admin: SupabaseClient,
+  requestId: string,
+  slot: ExamScheduleSlotInput,
+): Promise<void> {
   await admin
     .from('exam_slot_roster_entries')
     .delete()
-    .eq('faculty_exam_request_id', requestId);
+    .eq('faculty_exam_request_id', requestId)
+    .eq('slot_number', slot.slot_number);
+  await insertSlotRosterRows(admin, requestId, [slot]);
+}
 
+async function insertSlotRosterRows(
+  admin: SupabaseClient,
+  requestId: string,
+  slots: ExamScheduleSlotInput[],
+): Promise<void> {
   const rows: Array<Record<string, unknown>> = [];
   for (const slot of slots) {
     for (const student of slot.roster) {
@@ -285,9 +339,33 @@ export async function persistSlotRoster(
     const retry = await admin.from('exam_slot_roster_entries').insert(fallbackRows);
     error = retry.error;
   }
-  if (error && !error.message.includes('exam_slot_roster')) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
+}
+
+export async function createScheduleForSlot(
+  admin: SupabaseClient,
+  input: {
+    requestId: string;
+    testId: string;
+    title: string;
+    description: string | null;
+    targetDepartments: string[];
+    targetYears: string[];
+    createdBy: string;
+    slot: ExamScheduleSlotInput;
+  },
+): Promise<{ scheduleId: string; slot_number: number } | null> {
+  const created = await createSchedulesFromSlots(admin, {
+    requestId: input.requestId,
+    testId: input.testId,
+    title: input.title,
+    description: input.description,
+    targetDepartments: input.targetDepartments,
+    targetYears: input.targetYears,
+    createdBy: input.createdBy,
+    slots: [input.slot],
+  });
+  return created[0] ?? null;
 }
 
 export async function rebuildSlotsFromRosterEntries(

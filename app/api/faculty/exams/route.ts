@@ -3,6 +3,7 @@ import { FACULTY_EXAM_YEARS, parseQuestionsJson } from '@/lib/faculty-exams';
 import { isValidAcademicYear } from '@/lib/roles';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { createFacultyExamRequestRecord } from '@/lib/exam-builder/create-exam-request';
+import { submitFacultyExamSlotForApproval } from '@/lib/exam-builder/submit-faculty-slot';
 import { parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
 import {
   ELEVATEX_PLACEHOLDER_QUESTIONS,
@@ -53,6 +54,8 @@ export async function POST(request: NextRequest) {
     department_group_id?: string;
     uses_slot_scheduling?: boolean;
     schedule_slots?: unknown[];
+    request_id?: string;
+    submit_slot_number?: number;
   };
 
   try {
@@ -117,6 +120,36 @@ export async function POST(request: NextRequest) {
   const topic = body.topic?.trim() || null;
 
   try {
+    if (usesSlotScheduling && submitSlotNumber) {
+      const result = await submitFacultyExamSlotForApproval(admin, {
+        creatorUserId: auth.ctx.resolved.id,
+        primaryDepartment: department,
+        title,
+        description: body.description?.trim() ?? null,
+        topic,
+        targetYears,
+        extraBranches: targetBranches,
+        departmentGroupId: body.department_group_id ?? null,
+        durationMinutes: duration,
+        questions,
+        testType: body.test_type?.trim() || null,
+        slotKey: body.slot_key?.trim() || null,
+        syllabusTopicIds: Array.isArray(body.syllabus_topic_ids) ? body.syllabus_topic_ids : [],
+        questionsPerTopic: body.questions_per_topic ?? null,
+        requestId: body.request_id?.trim() || null,
+        submitSlotNumber,
+        scheduleSlots,
+      });
+
+      const { data } = await admin
+        .from('faculty_exam_requests')
+        .select('*')
+        .eq('id', result.requestId)
+        .single();
+
+      return NextResponse.json({ request: data, slot_number: result.slot_number });
+    }
+
     const result = await createFacultyExamRequestRecord(admin, {
       creatorUserId: auth.ctx.resolved.id,
       primaryDepartment: department,
@@ -134,8 +167,8 @@ export async function POST(request: NextRequest) {
       questionsPerTopic: body.questions_per_topic ?? null,
       status: 'pending',
       autoPublish: false,
-      usesSlotScheduling,
-      scheduleSlots: usesSlotScheduling ? scheduleSlots : undefined,
+      usesSlotScheduling: false,
+      scheduleSlots: undefined,
     });
 
     const { data } = await admin

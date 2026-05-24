@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { publishFacultyExamRequest } from '@/lib/publish-faculty-exam';
+import { publishFacultyExamRequest, publishFacultyExamSlot } from '@/lib/publish-faculty-exam';
+import { pendingSlotNumbers } from '@/lib/exam-slot-approval';
+import { parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
 import { deleteFacultyExamRequest } from '@/lib/delete-faculty-exam';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 
@@ -17,7 +19,7 @@ export async function PATCH(
 
   const { id } = await params;
 
-  let body: { action?: string; admin_note?: string };
+  let body: { action?: string; admin_note?: string; slot_number?: number };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -49,6 +51,50 @@ export async function PATCH(
   }
 
   try {
+    const { data: requestRow } = await admin
+      .from('faculty_exam_requests')
+      .select('uses_slot_scheduling, schedule_slots_json')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (requestRow?.uses_slot_scheduling) {
+      const slotNumber = Math.floor(Number(body.slot_number));
+      if (!slotNumber || slotNumber < 1 || slotNumber > 8) {
+        const pending = pendingSlotNumbers(parseScheduleSlotsJson(requestRow.schedule_slots_json));
+        return NextResponse.json(
+          {
+            error:
+              pending.length > 0
+                ? `slot_number is required. Pending: Slot ${pending.join(', Slot ')}.`
+                : 'slot_number (1–8) is required for slot-scheduled exams.',
+          },
+          { status: 400 },
+        );
+      }
+
+      const { testId, all_slots_approved } = await publishFacultyExamSlot(
+        admin,
+        id,
+        slotNumber,
+        auth.ctx.resolved.id,
+      );
+
+      if (body.admin_note?.trim()) {
+        await admin
+          .from('faculty_exam_requests')
+          .update({ admin_note: body.admin_note.trim() })
+          .eq('id', id);
+      }
+
+      return NextResponse.json({
+        ok: true,
+        status: all_slots_approved ? 'approved' : 'pending',
+        test_id: testId,
+        slot_number: slotNumber,
+        all_slots_approved,
+      });
+    }
+
     const { testId } = await publishFacultyExamRequest(admin, id, auth.ctx.resolved.id);
     if (body.admin_note?.trim()) {
       await admin

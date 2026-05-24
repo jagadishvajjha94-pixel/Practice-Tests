@@ -35,7 +35,22 @@ type Props = {
   onSlotsChange: (slots: ExamScheduleSlotInput[]) => void;
   /** When true, slot scheduling cannot be turned off (ElevateX). */
   lockEnabled?: boolean;
+  /** Slots that cannot be edited (pending or approved). */
+  lockedSlotNumbers?: number[];
 };
+
+function slotStatusShort(status: ExamScheduleSlotInput['approval_status']): string {
+  switch (status) {
+    case 'pending':
+      return 'Pending';
+    case 'approved':
+      return 'Approved';
+    case 'rejected':
+      return 'Rejected';
+    default:
+      return '';
+  }
+}
 
 export function ExamSlotSchedulePanel({
   enabled,
@@ -43,7 +58,9 @@ export function ExamSlotSchedulePanel({
   slots,
   onSlotsChange,
   lockEnabled = false,
+  lockedSlotNumbers = [],
 }: Props) {
+  const lockedSet = useMemo(() => new Set(lockedSlotNumbers), [lockedSlotNumbers]);
   const [activeSlot, setActiveSlot] = useState(1);
   const [importNote, setImportNote] = useState<string | null>(null);
   const [sheetImportOpen, setSheetImportOpen] = useState(false);
@@ -65,6 +82,7 @@ export function ExamSlotSchedulePanel({
   );
 
   const updateSlot = (slotNumber: number, patch: Partial<ExamScheduleSlotInput>) => {
+    if (lockedSet.has(slotNumber)) return;
     onSlotsChange(
       slots.map((s) => (s.slot_number === slotNumber ? { ...s, ...patch } : s)),
     );
@@ -257,6 +275,12 @@ export function ExamSlotSchedulePanel({
         })}
       </div>
 
+      {current && lockedSet.has(current.slot_number) ? (
+        <StatusAlert variant="info">
+          Slot {current.slot_number} is {current.approval_status === 'approved' ? 'approved' : 'awaiting admin approval'} and cannot be edited.
+        </StatusAlert>
+      ) : null}
+
       {current ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <label className="block text-xs font-medium text-slate-600">
@@ -265,6 +289,7 @@ export function ExamSlotSchedulePanel({
               type="date"
               className="mt-1 h-9"
               value={current.exam_date}
+              disabled={lockedSet.has(current.slot_number)}
               onChange={(e) => updateSlot(current.slot_number, { exam_date: e.target.value })}
             />
           </label>
@@ -274,6 +299,7 @@ export function ExamSlotSchedulePanel({
               type="time"
               className="mt-1 h-9"
               value={current.start_time}
+              disabled={lockedSet.has(current.slot_number)}
               onChange={(e) => updateSlot(current.slot_number, { start_time: e.target.value })}
             />
           </label>
@@ -283,6 +309,7 @@ export function ExamSlotSchedulePanel({
               type="time"
               className="mt-1 h-9"
               value={current.end_time}
+              disabled={lockedSet.has(current.slot_number)}
               onChange={(e) => updateSlot(current.slot_number, { end_time: e.target.value })}
             />
           </label>
@@ -293,6 +320,7 @@ export function ExamSlotSchedulePanel({
               min={1}
               max={EXAM_SLOT_CAPACITY_DEFAULT}
               className="mt-1 h-9"
+              disabled={lockedSet.has(current.slot_number)}
               value={current.capacity ?? EXAM_SLOT_CAPACITY_DEFAULT}
               onChange={(e) =>
                 updateSlot(current.slot_number, {
@@ -313,7 +341,7 @@ export function ExamSlotSchedulePanel({
             Slot {activeSlot} roster — {current?.roster.length ?? 0} / {current?.capacity ?? EXAM_SLOT_CAPACITY_DEFAULT}{' '}
             students
           </p>
-          {current && current.roster.length > 0 ? (
+          {current && current.roster.length > 0 && !lockedSet.has(activeSlot) ? (
             <Button
               type="button"
               variant="outline"
@@ -326,11 +354,16 @@ export function ExamSlotSchedulePanel({
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <label className="inline-flex items-center gap-2 text-xs font-medium text-[#1e3a5f] cursor-pointer">
+          <label
+            className={`inline-flex items-center gap-2 text-xs font-medium text-[#1e3a5f] ${
+              lockedSet.has(activeSlot) ? 'opacity-50 pointer-events-none' : 'cursor-pointer'
+            }`}
+          >
             <input
               type="file"
               accept=".csv,.txt"
               className="text-xs"
+              disabled={lockedSet.has(activeSlot)}
               onChange={(e) => handleCsvImport(activeSlot, e.target.files?.[0] ?? null)}
             />
             Upload CSV

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import type { FacultyExamRequest } from '@/lib/faculty-exams';
 import { enrichScheduleSlots, parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
+import { pendingSlotNumbers, slotStatusLabel } from '@/lib/exam-slot-approval';
 import { isElevateXBuilderTestType } from '@/lib/exam-builder/elevatex-exam';
 import { downloadRosterCredentialsCsv } from '@/lib/roster-credentials-export';
 
@@ -57,13 +58,17 @@ export default function AdminApprovalsPage() {
     }
   };
 
-  const review = async (id: string, action: 'approve' | 'reject') => {
-    setActing(id);
+  const review = async (id: string, action: 'approve' | 'reject', slotNumber?: number) => {
+    const actingKey = slotNumber != null ? `${id}-slot-${slotNumber}` : id;
+    setActing(actingKey);
     try {
       const res = await fetch(`/api/admin/exam-requests/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({
+          action,
+          ...(slotNumber != null ? { slot_number: slotNumber } : {}),
+        }),
       });
       if (!res.ok) {
         const json = (await res.json()) as { error?: string };
@@ -103,6 +108,10 @@ export default function AdminApprovalsPage() {
             const allBranches = [r.department, ...(r.target_branches ?? [])];
             const questionCount = Array.isArray(r.questions_json) ? r.questions_json.length : 0;
             const isElevateX = isElevateXBuilderTestType(String(r.test_type ?? ''));
+            const slotRows = enrichScheduleSlots(parseScheduleSlotsJson(r.schedule_slots_json));
+            const pendingSlots = r.uses_slot_scheduling
+              ? pendingSlotNumbers(parseScheduleSlotsJson(r.schedule_slots_json))
+              : [];
             return (
               <Card key={r.id} className="p-6 space-y-4">
                 <div className="flex flex-wrap justify-between gap-3">
@@ -145,24 +154,41 @@ export default function AdminApprovalsPage() {
                       </p>
                     ) : null}
                   </div>
-                  <div className="flex gap-2 shrink-0">
-                    <Button
-                      disabled={acting === r.id}
-                      className="bg-emerald-600 hover:bg-emerald-700"
-                      onClick={() => review(r.id, 'approve')}
-                    >
-                      Approve & publish
-                    </Button>
+                  <div className="flex flex-wrap gap-2 shrink-0 justify-end">
+                    {r.uses_slot_scheduling ? (
+                      pendingSlots.length > 0 ? (
+                        pendingSlots.map((slotNum) => (
+                          <Button
+                            key={slotNum}
+                            disabled={acting === `${r.id}-slot-${slotNum}`}
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                            onClick={() => review(r.id, 'approve', slotNum)}
+                          >
+                            Approve Slot {slotNum}
+                          </Button>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-500 self-center">No slots pending</span>
+                      )
+                    ) : (
+                      <Button
+                        disabled={acting === r.id}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        onClick={() => review(r.id, 'approve')}
+                      >
+                        Approve & publish
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
-                      disabled={acting === r.id}
+                      disabled={acting === r.id || acting.startsWith(`${r.id}-slot-`)}
                       onClick={() => review(r.id, 'reject')}
                     >
                       Reject
                     </Button>
                     <Button
                       variant="outline"
-                      disabled={acting === r.id}
+                      disabled={acting === r.id || acting.startsWith(`${r.id}-slot-`)}
                       className="text-red-700 border-red-200 hover:bg-red-50"
                       onClick={() => void deleteExam(r)}
                     >
@@ -179,13 +205,26 @@ export default function AdminApprovalsPage() {
                   <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-3 text-sm space-y-2">
                     <p className="font-semibold text-indigo-950">8-slot schedule (130 students per slot)</p>
                     <ul className="grid sm:grid-cols-2 gap-2 text-xs text-indigo-900">
-                      {enrichScheduleSlots(parseScheduleSlotsJson(r.schedule_slots_json)).map(
-                        (slot) => (
+                      {slotRows.map((slot) => {
+                        const raw = parseScheduleSlotsJson(r.schedule_slots_json).find(
+                          (s) => s.slot_number === slot.slot_number,
+                        );
+                        const status = raw?.approval_status ?? 'draft';
+                        return (
                           <li
                             key={slot.slot_number}
-                            className="rounded-md bg-white/80 border border-indigo-100 px-2 py-1.5"
+                            className={`rounded-md bg-white/80 border px-2 py-1.5 ${
+                              status === 'approved'
+                                ? 'border-emerald-200'
+                                : status === 'pending'
+                                  ? 'border-amber-200'
+                                  : 'border-indigo-100'
+                            }`}
                           >
                             <span className="font-semibold">Slot {slot.slot_number}</span>
+                            <span className="ml-1 text-[10px] font-medium uppercase tracking-wide text-indigo-700/90">
+                              {slotStatusLabel(status)}
+                            </span>
                             <span className="block text-indigo-800/90">
                               {slot.exam_date} · {slot.start_time}–{slot.end_time}
                             </span>
@@ -193,12 +232,12 @@ export default function AdminApprovalsPage() {
                               {slot.roster.length} students
                             </span>
                           </li>
-                        ),
-                      )}
+                        );
+                      })}
                     </ul>
                     <p className="text-[11px] text-indigo-800/80">
-                      On approval, eight scheduled windows are created. Admin goes live per slot on
-                      Faculty exam schedules. Students only access during their assigned slot.
+                      Approve one slot at a time (Slot 1, then 2, … 8). Each approval creates that
+                      slot&apos;s schedule. Go live per slot on Faculty exam schedules when ready.
                     </p>
                     <Button
                       type="button"
