@@ -24,11 +24,10 @@ import {
 } from '@/components/auth/form-field';
 import { ACADEMIC_YEARS, DEPARTMENTS } from '@/lib/college-brand';
 import {
-  studentAuthEmail,
   validatePassword,
   validateRollNumber,
 } from '@/lib/college-auth';
-import { useCollegeSignIn } from '@/components/auth/use-college-sign-in';
+import { useStudentSignIn } from '@/components/auth/use-student-sign-in';
 import { isSupabasePublicEnvConfigured, SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { isSignupDisabled } from '@/lib/auth-features';
 import { StatusAlert } from '@/components/ui/status-alert';
@@ -47,7 +46,7 @@ function StudentLoginForm() {
     ? `/auth/signup/student?redirect=${encodeURIComponent(redirect)}`
     : '/auth/signup/student';
 
-  const { signIn, loading, error, setError } = useCollegeSignIn();
+  const { signIn, loading, error, setError } = useStudentSignIn();
   const [rollNumber, setRollNumber] = useState('');
   const [password, setPassword] = useState('');
   const [department, setDepartment] = useState('');
@@ -91,18 +90,12 @@ function StudentLoginForm() {
       localStorage.removeItem(REMEMBER_KEY);
     }
 
-    const email = studentAuthEmail(rollNumber);
     await signIn({
-      email,
+      rollNumber: rollNumber.trim(),
       password,
+      department,
+      year,
       redirectTo: postLogin,
-      metadata: {
-        role: 'student',
-        roll_number: rollNumber.trim(),
-        department,
-        year,
-        full_name: rollNumber.trim(),
-      },
     });
   };
 

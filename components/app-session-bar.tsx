@@ -51,7 +51,10 @@ export default function AppSessionBar() {
 
   const handleLogout = async () => {
     const supabase = getSupabaseBrowserClient();
-    if (supabase) {
+    const isStudent = email?.includes('@student.');
+    if (isStudent) {
+      await fetch('/api/auth/student/signout', { method: 'POST', credentials: 'include' });
+    } else if (supabase) {
       await supabase.auth.signOut();
     }
     setEmail(null);

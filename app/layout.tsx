@@ -5,6 +5,7 @@ import './globals.css'
 import GlobalBackButton from '@/components/global-back-button'
 import AppSessionBar from '@/components/app-session-bar'
 import CollegeSiteHeader from '@/components/college-site-header'
+import { StudentSessionHeartbeat } from '@/components/student-session-heartbeat'
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -41,6 +42,7 @@ export default function RootLayout({
       >
         <CollegeSiteHeader />
         <GlobalBackButton />
+        <StudentSessionHeartbeat />
         <AppSessionBar />
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}

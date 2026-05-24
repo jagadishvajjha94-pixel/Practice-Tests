@@ -216,10 +216,11 @@ export function LiveExamDashboard() {
 
   const entries = board?.entries ?? [];
   const multiLive = schedules.length > 1;
+  const submittedEntries = entries.filter((e) => e.submitted_at);
   const podium = {
-    first: entries.find((e) => e.rank === 1),
-    second: entries.find((e) => e.rank === 2),
-    third: entries.find((e) => e.rank === 3),
+    first: submittedEntries[0],
+    second: submittedEntries[1],
+    third: submittedEntries[2],
   };
 
   return (
@@ -254,7 +255,8 @@ export function LiveExamDashboard() {
                 {multiLive ? `${schedules.length} exams live now` : board?.test_title ?? 'Live exam'}
               </h2>
               <p className="text-sm text-violet-200/80 mt-1">
-                Auto-refresh every {POLL_MS / 1000}s · tap a test below when multiple are live
+                This live session only · auto-refresh every {POLL_MS / 1000}s
+                {multiLive ? ' · tap a test below when multiple are live' : ''}
               </p>
             </div>
             <div className="rounded-xl border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-center shrink-0">
@@ -327,7 +329,7 @@ export function LiveExamDashboard() {
 
               <div className="mb-6">
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-200/90 mb-3 text-center">
-                  Top performers · Gold · Silver · Bronze
+                  Top performers this session · Gold · Silver · Bronze
                 </p>
                 <div className="grid grid-cols-3 gap-2 sm:gap-4 max-w-xl mx-auto items-end">
                   <PodiumCard entry={podium.second} place={2} />

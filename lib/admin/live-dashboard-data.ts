@@ -92,20 +92,41 @@ function titleKeysForSchedule(schedule: ExamScheduleRow, facultyTitle?: string |
   return Array.from(keys);
 }
 
+function scheduleSessionBounds(schedule: ExamScheduleRow): { startMs: number; endMs: number | null } {
+  const startMs = new Date(schedule.starts_at).getTime();
+  const endMs = schedule.ends_at ? new Date(schedule.ends_at).getTime() : null;
+  return {
+    startMs: Number.isNaN(startMs) ? 0 : startMs,
+    endMs: endMs !== null && !Number.isNaN(endMs) ? endMs : null,
+  };
+}
+
+/** Attempt must belong to this scheduled live window — not older runs of the same test. */
+function attemptInLiveSession(attempt: RollupAttempt, schedule: ExamScheduleRow): boolean {
+  const { startMs, endMs } = scheduleSessionBounds(schedule);
+  const attemptMs = new Date(attempt.created_at).getTime();
+  if (Number.isNaN(attemptMs)) return false;
+  if (attemptMs < startMs - 60_000) return false;
+  if (endMs !== null && attemptMs > endMs + 120_000) return false;
+  return true;
+}
+
 function attemptMatchesLiveSchedule(
   attempt: RollupAttempt,
   schedule: ExamScheduleRow,
   titleKeys: string[],
 ): boolean {
-  const scheduleTestId = String(schedule.test_id ?? '');
+  if (!attemptInLiveSession(attempt, schedule)) return false;
+
+  const scheduleTestId = String(schedule.test_id ?? '').trim();
+
+  if (scheduleTestId && attempt.test_id && testIdsMatch(attempt.test_id, scheduleTestId)) {
+    return true;
+  }
 
   if (isElevateXModule(scheduleTestId) || isElevateXTestId(scheduleTestId)) {
     if (attempt.test_id && isElevateXTestId(attempt.test_id)) return true;
     if (isElevateXAttemptTitle(attempt.test_name)) return true;
-  }
-
-  if (scheduleTestId && attempt.test_id && testIdsMatch(attempt.test_id, scheduleTestId)) {
-    return true;
   }
 
   const attemptTitle = normalizeTitle(attempt.test_name);
@@ -117,16 +138,22 @@ function attemptMatchesLiveSchedule(
     if (attemptTitle.includes(key) || key.includes(attemptTitle)) return true;
   }
 
-  const startMs = new Date(schedule.starts_at).getTime();
-  const attemptMs = new Date(attempt.created_at).getTime();
-  if (!Number.isNaN(startMs) && !Number.isNaN(attemptMs) && attemptMs >= startMs - 120_000) {
-    const scheduleTitle = normalizeTitle(schedule.title);
-    if (scheduleTitle && (attemptTitle.includes(scheduleTitle) || scheduleTitle.includes(attemptTitle))) {
-      return true;
-    }
-  }
-
   return false;
+}
+
+function latestAttemptPerUser(attempts: RollupAttempt[]): RollupAttempt[] {
+  const byUser = new Map<string, RollupAttempt>();
+  for (const attempt of attempts) {
+    const existing = byUser.get(attempt.user_id);
+    if (!existing) {
+      byUser.set(attempt.user_id, attempt);
+      continue;
+    }
+    const existingMs = new Date(existing.created_at).getTime();
+    const attemptMs = new Date(attempt.created_at).getTime();
+    if (attemptMs >= existingMs) byUser.set(attempt.user_id, attempt);
+  }
+  return Array.from(byUser.values());
 }
 
 function rowToRollupAttempt(
@@ -156,7 +183,6 @@ async function loadAttemptsForSchedule(
   admin: SupabaseClient,
   schedule: ExamScheduleRow,
   titleKeys: string[],
-  preloaded?: RollupAttempt[],
 ): Promise<RollupAttempt[]> {
   const byId = new Map<string, RollupAttempt>();
   const add = (row: RollupAttempt) => {
@@ -165,39 +191,58 @@ async function loadAttemptsForSchedule(
     }
   };
 
-  for (const row of preloaded ?? []) add(row);
-
-  const since = new Date(schedule.starts_at);
-  since.setMinutes(since.getMinutes() - 5);
-  const sinceIso = since.toISOString();
+  const sessionStartIso = new Date(scheduleSessionBounds(schedule).startMs - 60_000).toISOString();
+  const sessionEndMs = scheduleSessionBounds(schedule).endMs;
+  const sessionEndIso =
+    sessionEndMs !== null
+      ? new Date(sessionEndMs + 120_000).toISOString()
+      : null;
 
   const scheduleTestId = String(schedule.test_id ?? '').trim();
-  let query = admin
-    .from('test_attempts')
-    .select('*')
-    .gte('created_at', sinceIso)
-    .order('created_at', { ascending: false })
-    .limit(500);
 
   if (scheduleTestId) {
-    const { data: byTestId } = await admin
+    let query = admin
       .from('test_attempts')
       .select('*')
       .eq('test_id', scheduleTestId)
+      .gte('created_at', sessionStartIso)
       .order('created_at', { ascending: false })
-      .limit(300);
+      .limit(500);
+
+    if (sessionEndIso) {
+      query = query.lte('created_at', sessionEndIso);
+    }
+
+    const { data: byTestId } = await query;
     for (const row of byTestId ?? []) {
       add(rowToRollupAttempt(row as Record<string, unknown>, schedule.title));
     }
   }
 
-  const { data: recentRows } = await query;
-  for (const row of recentRows ?? []) {
-    add(rowToRollupAttempt(row as Record<string, unknown>, schedule.title));
+  // ElevateX legacy ids (placement-*) during this session only
+  if (isElevateXModule(scheduleTestId) || isElevateXTestId(scheduleTestId)) {
+    let legacyQuery = admin
+      .from('test_attempts')
+      .select('*')
+      .like('test_id', 'placement-%')
+      .gte('created_at', sessionStartIso)
+      .order('created_at', { ascending: false })
+      .limit(300);
+
+    if (sessionEndIso) {
+      legacyQuery = legacyQuery.lte('created_at', sessionEndIso);
+    }
+
+    const { data: legacyRows } = await legacyQuery;
+    for (const row of legacyRows ?? []) {
+      add(rowToRollupAttempt(row as Record<string, unknown>, schedule.title));
+    }
   }
 
-  return Array.from(byId.values()).sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  return latestAttemptPerUser(
+    Array.from(byId.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    ),
   );
 }
 
@@ -270,7 +315,7 @@ export async function listLiveExamSchedules(admin: SupabaseClient): Promise<Exam
 export async function buildLiveExamBoard(
   admin: SupabaseClient,
   schedule: ExamScheduleRow,
-  preloadedAttempts?: RollupAttempt[],
+  _preloadedAttempts?: RollupAttempt[],
 ): Promise<LiveExamBoard> {
   const testId = String(schedule.test_id);
 
@@ -285,7 +330,7 @@ export async function buildLiveExamBoard(
   }
 
   const titleKeys = titleKeysForSchedule(schedule, facultyTitle);
-  const matched = await loadAttemptsForSchedule(admin, schedule, titleKeys, preloadedAttempts);
+  const matched = await loadAttemptsForSchedule(admin, schedule, titleKeys);
 
   const userIds = [...new Set(matched.map((a) => a.user_id))];
   const usersById = new Map<
@@ -335,11 +380,20 @@ export async function buildLiveExamBoard(
   }
 
   const sorted = [...matched].sort((a, b) => {
-    const scoreDiff = b.score - a.score;
-    if (scoreDiff !== 0) return scoreDiff;
-    const bt = new Date(b.completed_at ?? b.created_at).getTime();
-    const at = new Date(a.completed_at ?? a.created_at).getTime();
-    return at - bt;
+    const aDone =
+      a.status === 'completed' || a.status === 'submitted' || Boolean(a.completed_at);
+    const bDone =
+      b.status === 'completed' || b.status === 'submitted' || Boolean(b.completed_at);
+    if (aDone !== bDone) return aDone ? -1 : 1;
+    if (aDone && bDone) {
+      const scoreDiff = b.score - a.score;
+      if (scoreDiff !== 0) return scoreDiff;
+      return (
+        new Date(a.completed_at ?? a.created_at).getTime() -
+        new Date(b.completed_at ?? b.created_at).getTime()
+      );
+    }
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
   const entries: LiveBoardEntry[] = sorted.map((a, index) => {

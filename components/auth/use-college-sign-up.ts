@@ -76,20 +76,40 @@ export function useCollegeSignUp() {
           );
         }
 
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        if (role === 'student') {
+          const rollNumber =
+            metadata.roll_number?.trim() || email.split('@')[0]?.trim() || '';
+          const signinRes = await fetch('/api/auth/student/signin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              rollNumber,
+              password,
+              department: metadata.department,
+              year: metadata.year,
+            }),
+          });
+          const signinJson = (await signinRes.json().catch(() => ({}))) as { error?: string };
+          if (!signinRes.ok) {
+            router.push('/auth/login/student');
+            setError(signinJson.error ?? 'Account created. Sign in with your roll number.');
+            return;
+          }
+        } else {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
 
-        if (signInError) {
-          const loginPath =
-            role === 'student' ? '/auth/login/student' : '/auth/login/faculty';
-          router.push(loginPath);
-          return;
-        }
+          if (signInError) {
+            router.push('/auth/login/faculty');
+            return;
+          }
 
-        if (Object.keys(metadata).length > 0) {
-          await supabase.auth.updateUser({ data: metadata });
+          if (Object.keys(metadata).length > 0) {
+            await supabase.auth.updateUser({ data: metadata });
+          }
         }
 
         if (role === 'faculty' && metadata.department) {
