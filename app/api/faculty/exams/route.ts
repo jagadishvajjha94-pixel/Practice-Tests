@@ -4,6 +4,10 @@ import { isValidAcademicYear } from '@/lib/roles';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { createFacultyExamRequestRecord } from '@/lib/exam-builder/create-exam-request';
 import { parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
+import {
+  ELEVATEX_PLACEHOLDER_QUESTIONS,
+  isElevateXBuilderTestType,
+} from '@/lib/exam-builder/elevatex-exam';
 
 export async function GET() {
   const auth = await requireAuth(['faculty']);
@@ -70,9 +74,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const questions = parseQuestionsJson(body.questions);
-  if (questions.length === 0) {
+  const isElevateX = isElevateXBuilderTestType(body.test_type);
+  const questions = isElevateX
+    ? ELEVATEX_PLACEHOLDER_QUESTIONS
+    : parseQuestionsJson(body.questions);
+  if (!isElevateX && questions.length === 0) {
     return NextResponse.json({ error: 'Add at least one MCQ question' }, { status: 400 });
+  }
+  if (isElevateX && !body.uses_slot_scheduling) {
+    return NextResponse.json(
+      { error: 'ElevateX requires 8-slot scheduling with student roster.' },
+      { status: 400 },
+    );
   }
 
   const { data: profile } = await admin

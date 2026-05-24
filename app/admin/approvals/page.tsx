@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import type { FacultyExamRequest } from '@/lib/faculty-exams';
 import { enrichScheduleSlots, parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
+import { isElevateXBuilderTestType } from '@/lib/exam-builder/elevatex-exam';
 import { downloadRosterCredentialsCsv } from '@/lib/roster-credentials-export';
 
 type EnrichedRequest = FacultyExamRequest & {
   faculty?: { full_name?: string; employee_id?: string; department?: string } | null;
   uses_slot_scheduling?: boolean;
   schedule_slots_json?: unknown;
+  test_type?: string | null;
 };
 
 export default function AdminApprovalsPage() {
@@ -100,6 +102,7 @@ export default function AdminApprovalsPage() {
           {pending.map((r) => {
             const allBranches = [r.department, ...(r.target_branches ?? [])];
             const questionCount = Array.isArray(r.questions_json) ? r.questions_json.length : 0;
+            const isElevateX = isElevateXBuilderTestType(String(r.test_type ?? ''));
             return (
               <Card key={r.id} className="p-6 space-y-4">
                 <div className="flex flex-wrap justify-between gap-3">
@@ -110,6 +113,11 @@ export default function AdminApprovalsPage() {
                       </h3>
                       {r.topic ? (
                         <span className="app-pill app-pill-brand">{r.topic}</span>
+                      ) : null}
+                      {isElevateX ? (
+                        <span className="app-pill bg-fuchsia-100 text-fuchsia-900 border-fuchsia-200">
+                          🚀 ElevateX · 1 hr
+                        </span>
                       ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs">
@@ -123,7 +131,7 @@ export default function AdminApprovalsPage() {
                         {r.duration_minutes} min
                       </span>
                       <span className="app-pill app-pill-neutral">
-                        {questionCount} questions
+                        {isElevateX ? '6-section fixed paper' : `${questionCount} questions`}
                       </span>
                     </div>
                     {r.faculty ? (

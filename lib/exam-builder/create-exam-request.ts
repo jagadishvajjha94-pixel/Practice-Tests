@@ -10,6 +10,10 @@ import {
   validateScheduleSlots,
   type ExamScheduleSlotInput,
 } from '@/lib/exam-schedule-slots';
+import {
+  ELEVATEX_PLACEHOLDER_QUESTIONS,
+  isElevateXBuilderTestType,
+} from '@/lib/exam-builder/elevatex-exam';
 
 export type CreateExamRequestInput = {
   creatorUserId: string;
@@ -47,7 +51,13 @@ export async function createFacultyExamRequestRecord(
   admin: SupabaseClient,
   input: CreateExamRequestInput,
 ): Promise<CreateExamRequestResult> {
-  if (!input.questions.length) {
+  const isElevateX = isElevateXBuilderTestType(input.testType);
+
+  if (isElevateX) {
+    if (!input.usesSlotScheduling || !input.scheduleSlots?.length) {
+      throw new Error('ElevateX requires 8-slot scheduling with a student roster per slot.');
+    }
+  } else if (!input.questions.length) {
     throw new Error('Add at least one MCQ question');
   }
   if (!input.targetYears.length) {
@@ -81,11 +91,13 @@ export async function createFacultyExamRequestRecord(
     }
   }
 
-  const examQuestions = augmentExamQuestionsWithCoding(
-    input.questions,
-    syllabusTopicSlugs.length ? syllabusTopicSlugs : input.syllabusTopicIds ?? [],
-    input.testType,
-  );
+  const examQuestions = isElevateX
+    ? ELEVATEX_PLACEHOLDER_QUESTIONS
+    : augmentExamQuestionsWithCoding(
+        input.questions,
+        syllabusTopicSlugs.length ? syllabusTopicSlugs : input.syllabusTopicIds ?? [],
+        input.testType,
+      );
 
   const insertPayload: Record<string, unknown> = {
     faculty_user_id: input.creatorUserId,
@@ -192,7 +204,7 @@ export async function createFacultyExamRequestRecord(
     const published = await publishFacultyExamRequest(admin, requestId, input.creatorUserId);
     testId = published.testId;
 
-    if (input.autoGoLive && testId) {
+    if (input.autoGoLive && testId && !input.usesSlotScheduling) {
       const targetDepartments = Array.from(new Set([department, ...target_branches]));
       const { data: schedule, error: scheduleErr } = await admin
         .from('exam_schedules')

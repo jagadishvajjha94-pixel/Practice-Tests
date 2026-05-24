@@ -6,6 +6,7 @@ import {
   type ExamScheduleRow,
   type StudentExamSchedule,
 } from '@/lib/exam-schedule';
+import { studentTakeUrlForTestId } from '@/lib/exam-builder/elevatex-exam';
 
 type ApprovedRequest = {
   id: string;
@@ -63,7 +64,7 @@ export function listLiveFacultyExamsForStudent(
       created_at: liveSchedule?.created_at ?? new Date().toISOString(),
       updated_at: liveSchedule?.updated_at ?? new Date().toISOString(),
       kind: 'live',
-      take_url: `/tests/take/${testId}`,
+      take_url: studentTakeUrlForTestId(testId),
       duration_minutes: meta?.duration_minutes ?? req.duration_minutes ?? null,
       topic: meta?.topic ?? req.topic ?? null,
     });

@@ -62,6 +62,17 @@ export const EXAM_BUILDER_TEST_TYPES: ExamBuilderTestType[] = [
     defaultDurationMinutes: 60,
   },
   {
+    id: 'elevatex',
+    name: 'ElevateX (1 hour)',
+    description:
+      'Fixed 6-section talent challenge (100 marks, 60 min). Configure 8 student slots with roster, then submit for admin approval.',
+    icon: '🚀',
+    requiresSyllabus: false,
+    syllabusGroup: null,
+    defaultQuestionsPerTopic: 0,
+    defaultDurationMinutes: 60,
+  },
+  {
     id: 'department-manual',
     name: 'Department exam (manual MCQs)',
     description: 'Upload or type your own questions — no syllabus picker.',

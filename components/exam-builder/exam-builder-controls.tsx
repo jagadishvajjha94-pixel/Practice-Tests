@@ -15,6 +15,8 @@ import {
   EXAM_BUILDER_TEST_TYPES,
   getExamBuilderTestType,
 } from '@/lib/exam-builder/test-catalog';
+import { isElevateXBuilderTestType } from '@/lib/exam-builder/elevatex-exam';
+import { ElevateXLiveInfo } from '@/components/elevatex/elevatex-live-info';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 
 type CatalogResponse = {
@@ -66,6 +68,7 @@ export function ExamBuilderControls({
   }, [catalogRefreshToken]);
 
   const testDef = getExamBuilderTestType(testType);
+  const isElevateX = isElevateXBuilderTestType(testType);
   const syllabusTopics = catalog?.syllabusByTestType?.[testType] ?? [];
 
   const selectedTopicNames = useMemo(
@@ -206,7 +209,7 @@ export function ExamBuilderControls({
         ) : null}
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className={`grid gap-4 ${isElevateX ? '' : 'sm:grid-cols-2'}`}>
         <div>
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Test to initiate
@@ -230,26 +233,38 @@ export function ExamBuilderControls({
             </p>
           ) : null}
         </div>
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Exam slot (non-repetitive sets)
-          </label>
-          <select
-            className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
-            value={slotKey}
-            onChange={(e) => onSlotKeyChange(e.target.value)}
-          >
-            {slots.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-slate-500 mt-1">
-            Each slot draws fresh questions so topics do not repeat across sittings.
-          </p>
-        </div>
+        {!isElevateX ? (
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Exam slot (non-repetitive sets)
+            </label>
+            <select
+              className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+              value={slotKey}
+              onChange={(e) => onSlotKeyChange(e.target.value)}
+            >
+              {slots.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500 mt-1">
+              Each slot draws fresh questions so topics do not repeat across sittings.
+            </p>
+          </div>
+        ) : null}
       </div>
+
+      {isElevateX ? (
+        <>
+          <ElevateXLiveInfo compact />
+          <StatusAlert variant="info">
+            ElevateX uses a fixed 6-section paper (60 minutes, 100 marks). Configure the 8 student
+            time slots and roster below, then submit for admin approval.
+          </StatusAlert>
+        </>
+      ) : null}
 
       {testDef?.requiresSyllabus ? (
         <>

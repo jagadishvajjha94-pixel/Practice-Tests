@@ -11,8 +11,16 @@ import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { ExamBuilderControls } from '@/components/exam-builder/exam-builder-controls';
 import { QuestionBankUploadPanel } from '@/components/exam-builder/question-bank-upload-panel';
 import { DepartmentGroupPicker } from '@/components/exam-builder/department-group-picker';
+import {
+  ExamSlotSchedulePanel,
+  emptySlots,
+} from '@/components/exam-builder/exam-slot-schedule-panel';
 import { ACADEMIC_YEARS, DEPARTMENTS } from '@/lib/college-brand';
 import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
+import { isElevateXBuilderTestType } from '@/lib/exam-builder/elevatex-exam';
+import { ELEVATEX_EXAM_NAME } from '@/lib/elevatex';
+import type { ExamScheduleSlotInput } from '@/lib/exam-schedule-slots';
+import { validateScheduleSlots } from '@/lib/exam-schedule-slots';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 import { cn } from '@/lib/utils';
 
@@ -41,10 +49,14 @@ export default function AdminExamBuilderPage() {
   const [newGroupDepts, setNewGroupDepts] = useState<string[]>([]);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [catalogRefresh, setCatalogRefresh] = useState(0);
+  const [usesSlotScheduling, setUsesSlotScheduling] = useState(false);
+  const [scheduleSlots, setScheduleSlots] = useState<ExamScheduleSlotInput[]>(emptySlots);
 
   const testDef = getExamBuilderTestType(testType);
   const isManual = testType === 'department-manual';
+  const isElevateX = isElevateXBuilderTestType(testType);
   const needsSyllabus = Boolean(testDef?.requiresSyllabus);
+  const slotsValid = !usesSlotScheduling || validateScheduleSlots(scheduleSlots) === null;
 
   const toggleYear = (year: string) =>
     setTargetYears((prev) =>
@@ -91,7 +103,15 @@ export default function AdminExamBuilderPage() {
       setError('Select syllabus topics before publishing.');
       return;
     }
-    if (!questions.length && !needsSyllabus) {
+    if (isElevateX && !usesSlotScheduling) {
+      setError('Enable 8-slot scheduling and upload the student roster for ElevateX.');
+      return;
+    }
+    if (usesSlotScheduling && !slotsValid) {
+      setError('Complete all 8 slots with date, time, and at least one student per slot.');
+      return;
+    }
+    if (!questions.length && !needsSyllabus && !isElevateX) {
       setError('Manual exams need questions — use faculty upload for typed MCQs.');
       return;
     }
@@ -116,7 +136,9 @@ export default function AdminExamBuilderPage() {
           departmentGroupId: departmentGroupId || undefined,
           targetYears,
           durationMinutes: duration,
-          goLiveNow,
+          goLiveNow: usesSlotScheduling ? false : goLiveNow,
+          usesSlotScheduling: isElevateX || usesSlotScheduling,
+          scheduleSlots: isElevateX || usesSlotScheduling ? scheduleSlots : undefined,
           questions: questions.length ? questions : undefined,
         }),
       });
@@ -158,6 +180,12 @@ export default function AdminExamBuilderPage() {
               setDuration(def.defaultDurationMinutes);
               setQuestionsPerTopic(def.defaultQuestionsPerTopic);
             }
+            if (isElevateXBuilderTestType(id)) {
+              setUsesSlotScheduling(true);
+              if (scheduleSlots.length === 0) setScheduleSlots(emptySlots());
+              if (!title.trim()) setTitle(`${ELEVATEX_EXAM_NAME} Examination`);
+              setGoLiveNow(false);
+            }
             setQuestions([]);
             setWarnings([]);
           }}
@@ -174,10 +202,12 @@ export default function AdminExamBuilderPage() {
           catalogRefreshToken={catalogRefresh}
         />
 
-        <QuestionBankUploadPanel
-          tagIds={syllabusTopicIds}
-          onBankUpdated={() => setCatalogRefresh((n) => n + 1)}
-        />
+        {!isElevateX ? (
+          <QuestionBankUploadPanel
+            tagIds={syllabusTopicIds}
+            onBankUpdated={() => setCatalogRefresh((n) => n + 1)}
+          />
+        ) : null}
 
         <div className="grid md:grid-cols-2 gap-4">
           <div>
@@ -201,6 +231,7 @@ export default function AdminExamBuilderPage() {
               max={180}
               className="mt-1"
               value={duration}
+              disabled={isElevateX}
               onChange={(e) => setDuration(Number(e.target.value) || 45)}
             />
           </div>
@@ -264,15 +295,34 @@ export default function AdminExamBuilderPage() {
           primaryDepartment={department}
         />
 
-        <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={goLiveNow}
-            onChange={(e) => setGoLiveNow(e.target.checked)}
-            className="rounded border-slate-300"
-          />
-          Go live immediately for the selected group and years
-        </label>
+        <ExamSlotSchedulePanel
+          enabled={isElevateX || usesSlotScheduling}
+          onEnabledChange={(v) => {
+            if (isElevateX) return;
+            setUsesSlotScheduling(v);
+            if (v && scheduleSlots.length === 0) setScheduleSlots(emptySlots());
+            if (v) setGoLiveNow(false);
+          }}
+          slots={scheduleSlots}
+          onSlotsChange={setScheduleSlots}
+        />
+
+        {!usesSlotScheduling && !isElevateX ? (
+          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={goLiveNow}
+              onChange={(e) => setGoLiveNow(e.target.checked)}
+              className="rounded border-slate-300"
+            />
+            Go live immediately for the selected group and years
+          </label>
+        ) : (
+          <StatusAlert variant="info">
+            Slot-scheduled exams (including ElevateX) are published as scheduled. Go live each slot
+            from <Link href="/admin/exam-schedules" className="font-semibold underline">Exam schedules</Link>.
+          </StatusAlert>
+        )}
 
         {questions.length > 0 ? (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
@@ -286,6 +336,10 @@ export default function AdminExamBuilderPage() {
         ) : needsSyllabus ? (
           <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
             Generate the question paper above before publishing.
+          </p>
+        ) : isElevateX ? (
+          <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+            ElevateX uses the fixed 6-section placement paper. Configure all 8 slots with roster, then publish.
           </p>
         ) : null}
 
@@ -301,11 +355,23 @@ export default function AdminExamBuilderPage() {
 
         <div className="flex flex-wrap items-center gap-3 pt-2">
           <Button
-            disabled={publishing || isManual || (needsSyllabus && !questions.length)}
+            disabled={
+              publishing ||
+              isManual ||
+              (needsSyllabus && !questions.length) ||
+              (isElevateX && (!usesSlotScheduling || !slotsValid)) ||
+              (usesSlotScheduling && !slotsValid)
+            }
             onClick={() => void publish()}
             className="bg-[#1e3a5f] hover:bg-[#16304f]"
           >
-            {publishing ? 'Publishing…' : goLiveNow ? 'Publish & go live' : 'Publish exam'}
+            {publishing
+              ? 'Publishing…'
+              : usesSlotScheduling || isElevateX
+                ? 'Publish with slot schedules'
+                : goLiveNow
+                  ? 'Publish & go live'
+                  : 'Publish exam'}
           </Button>
           {takeUrl ? (
             <Link href={takeUrl}>

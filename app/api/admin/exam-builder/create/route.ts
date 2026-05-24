@@ -6,6 +6,12 @@ import { drawExamQuestionsFromTopics } from '@/lib/exam-builder/draw-questions';
 import { createFacultyExamRequestRecord } from '@/lib/exam-builder/create-exam-request';
 import { isValidAcademicYear } from '@/lib/roles';
 import { DEPARTMENTS } from '@/lib/college-brand';
+import {
+  ELEVATEX_PLACEHOLDER_QUESTIONS,
+  isElevateXBuilderTestType,
+  studentTakeUrlForTestId,
+} from '@/lib/exam-builder/elevatex-exam';
+import { parseScheduleSlotsJson } from '@/lib/exam-schedule-slots';
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(['admin']);
@@ -27,6 +33,17 @@ export async function POST(request: NextRequest) {
   const def = getExamBuilderTestType(testType);
   if (!def) return NextResponse.json({ error: 'Invalid test type' }, { status: 400 });
 
+  const isElevateX = isElevateXBuilderTestType(testType);
+  const usesSlotScheduling = Boolean(body.usesSlotScheduling);
+  const scheduleSlots = usesSlotScheduling ? parseScheduleSlotsJson(body.scheduleSlots) : [];
+
+  if (isElevateX && !usesSlotScheduling) {
+    return NextResponse.json(
+      { error: 'ElevateX requires 8-slot scheduling with student roster.' },
+      { status: 400 },
+    );
+  }
+
   const title = String(body.title ?? '').trim() || `${def.name} Examination`;
   const slotKey = String(body.slotKey ?? 'slot-1');
   const topicIds = Array.isArray(body.topicIds) ? (body.topicIds as string[]) : [];
@@ -43,11 +60,13 @@ export async function POST(request: NextRequest) {
   const extraBranches = Array.isArray(body.extraBranches)
     ? (body.extraBranches as string[])
     : [];
-  const goLiveNow = Boolean(body.goLiveNow);
+  const goLiveNow = Boolean(body.goLiveNow) && !usesSlotScheduling;
 
   let questions = parseQuestionsJson(body.questions);
 
-  if (!questions.length && def.requiresSyllabus) {
+  if (isElevateX) {
+    questions = ELEVATEX_PLACEHOLDER_QUESTIONS;
+  } else if (!questions.length && def.requiresSyllabus) {
     if (!topicIds.length) {
       return NextResponse.json({ error: 'Select syllabus topics or provide questions' }, { status: 400 });
     }
@@ -105,17 +124,21 @@ export async function POST(request: NextRequest) {
       autoGoLive: goLiveNow,
       goLiveNotice:
         typeof body.notice === 'string' ? body.notice : `${def.name} is now live for your group.`,
+      usesSlotScheduling,
+      scheduleSlots: usesSlotScheduling ? scheduleSlots : undefined,
     });
 
     return NextResponse.json({
       requestId: result.requestId,
       testId: result.testId,
       scheduleId: result.scheduleId,
-      takeUrl: result.testId ? `/tests/take/${result.testId}` : undefined,
+      takeUrl: result.testId ? studentTakeUrlForTestId(result.testId) : undefined,
       targetDepartments: [result.department, ...result.target_branches],
-      message: goLiveNow
-        ? 'Exam published and is live for the selected department group.'
-        : 'Exam published. Go live from Faculty exam schedules when ready.',
+      message: usesSlotScheduling
+        ? 'Exam published with 8 slot schedules. Go live per slot on Exam schedules when ready.'
+        : goLiveNow
+          ? 'Exam published and is live for the selected department group.'
+          : 'Exam published. Go live from Faculty exam schedules when ready.',
     });
   } catch (err) {
     return NextResponse.json(

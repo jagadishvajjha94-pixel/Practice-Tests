@@ -1,5 +1,6 @@
 import { academicYearInList } from '@/lib/academic-year-match';
 import { departmentsMatch } from '@/lib/faculty/department-match';
+import { studentTakeUrlForTestId } from '@/lib/exam-builder/elevatex-exam';
 
 export type ExamScheduleStatus = 'scheduled' | 'live' | 'ended';
 
@@ -165,7 +166,7 @@ export function partitionSchedulesForStudent(
     const base: StudentExamSchedule = {
       ...row,
       kind: 'live',
-      take_url: `/tests/take/${row.test_id}`,
+      take_url: studentTakeUrlForTestId(String(row.test_id)),
       duration_minutes: meta?.duration_minutes ?? null,
       topic: meta?.topic ?? null,
     };

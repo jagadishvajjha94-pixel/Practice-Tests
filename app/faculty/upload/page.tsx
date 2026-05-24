@@ -20,6 +20,8 @@ import {
   emptySlots,
 } from '@/components/exam-builder/exam-slot-schedule-panel';
 import { getExamBuilderTestType } from '@/lib/exam-builder/test-catalog';
+import { isElevateXBuilderTestType } from '@/lib/exam-builder/elevatex-exam';
+import { ELEVATEX_EXAM_NAME } from '@/lib/elevatex';
 import type { ExamScheduleSlotInput } from '@/lib/exam-schedule-slots';
 import { validateScheduleSlots } from '@/lib/exam-schedule-slots';
 
@@ -33,6 +35,11 @@ const MANUAL_STEPS: Array<{ id: Step; label: string; hint: string }> = [
 
 const SYLLABUS_STEPS: Array<{ id: Step; label: string; hint: string }> = [
   { id: 'details', label: 'Exam details', hint: 'Topics · branches · draw from bank' },
+  { id: 'review', label: 'Review & submit', hint: 'Confirm and send for admin approval' },
+];
+
+const ELEVATEX_STEPS: Array<{ id: Step; label: string; hint: string }> = [
+  { id: 'details', label: 'ElevateX details', hint: 'Branches · years · 8-slot roster' },
   { id: 'review', label: 'Review & submit', hint: 'Confirm and send for admin approval' },
 ];
 
@@ -128,7 +135,8 @@ export default function FacultyUploadPage() {
 
   const testDef = getExamBuilderTestType(testType);
   const isManualExam = testType === 'department-manual';
-  const steps = isManualExam ? MANUAL_STEPS : SYLLABUS_STEPS;
+  const isElevateXExam = isElevateXBuilderTestType(testType);
+  const steps = isManualExam ? MANUAL_STEPS : isElevateXExam ? ELEVATEX_STEPS : SYLLABUS_STEPS;
 
   const needsSyllabus = Boolean(testDef?.requiresSyllabus);
   const detailsValid =
@@ -137,7 +145,8 @@ export default function FacultyUploadPage() {
     years.length > 0 &&
     duration >= 5 &&
     duration <= 180 &&
-    (!needsSyllabus || syllabusTopicIds.length > 0);
+    (!needsSyllabus || syllabusTopicIds.length > 0) &&
+    (!isElevateXExam || usesSlotScheduling);
 
   const canProceedFromQuestions = validQuestionCount > 0;
 
@@ -210,7 +219,7 @@ export default function FacultyUploadPage() {
       return;
     }
     const cleanQuestions = (overrideQuestions ?? questions).filter(questionIsValid);
-    if (cleanQuestions.length === 0) {
+    if (!isElevateXExam && cleanQuestions.length === 0) {
       setError(
         isManualExam
           ? 'Add at least one complete MCQ (question + 4 options).'
@@ -244,8 +253,8 @@ export default function FacultyUploadPage() {
           syllabus_topic_ids: syllabusTopicIds,
           questions_per_topic: questionsPerTopic,
           department_group_id: departmentGroupId || undefined,
-          uses_slot_scheduling: usesSlotScheduling,
-          schedule_slots: usesSlotScheduling ? scheduleSlots : [],
+          uses_slot_scheduling: isElevateXExam || usesSlotScheduling,
+          schedule_slots: isElevateXExam || usesSlotScheduling ? scheduleSlots : [],
         }),
       });
       const json = (await res.json()) as { error?: string };
@@ -263,7 +272,8 @@ export default function FacultyUploadPage() {
   };
 
   const slotsValid = !usesSlotScheduling || validateScheduleSlots(scheduleSlots) === null;
-  const canSubmit = canProceedFromQuestions && detailsValid && slotsValid;
+  const canSubmit =
+    (isElevateXExam || canProceedFromQuestions) && detailsValid && slotsValid;
 
   const handleBankQuestionsReady = (qs: FacultyExamQuestion[], warnings: string[]) => {
     setPaperWarnings(warnings);
@@ -286,7 +296,9 @@ export default function FacultyUploadPage() {
 
   const stepperCanEnter: Record<Step, boolean> = isManualExam
     ? { details: true, questions: detailsValid, review: detailsValid && canProceedFromQuestions }
-    : { details: true, questions: false, review: canProceedFromQuestions };
+    : isElevateXExam
+      ? { details: true, questions: false, review: detailsValid && slotsValid }
+      : { details: true, questions: false, review: canProceedFromQuestions };
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -318,6 +330,11 @@ export default function FacultyUploadPage() {
               const def = getExamBuilderTestType(id);
               if (def && !title.trim()) setTitle(`${def.name} Examination`);
               if (def) setDuration(def.defaultDurationMinutes);
+              if (isElevateXBuilderTestType(id)) {
+                setUsesSlotScheduling(true);
+                if (scheduleSlots.length === 0) setScheduleSlots(emptySlots());
+                if (!title.trim()) setTitle(`${ELEVATEX_EXAM_NAME} Examination`);
+              }
             }}
             slotKey={slotKey}
             onSlotKeyChange={setSlotKey}
@@ -329,10 +346,12 @@ export default function FacultyUploadPage() {
             catalogRefreshToken={catalogRefresh}
           />
 
-          <QuestionBankUploadPanel
-            tagIds={syllabusTopicIds}
-            onBankUpdated={() => setCatalogRefresh((n) => n + 1)}
-          />
+          {!isElevateXExam ? (
+            <QuestionBankUploadPanel
+              tagIds={syllabusTopicIds}
+              onBankUpdated={() => setCatalogRefresh((n) => n + 1)}
+            />
+          ) : null}
 
           <div className="grid sm:grid-cols-2 gap-5">
             <Field label="Exam title" hint="Shown to students on the test hub.">
@@ -386,8 +405,9 @@ export default function FacultyUploadPage() {
           />
 
           <ExamSlotSchedulePanel
-            enabled={usesSlotScheduling}
+            enabled={isElevateXExam || usesSlotScheduling}
             onEnabledChange={(v) => {
+              if (isElevateXExam) return;
               setUsesSlotScheduling(v);
               if (v && scheduleSlots.length === 0) setScheduleSlots(emptySlots());
             }}
@@ -445,12 +465,13 @@ export default function FacultyUploadPage() {
               </div>
             </Field>
 
-            <Field label="Duration (minutes)" hint="Between 5 and 180.">
+            <Field label="Duration (minutes)" hint={isElevateXExam ? 'Fixed at 60 minutes for ElevateX.' : 'Between 5 and 180.'}>
               <Input
                 type="number"
                 min={5}
                 max={180}
                 value={duration}
+                disabled={isElevateXExam}
                 onChange={(e) => setDuration(Number(e.target.value))}
               />
             </Field>
@@ -469,6 +490,23 @@ export default function FacultyUploadPage() {
               >
                 Continue to questions →
               </Button>
+            ) : isElevateXExam ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setStep('review')}
+                  disabled={!detailsValid || !slotsValid}
+                >
+                  Review summary
+                </Button>
+                <Button
+                  disabled={submitting || !canSubmit}
+                  onClick={() => void submitExam()}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white min-w-[11rem]"
+                >
+                  {submitting ? 'Submitting…' : 'Submit for approval'}
+                </Button>
+              </>
             ) : (
               <>
                 {canProceedFromQuestions ? (
@@ -633,7 +671,9 @@ export default function FacultyUploadPage() {
 
           <div className="grid sm:grid-cols-2 gap-5 rounded-xl border border-slate-200 bg-slate-50/60 p-5">
             <DetailRow label="Test type">{testDef?.name ?? testType}</DetailRow>
-            <DetailRow label="Question bank slot">{slotKey.replace(/-/g, ' ')}</DetailRow>
+            <DetailRow label="Question bank slot">
+              {isElevateXExam ? 'ElevateX fixed paper' : slotKey.replace(/-/g, ' ')}
+            </DetailRow>
             {usesSlotScheduling ? (
               <DetailRow label="Exam slots">
                 {scheduleSlots.filter((s) => s.roster.length > 0).length} of 8 configured (
@@ -660,7 +700,9 @@ export default function FacultyUploadPage() {
               {years.length ? years.join(', ') : '—'}
             </DetailRow>
             <DetailRow label="Duration">{duration} minutes</DetailRow>
-            <DetailRow label="Questions">{validQuestionCount} complete</DetailRow>
+            <DetailRow label="Questions">
+              {isElevateXExam ? '6-section ElevateX paper (fixed)' : `${validQuestionCount} complete`}
+            </DetailRow>
             <DetailRow label="Status on submit">
               <Badge tone="warning">Pending admin approval</Badge>
             </DetailRow>
@@ -697,7 +739,7 @@ export default function FacultyUploadPage() {
         </Card>
       ) : null}
 
-      {!isManualExam && canProceedFromQuestions ? (
+      {!isManualExam && !isElevateXExam && canProceedFromQuestions ? (
         <div className="sticky bottom-4 z-20 rounded-xl border border-emerald-200 bg-emerald-50/95 backdrop-blur-sm p-4 shadow-lg shadow-emerald-900/10 flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-emerald-950">
             <strong>{validQuestionCount} MCQs</strong> ready · sent to admin after you submit

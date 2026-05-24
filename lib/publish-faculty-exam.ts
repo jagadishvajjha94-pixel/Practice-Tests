@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { linkTestQuestions } from '@/lib/exam-builder/link-test-questions';
 import {
+  isElevateXBuilderTestType,
+  ELEVATEX_TEST_ID,
+} from '@/lib/exam-builder/elevatex-exam';
+import {
   detectQuestionsIdKind,
   detectTestsIdKind,
   isUuidTypeMismatchError,
@@ -145,6 +149,30 @@ export async function publishFacultyExamRequest(
   }
   if (request.status !== 'pending') {
     throw new Error('Only pending requests can be approved');
+  }
+
+  const isElevateX = isElevateXBuilderTestType(String(request.test_type ?? ''));
+
+  if (isElevateX) {
+    const approvedBase = {
+      status: 'approved',
+      reviewed_by: adminUserId,
+      reviewed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      published_test_id: ELEVATEX_TEST_ID,
+    };
+
+    const { error: updateError } = await admin
+      .from('faculty_exam_requests')
+      .update(approvedBase)
+      .eq('id', requestId);
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+
+    await finalizeSlotSchedulesOnPublish(admin, request, requestId, ELEVATEX_TEST_ID, adminUserId);
+    return { testId: ELEVATEX_TEST_ID };
   }
 
   const questions = parseQuestionsJson(request.questions_json) as FacultyExamQuestion[];
