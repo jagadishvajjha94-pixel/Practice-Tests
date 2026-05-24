@@ -2,32 +2,26 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { scanVideoFrame, type FaceScanStatus } from '@/lib/exam-v2/face-detector';
-import {
-  PROCTOR_FACE_ABSENT_SEC,
-  PROCTOR_FACE_CHECK_MS,
-  PROCTOR_SUSPICIOUS_DEBOUNCE_MS,
-} from '@/lib/exam-v2/proctoring-config';
+import { PROCTOR_FACE_CHECK_MS, PROCTOR_FACE_ABSENT_SEC } from '@/lib/exam-v2/proctoring-config';
 
 type Options = {
   enabled: boolean;
   videoRef: React.RefObject<HTMLVideoElement | null>;
-  onFaceViolation: (
-    type: 'face_absent' | 'multiple_faces' | 'face_suspicious',
-    metadata?: Record<string, unknown>,
-  ) => void;
 };
 
-export function useCameraProctoring({ enabled, videoRef, onFaceViolation }: Options) {
+/**
+ * Live camera preview for proctored exams. Stream stays in the browser only —
+ * no frames are uploaded, stored, or counted as integrity violations.
+ */
+export function useCameraProctoring({ enabled, videoRef }: Options) {
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [faceStatus, setFaceStatus] = useState<FaceScanStatus>('absent');
+  /** UI-only: show red “face not visible” hint (not a proctoring flag). */
+  const [faceNotVisible, setFaceNotVisible] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
   const absentSinceRef = useRef<number | null>(null);
-  const absentViolationSentRef = useRef(false);
-  const lastSuspiciousRef = useRef(0);
   const scanningRef = useRef(false);
-  const onFaceViolationRef = useRef(onFaceViolation);
-  onFaceViolationRef.current = onFaceViolation;
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -36,6 +30,7 @@ export function useCameraProctoring({ enabled, videoRef, onFaceViolation }: Opti
     if (video) video.srcObject = null;
     setCameraReady(false);
     setFaceStatus('absent');
+    setFaceNotVisible(false);
   }, [videoRef]);
 
   const attachStreamToVideo = useCallback(async (): Promise<boolean> => {
@@ -84,7 +79,6 @@ export function useCameraProctoring({ enabled, videoRef, onFaceViolation }: Opti
 
       if (await attachStreamToVideo()) return true;
 
-      // Video element may mount later (e.g. portaled proctor panel) — stream kept in streamRef.
       setCameraError(null);
       return true;
     } catch {
@@ -96,7 +90,6 @@ export function useCameraProctoring({ enabled, videoRef, onFaceViolation }: Opti
     }
   }, [attachStreamToVideo]);
 
-  // Start/stop camera with proctoring enabled (single lifecycle — no stop on cameraReady flip).
   useEffect(() => {
     if (!enabled) {
       stopCamera();
@@ -108,7 +101,6 @@ export function useCameraProctoring({ enabled, videoRef, onFaceViolation }: Opti
     };
   }, [enabled, startCamera, stopCamera]);
 
-  // Re-bind when the <video> mounts after getUserMedia (portal / deferred render).
   useEffect(() => {
     if (!enabled || !streamRef.current) return;
 
@@ -130,7 +122,7 @@ export function useCameraProctoring({ enabled, videoRef, onFaceViolation }: Opti
     };
   }, [enabled, attachStreamToVideo]);
 
-  // Face scan loop — must not call stopCamera on cleanup (was turning camera "Off" after start).
+  // Local face check for on-screen hint only — never sent to the server.
   useEffect(() => {
     if (!enabled) return;
 
@@ -146,29 +138,13 @@ export function useCameraProctoring({ enabled, videoRef, onFaceViolation }: Opti
         setFaceStatus(result.status);
 
         const now = Date.now();
-
         if (result.status === 'present') {
           absentSinceRef.current = null;
-          absentViolationSentRef.current = false;
-        } else if (result.status === 'absent') {
+          setFaceNotVisible(false);
+        } else {
           if (absentSinceRef.current == null) absentSinceRef.current = now;
           const absentMs = now - absentSinceRef.current;
-          if (absentMs >= PROCTOR_FACE_ABSENT_SEC * 1000 && !absentViolationSentRef.current) {
-            absentViolationSentRef.current = true;
-            onFaceViolationRef.current('face_absent', { absentSeconds: PROCTOR_FACE_ABSENT_SEC });
-          }
-        } else if (result.status === 'multiple') {
-          if (now - lastSuspiciousRef.current >= PROCTOR_SUSPICIOUS_DEBOUNCE_MS) {
-            lastSuspiciousRef.current = now;
-            onFaceViolationRef.current('multiple_faces');
-          }
-        } else if (result.status === 'suspicious') {
-          if (now - lastSuspiciousRef.current >= PROCTOR_SUSPICIOUS_DEBOUNCE_MS) {
-            lastSuspiciousRef.current = now;
-            onFaceViolationRef.current('face_suspicious', {
-              reason: 'poor_framing_or_position',
-            });
-          }
+          setFaceNotVisible(absentMs >= PROCTOR_FACE_ABSENT_SEC * 1000);
         }
       } finally {
         scanningRef.current = false;
@@ -186,6 +162,7 @@ export function useCameraProctoring({ enabled, videoRef, onFaceViolation }: Opti
     cameraReady,
     cameraError,
     faceStatus,
+    faceNotVisible,
     startCamera,
     stopCamera,
   };

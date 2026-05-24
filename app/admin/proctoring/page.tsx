@@ -74,7 +74,7 @@ export default function AdminProctoringPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="Proctoring"
-        description="Live exam integrity — tab switches, camera issues, suspicious behavior, and auto-submits. Updates every 2s during live exams (ElevateX /placement and /tests/take)."
+        description="Live exam integrity — tab switches and auto-submits. Camera is preview-only for students (not recorded). Updates every 2s during live exams."
         actions={
           <div className="flex gap-2">
             <Button variant={live ? 'default' : 'outline'} size="sm" onClick={() => setLive((v) => !v)}>
@@ -155,8 +155,8 @@ export default function AdminProctoringPage() {
               {!rows.length ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                    No proctoring incidents yet. During ElevateX or faculty exams, violations appear here
-                    within a few seconds (tab switch, face absent, copy/paste, etc.).
+                    No proctoring incidents yet. During ElevateX or faculty exams, tab-switch flags appear
+                    here within a few seconds.
                   </td>
                 </tr>
               ) : null}

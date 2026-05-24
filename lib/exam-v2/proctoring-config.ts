@@ -1,7 +1,7 @@
 /** Max integrity incidents before the exam auto-submits. */
 export const PROCTOR_MAX_VIOLATIONS = 7;
 
-/** Face must be visible within this window or an incident is recorded. */
+/** Seconds without a visible face before showing the red on-screen reminder (not a flag). */
 export const PROCTOR_FACE_ABSENT_SEC = 5;
 
 /** Camera scan interval — ~2.5 FPS keeps CPU low at scale (1000+ concurrent clients). */

@@ -26,16 +26,8 @@ type Options = {
   onMaxViolations?: (summary: { violationCount: number; violations: ExamViolationEvent[] }) => void;
 };
 
-const COUNTABLE_VIOLATIONS = new Set<ExamViolationType>([
-  'tab_switch',
-  'visibility_hidden',
-  'face_absent',
-  'multiple_faces',
-  'face_suspicious',
-  'face_not_visible',
-  'copy_paste',
-  'fullscreen_exit',
-]);
+/** Only tab / focus loss counts toward auto-submit. Camera is preview-only. */
+const COUNTABLE_VIOLATIONS = new Set<ExamViolationType>(['tab_switch']);
 
 export function useExamProctoring({
   testId,
@@ -112,7 +104,7 @@ export function useExamProctoring({
 
       setViolationCount((prev) => {
         const next = prev + 1;
-        if (type === 'tab_switch' || type === 'visibility_hidden') {
+        if (type === 'tab_switch') {
           setTabSwitchCount((c) => c + 1);
         }
         scheduleIngest(type, { ...metadata, violationIndex: next });
@@ -137,52 +129,33 @@ export function useExamProctoring({
     [enabled, sessionId, scheduleIngest, flushIngest],
   );
 
-  const onFaceViolation = useCallback(
-    (type: 'face_absent' | 'multiple_faces' | 'face_suspicious', metadata?: Record<string, unknown>) => {
-      recordViolation(type, metadata);
-    },
-    [recordViolation],
-  );
-
-  const { cameraReady, cameraError, faceStatus, startCamera, stopCamera } = useCameraProctoring({
-    enabled: enabled && requireCamera,
-    videoRef,
-    onFaceViolation,
-  });
+  const { cameraReady, cameraError, faceStatus, faceNotVisible, startCamera, stopCamera } =
+    useCameraProctoring({
+      enabled: enabled && requireCamera,
+      videoRef,
+    });
 
   useEffect(() => {
     if (!enabled || typeof document === 'undefined') return;
 
-    const recordFocusLoss = (type: ExamViolationType, metadata?: Record<string, unknown>) => {
+    const recordTabSwitch = (metadata?: Record<string, unknown>) => {
       const now = Date.now();
       if (now - lastFocusViolationRef.current < PROCTOR_FOCUS_DEBOUNCE_MS) return;
       lastFocusViolationRef.current = now;
-      recordViolation(type, metadata);
+      recordViolation('tab_switch', metadata);
     };
 
     const onVisibility = () => {
-      if (document.hidden) recordFocusLoss('visibility_hidden');
+      if (document.hidden) recordTabSwitch({ reason: 'visibility_hidden' });
     };
-    const onBlur = () => recordFocusLoss('tab_switch', { reason: 'window_blur' });
-    const onCopy = (e: ClipboardEvent) => {
-      e.preventDefault();
-      recordViolation('copy_paste', { action: 'copy' });
-    };
-    const onPaste = (e: ClipboardEvent) => {
-      e.preventDefault();
-      recordViolation('copy_paste', { action: 'paste' });
-    };
+    const onBlur = () => recordTabSwitch({ reason: 'window_blur' });
 
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('blur', onBlur);
-    document.addEventListener('copy', onCopy);
-    document.addEventListener('paste', onPaste);
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('blur', onBlur);
-      document.removeEventListener('copy', onCopy);
-      document.removeEventListener('paste', onPaste);
       if (flushTimerRef.current != null) {
         clearTimeout(flushTimerRef.current);
       }
@@ -207,6 +180,7 @@ export function useExamProctoring({
     cameraReady,
     cameraError,
     faceStatus,
+    faceNotVisible,
     startCamera,
     stopCamera,
     enterFullscreen,

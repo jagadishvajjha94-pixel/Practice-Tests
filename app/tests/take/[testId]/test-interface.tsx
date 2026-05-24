@@ -152,7 +152,7 @@ export default function TestInterface({
     tabSwitchCount,
     cameraReady,
     cameraError,
-    faceStatus,
+    faceNotVisible,
     autoSubmitTriggered,
     startCamera,
     enterFullscreen,
@@ -724,7 +724,7 @@ export default function TestInterface({
           tabSwitchCount={tabSwitchCount}
           cameraReady={cameraReady}
           cameraError={cameraError}
-          faceStatus={faceStatus}
+          faceNotVisible={faceNotVisible}
           autoSubmitTriggered={autoSubmitTriggered}
           onEnterFullscreen={() => void enterFullscreen()}
           onVideoMount={() => void startCamera()}

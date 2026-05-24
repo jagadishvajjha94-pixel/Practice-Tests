@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { PROCTOR_MAX_VIOLATIONS, PROCTOR_FACE_ABSENT_SEC } from '@/lib/exam-v2/proctoring-config';
+import { PROCTOR_MAX_VIOLATIONS } from '@/lib/exam-v2/proctoring-config';
 
 type Props = {
   onReady: () => void;
@@ -55,9 +55,10 @@ export function ProctorConsentGate({ onReady, onCancel }: Props) {
       <div>
         <p className="text-sm font-semibold text-[#0c2340]">Proctored exam — camera required</p>
         <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-          This session is monitored for integrity. Tab switches, leaving the camera for more than{' '}
-          {PROCTOR_FACE_ABSENT_SEC} seconds, multiple faces, or suspicious behavior are recorded.
-          After {PROCTOR_MAX_VIOLATIONS} incidents the test auto-submits with your current answers.
+          Your camera stays on during the exam for identity verification (preview only — not
+          recorded). Tab switches are flagged; after {PROCTOR_MAX_VIOLATIONS} tab switches the test
+          auto-submits. If your face is not visible you will see a red reminder only (not counted as
+          a flag).
         </p>
       </div>
 

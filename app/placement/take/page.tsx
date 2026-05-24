@@ -86,7 +86,7 @@ export default function PlacementTakePage() {
     tabSwitchCount,
     cameraReady,
     cameraError,
-    faceStatus,
+    faceNotVisible,
     autoSubmitTriggered,
     startCamera,
     enterFullscreen,
@@ -598,7 +598,7 @@ export default function PlacementTakePage() {
           tabSwitchCount={tabSwitchCount}
           cameraReady={cameraReady}
           cameraError={cameraError}
-          faceStatus={faceStatus}
+          faceNotVisible={faceNotVisible}
           autoSubmitTriggered={autoSubmitTriggered}
           onEnterFullscreen={() => void enterFullscreen()}
           onVideoMount={() => void startCamera()}

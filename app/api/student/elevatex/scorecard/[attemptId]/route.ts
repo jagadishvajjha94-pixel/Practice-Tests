@@ -11,23 +11,28 @@ export async function GET(
   const auth = await requireAuth(undefined, _request);
   if ('response' in auth) return auth.response;
 
+  const role = String(auth.ctx.user.user_metadata?.role ?? 'student').toLowerCase();
+  if (role !== 'admin') {
+    return NextResponse.json(
+      { error: 'Scorecards are available only to admin users.' },
+      { status: 403 },
+    );
+  }
+
   const { attemptId } = await params;
   const service = getServiceSupabase();
   if (!service) {
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
   }
 
-  const result = await fetchElevateXScorecardForAttempt(service, attemptId, {
-    userId: auth.ctx.user.id,
-  });
-
+  const result = await fetchElevateXScorecardForAttempt(service, attemptId);
   if (!('scorecard' in result)) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
-  if (result.userId && result.userId !== auth.ctx.user.id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  return NextResponse.json({ scorecard: result.scorecard, attemptId: result.attemptId });
+  return NextResponse.json({
+    scorecard: result.scorecard,
+    attemptId: result.attemptId,
+    userId: result.userId,
+  });
 }
