@@ -1,7 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { rollNumberFromUser } from '@/lib/admin/roll-number';
 import type { RollupAttempt } from '@/lib/admin/attempts-rollup';
-import { isScheduleLiveNow, type ExamScheduleRow } from '@/lib/exam-schedule';
+import {
+  isScheduleLiveNow,
+  resolveExamScheduleStatus,
+  type ExamScheduleRow,
+} from '@/lib/exam-schedule';
+import { syncExpiredLiveExamSchedules } from '@/lib/exam-schedule-sync';
+import type { EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
+import { isElevateXModule, isElevateXAttemptTitle, isElevateXTestId } from '@/lib/elevatex';
 import { resolveStoredPercent, testIdsMatch } from '@/lib/test-attempts';
 
 export type LiveBoardEntry = {
@@ -91,6 +98,12 @@ function attemptMatchesLiveSchedule(
   titleKeys: string[],
 ): boolean {
   const scheduleTestId = String(schedule.test_id ?? '');
+
+  if (isElevateXModule(scheduleTestId) || isElevateXTestId(scheduleTestId)) {
+    if (attempt.test_id && isElevateXTestId(attempt.test_id)) return true;
+    if (isElevateXAttemptTitle(attempt.test_name)) return true;
+  }
+
   if (scheduleTestId && attempt.test_id && testIdsMatch(attempt.test_id, scheduleTestId)) {
     return true;
   }
@@ -188,15 +201,70 @@ async function loadAttemptsForSchedule(
   );
 }
 
+function evaloraToExamSchedule(row: EvaloraModuleScheduleRow): ExamScheduleRow {
+  const title =
+    row.title?.trim() ||
+    (isElevateXModule(row.module_key) ? 'ElevateX' : row.module_key.replace(/_/g, ' '));
+
+  return {
+    id: row.id,
+    title,
+    description: null,
+    notice: row.notice,
+    faculty_exam_request_id: null,
+    test_id: row.module_key,
+    status: row.status,
+    starts_at: row.starts_at,
+    ends_at: row.ends_at,
+    target_departments: row.target_departments ?? [],
+    target_years: row.target_years ?? [],
+    created_by: null,
+    created_at: row.starts_at,
+    updated_at: row.starts_at,
+  };
+}
+
+function isLiveForDashboard(
+  schedule: Pick<ExamScheduleRow, 'status' | 'starts_at' | 'ends_at'>,
+  now = Date.now(),
+): boolean {
+  const resolved = resolveExamScheduleStatus(schedule, now);
+  return resolved.display === 'live' && resolved.windowOpen && isScheduleLiveNow(schedule, now);
+}
+
 export async function listLiveExamSchedules(admin: SupabaseClient): Promise<ExamScheduleRow[]> {
-  const { data } = await admin
+  const now = Date.now();
+  const live: ExamScheduleRow[] = [];
+
+  const { data: scheduleRows } = await admin
     .from('exam_schedules')
     .select('*')
-    .eq('status', 'live')
+    .neq('status', 'ended')
     .order('starts_at', { ascending: false });
 
-  const now = Date.now();
-  return ((data ?? []) as ExamScheduleRow[]).filter((row) => isScheduleLiveNow(row, now));
+  let schedules = (scheduleRows ?? []) as ExamScheduleRow[];
+  if (schedules.length > 0) {
+    schedules = await syncExpiredLiveExamSchedules(admin, schedules);
+  }
+
+  for (const row of schedules) {
+    if (isLiveForDashboard(row, now)) live.push(row);
+  }
+
+  const { data: evaloraRows } = await admin
+    .from('evalora_module_schedules')
+    .select('*')
+    .neq('status', 'ended')
+    .order('starts_at', { ascending: false });
+
+  for (const row of (evaloraRows ?? []) as EvaloraModuleScheduleRow[]) {
+    const mapped = evaloraToExamSchedule(row);
+    if (isLiveForDashboard(mapped, now)) live.push(mapped);
+  }
+
+  return live.sort(
+    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+  );
 }
 
 export async function buildLiveExamBoard(

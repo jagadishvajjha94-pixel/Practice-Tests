@@ -190,7 +190,12 @@ export function AdminDashboard() {
   }, [router]);
 
   if (loading) {
-    return <LoadingScreen message="Loading admin dashboard…" className="min-h-[60vh]" />;
+    return (
+      <>
+        <LiveExamDashboard />
+        <LoadingScreen message="Loading admin dashboard…" className="min-h-[40vh]" />
+      </>
+    );
   }
 
   if (supabaseEnvMissing) {
