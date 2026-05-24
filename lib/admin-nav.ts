@@ -3,7 +3,7 @@ export const ADMIN_NAV_ITEMS = [
   {
     href: '/admin/reports',
     label: 'Test reports',
-    description: 'Per-exam dashboards — ElevateX, RMSET, department, filter & CSV download',
+    description: 'Per-exam dashboards — filter students and download PDF/CSV reports',
   },
   { href: '/admin/approvals', label: 'Faculty approvals', description: 'Review and publish faculty exams' },
   { href: '/admin/exam-builder', label: 'Exam builder', description: 'Create syllabus exams — test type, topics, and slot' },

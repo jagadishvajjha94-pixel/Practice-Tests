@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { rollNumberFromUser } from '@/lib/admin/roll-number';
-import type { RollupAttempt } from '@/lib/admin/attempts-rollup';
+import { loadAdminStudents, loadAllAttemptsRollup, type RollupAttempt } from '@/lib/admin/attempts-rollup';
+import { isCompletedAttemptStatus, isInProgressStatus } from '@/lib/attempt-status';
 import {
   isScheduleLiveNow,
   resolveExamScheduleStatus,
@@ -10,6 +11,7 @@ import { syncExpiredLiveExamSchedules } from '@/lib/exam-schedule-sync';
 import type { EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
 import { isStudentSessionLockSchemaError } from '@/lib/ensure-student-session-lock';
 import { isElevateXModule, isElevateXAttemptTitle, isElevateXTestId } from '@/lib/elevatex';
+import { parseElevateXScorecardFromAnswers } from '@/lib/placement/scorecard-payload';
 import { resolveStoredPercent, testIdsMatch } from '@/lib/test-attempts';
 
 /** Active login within this window counts as "currently writing" when no attempt row exists yet. */
@@ -33,6 +35,8 @@ export type LiveExamBoard = {
   entries: LiveBoardEntry[];
   submitted_count: number;
   in_progress_count: number;
+  highest_score: number;
+  top_scorer: Pick<LiveBoardEntry, 'student_name' | 'roll_number' | 'score'> | null;
 };
 
 /** Student currently in an exam (not yet submitted), tagged with which live test. */
@@ -123,10 +127,17 @@ function attemptInLiveSession(
   const status = String(attempt.status ?? '').toLowerCase();
   const isActive =
     status === 'in_progress' || status === 'started' || status === 'active';
+  const isDone =
+    status === 'completed' ||
+    status === 'submitted' ||
+    Boolean(attempt.completed_at);
 
-  if (isActive && isScheduleLiveNow(schedule, now)) {
-    const recentCutoff = now - 4 * 60 * 60 * 1000;
-    if (attemptMs >= recentCutoff) return true;
+  if ((isActive || isDone) && isScheduleLiveNow(schedule, now)) {
+    const recentCutoff = now - 6 * 60 * 60 * 1000;
+    const anchorMs = attempt.completed_at
+      ? new Date(attempt.completed_at).getTime()
+      : attemptMs;
+    if (!Number.isNaN(anchorMs) && anchorMs >= recentCutoff) return true;
   }
 
   if (attemptMs < startMs - 60_000) return false;
@@ -179,6 +190,20 @@ function latestAttemptPerUser(attempts: RollupAttempt[]): RollupAttempt[] {
   return Array.from(byUser.values());
 }
 
+function scoreFromAttemptRow(row: Record<string, unknown>): number {
+  const base = resolveStoredPercent(
+    row.percentage_score != null ? Number(row.percentage_score) : null,
+    row.score != null ? Number(row.score) : null,
+    row.total_score != null ? Number(row.total_score) : null,
+  );
+  if (base > 0) return base;
+  const scorecard = parseElevateXScorecardFromAnswers(row.answers);
+  if (scorecard && typeof scorecard.percentage === 'number') {
+    return scorecard.percentage;
+  }
+  return base;
+}
+
 function rowToRollupAttempt(
   row: Record<string, unknown>,
   fallbackTitle: string,
@@ -189,11 +214,7 @@ function rowToRollupAttempt(
     user_id: String(row.user_id ?? ''),
     test_id: row.test_id != null ? String(row.test_id) : null,
     test_name: String(row.test_title ?? fallbackTitle),
-    score: resolveStoredPercent(
-      row.percentage_score != null ? Number(row.percentage_score) : null,
-      row.score != null ? Number(row.score) : null,
-      row.total_score != null ? Number(row.total_score) : null,
-    ),
+    score: scoreFromAttemptRow(row),
     status: String(row.status ?? 'completed'),
     created_at: created,
     completed_at: row.completed_at ? String(row.completed_at) : null,
@@ -275,6 +296,11 @@ async function loadAttemptsForSchedule(
     }
   }
 
+  const { attempts: rollupAttempts } = await loadAllAttemptsRollup(admin);
+  for (const attempt of rollupAttempts) {
+    add(attempt);
+  }
+
   return latestAttemptPerUser(
     Array.from(byId.values()).sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -286,6 +312,7 @@ async function loadActiveSessionWriters(
   admin: SupabaseClient,
   schedules: ExamScheduleRow[],
   excludeUserIds: Set<string>,
+  studentById?: Map<string, { roll_number: string; full_name: string | null; email: string }>,
 ): Promise<LiveWritingEntry[]> {
   if (schedules.length === 0) return [];
 
@@ -307,35 +334,53 @@ async function loadActiveSessionWriters(
 
   if (userIds.length === 0) return [];
 
+  const students =
+    studentById ??
+    new Map((await loadAdminStudents(admin)).map((s) => [s.id, s]));
+
   const usersById = new Map<
     string,
-    { full_name: string | null; email: string; metadata?: Record<string, unknown> }
+    { full_name: string | null; email: string; metadata?: Record<string, unknown>; roll_number?: string }
   >();
 
-  const { data: users } = await admin
-    .from('users')
-    .select('id, email, full_name')
-    .in('id', userIds);
-
-  for (const u of users ?? []) {
-    usersById.set(u.id as string, {
-      email: String(u.email ?? ''),
-      full_name: (u.full_name as string | null) ?? null,
-    });
+  for (const uid of userIds) {
+    const student = students.get(uid);
+    if (student) {
+      usersById.set(uid, {
+        email: student.email,
+        full_name: student.full_name,
+        roll_number: student.roll_number,
+      });
+    }
   }
 
-  for (const uid of userIds) {
-    if (usersById.has(uid)) continue;
-    const { data: authUser } = await admin.auth.admin.getUserById(uid);
-    if (authUser?.user) {
-      usersById.set(uid, {
-        email: authUser.user.email ?? '',
-        full_name:
-          (authUser.user.user_metadata?.full_name as string | undefined) ??
-          (authUser.user.user_metadata?.name as string | undefined) ??
-          null,
-        metadata: authUser.user.user_metadata as Record<string, unknown>,
+  const missingIds = userIds.filter((id) => !usersById.has(id));
+  if (missingIds.length) {
+    const { data: users } = await admin
+      .from('users')
+      .select('id, email, full_name')
+      .in('id', missingIds);
+
+    for (const u of users ?? []) {
+      usersById.set(u.id as string, {
+        email: String(u.email ?? ''),
+        full_name: (u.full_name as string | null) ?? null,
       });
+    }
+
+    for (const uid of missingIds) {
+      if (usersById.has(uid)) continue;
+      const { data: authUser } = await admin.auth.admin.getUserById(uid);
+      if (authUser?.user) {
+        usersById.set(uid, {
+          email: authUser.user.email ?? '',
+          full_name:
+            (authUser.user.user_metadata?.full_name as string | undefined) ??
+            (authUser.user.user_metadata?.name as string | undefined) ??
+            null,
+          metadata: authUser.user.user_metadata as Record<string, unknown>,
+        });
+      }
     }
   }
 
@@ -346,13 +391,24 @@ async function loadActiveSessionWriters(
   return userIds.map((userId, index) => {
     const sessionRow = sessionByUser.get(userId);
     const user = usersById.get(userId);
-    const email = user?.email ?? '';
+    const student = students.get(userId);
+    const email = user?.email ?? student?.email ?? '';
+    const roll =
+      student?.roll_number ||
+      user?.roll_number ||
+      rollNumberFromUser(email, user?.metadata) ||
+      String(sessionRow?.roll_number ?? '');
     const lastSeen = String(sessionRow?.last_seen_at ?? new Date().toISOString());
     return {
       attempt_id: `session-${userId}`,
       user_id: userId,
-      roll_number: rollNumberFromUser(email, user?.metadata) || String(sessionRow?.roll_number ?? ''),
-      student_name: user?.full_name || email || 'Student',
+      roll_number: roll,
+      student_name:
+        student?.full_name?.trim() ||
+        user?.full_name?.trim() ||
+        roll ||
+        email ||
+        'Student',
       score: 0,
       status: 'in_progress',
       submitted_at: null,
@@ -451,37 +507,53 @@ export async function buildLiveExamBoard(
   const titleKeys = titleKeysForSchedule(schedule, facultyTitle);
   const matched = await loadAttemptsForSchedule(admin, schedule, titleKeys);
 
+  const students = await loadAdminStudents(admin);
+  const studentById = new Map(students.map((s) => [s.id, s]));
+
   const userIds = [...new Set(matched.map((a) => a.user_id))];
   const usersById = new Map<
     string,
-    { full_name: string | null; email: string; metadata?: Record<string, unknown> }
+    { full_name: string | null; email: string; metadata?: Record<string, unknown>; roll_number?: string }
   >();
 
-  if (userIds.length) {
-    const { data: users } = await admin
-      .from('users')
-      .select('id, email, full_name')
-      .in('id', userIds);
-
-    for (const u of users ?? []) {
-      usersById.set(u.id as string, {
-        email: String(u.email ?? ''),
-        full_name: (u.full_name as string | null) ?? null,
+  for (const student of students) {
+    if (userIds.includes(student.id)) {
+      usersById.set(student.id, {
+        email: student.email,
+        full_name: student.full_name,
+        roll_number: student.roll_number,
       });
     }
+  }
 
-    for (const uid of userIds) {
-      if (usersById.has(uid)) continue;
-      const { data: authUser } = await admin.auth.admin.getUserById(uid);
-      if (authUser?.user) {
-        usersById.set(uid, {
-          email: authUser.user.email ?? '',
-          full_name:
-            (authUser.user.user_metadata?.full_name as string | undefined) ??
-            (authUser.user.user_metadata?.name as string | undefined) ??
-            null,
-          metadata: authUser.user.user_metadata as Record<string, unknown>,
+  if (userIds.length) {
+    const missingIds = userIds.filter((id) => !usersById.has(id));
+    if (missingIds.length) {
+      const { data: users } = await admin
+        .from('users')
+        .select('id, email, full_name')
+        .in('id', missingIds);
+
+      for (const u of users ?? []) {
+        usersById.set(u.id as string, {
+          email: String(u.email ?? ''),
+          full_name: (u.full_name as string | null) ?? null,
         });
+      }
+
+      for (const uid of missingIds) {
+        if (usersById.has(uid)) continue;
+        const { data: authUser } = await admin.auth.admin.getUserById(uid);
+        if (authUser?.user) {
+          usersById.set(uid, {
+            email: authUser.user.email ?? '',
+            full_name:
+              (authUser.user.user_metadata?.full_name as string | undefined) ??
+              (authUser.user.user_metadata?.name as string | undefined) ??
+              null,
+            metadata: authUser.user.user_metadata as Record<string, unknown>,
+          });
+        }
       }
     }
   }
@@ -498,35 +570,36 @@ export async function buildLiveExamBoard(
     testTitle = facultyTitle;
   }
 
-  const sorted = [...matched].sort((a, b) => {
-    const aDone =
-      a.status === 'completed' || a.status === 'submitted' || Boolean(a.completed_at);
-    const bDone =
-      b.status === 'completed' || b.status === 'submitted' || Boolean(b.completed_at);
-    if (aDone !== bDone) return aDone ? -1 : 1;
-    if (aDone && bDone) {
-      const scoreDiff = b.score - a.score;
-      if (scoreDiff !== 0) return scoreDiff;
-      return (
-        new Date(a.completed_at ?? a.created_at).getTime() -
-        new Date(b.completed_at ?? b.created_at).getTime()
-      );
-    }
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
+  const completedAttempts = matched
+    .filter((a) => isCompletedAttemptStatus(a.status, a.completed_at))
+    .sort((a, b) => b.score - a.score || new Date(a.completed_at ?? a.created_at).getTime() - new Date(b.completed_at ?? b.created_at).getTime());
+
+  const inProgressAttempts = matched
+    .filter((a) => isInProgressStatus(a.status) && !a.completed_at)
+    .sort((a, b) => b.score - a.score || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const sorted = [...completedAttempts, ...inProgressAttempts];
 
   const entries: LiveBoardEntry[] = sorted.map((a, index) => {
     const user = usersById.get(a.user_id);
-    const email = user?.email ?? '';
-    const isDone =
-      a.status === 'completed' ||
-      a.status === 'submitted' ||
-      Boolean(a.completed_at);
+    const student = studentById.get(a.user_id);
+    const email = user?.email ?? student?.email ?? '';
+    const roll =
+      student?.roll_number ||
+      user?.roll_number ||
+      rollNumberFromUser(email, user?.metadata);
+    const isDone = isCompletedAttemptStatus(a.status, a.completed_at);
+    const displayName =
+      student?.full_name?.trim() ||
+      user?.full_name?.trim() ||
+      roll ||
+      email ||
+      'Student';
     return {
       attempt_id: a.id,
       user_id: a.user_id,
-      roll_number: rollNumberFromUser(email, user?.metadata),
-      student_name: user?.full_name || email || 'Student',
+      roll_number: roll,
+      student_name: displayName,
       score: a.score,
       status: isDone ? 'completed' : a.status,
       submitted_at: isDone ? a.completed_at ?? a.created_at : null,
@@ -539,7 +612,19 @@ export async function buildLiveExamBoard(
     admin,
     [schedule],
     new Set(entries.map((e) => e.user_id)),
+    studentById,
   );
+
+  const highest_score = entries.length ? Math.max(...entries.map((e) => e.score)) : 0;
+  const topEntry = entries[0] ?? null;
+  const top_scorer = topEntry
+    ? {
+        student_name: topEntry.student_name,
+        roll_number: topEntry.roll_number,
+        score: topEntry.score,
+      }
+    : null;
+
   for (const writer of sessionWriters) {
     entries.push({
       attempt_id: writer.attempt_id,
@@ -560,5 +645,7 @@ export async function buildLiveExamBoard(
     entries,
     submitted_count: entries.filter((e) => e.submitted_at).length,
     in_progress_count: entries.filter((e) => !e.submitted_at).length,
+    highest_score,
+    top_scorer,
   };
 }

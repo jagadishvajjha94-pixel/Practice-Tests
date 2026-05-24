@@ -462,12 +462,19 @@ export default function UsersManagementPage() {
 
       {selectedReport && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/50 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[100] overflow-y-auto overscroll-contain"
           role="dialog"
           aria-modal="true"
           aria-labelledby="student-report-title"
         >
-          <div className="flex w-full max-w-6xl max-h-[min(100dvh-1.5rem,920px)] flex-col rounded-xl bg-white shadow-2xl overflow-hidden border border-slate-200">
+          <button
+            type="button"
+            className="fixed inset-0 bg-black/50 backdrop-blur-[2px] cursor-default"
+            aria-label="Close student report"
+            onClick={() => setSelectedReport(null)}
+          />
+          <div className="flex min-h-full items-start sm:items-center justify-center p-3 sm:p-6">
+          <div className="relative z-[1] my-auto flex w-full max-w-6xl max-h-[min(calc(100dvh-1.5rem),920px)] flex-col rounded-xl bg-white shadow-2xl overflow-hidden border border-slate-200">
             <div className="shrink-0 border-b border-slate-200 bg-slate-50/90 px-4 sm:px-6 py-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -641,6 +648,7 @@ export default function UsersManagementPage() {
               <Card className="p-6 text-center text-gray-600">No attempts found for this student.</Card>
             )}
             </div>
+          </div>
           </div>
         </div>
       )}

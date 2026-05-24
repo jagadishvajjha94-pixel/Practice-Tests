@@ -22,6 +22,7 @@ import {
   downloadTestReportCsv,
   filterReportRows,
 } from '@/lib/admin/export-test-report-csv';
+import { downloadTestReportPdf } from '@/lib/admin/export-test-report-pdf';
 import type { TestReportsPayload } from '@/lib/admin/test-reports-data';
 import {
   buildTestReportsCardReport,
@@ -34,7 +35,8 @@ import {
   isInProgressStatus,
 } from '@/lib/attempt-status';
 import type { PlacementScorecard } from '@/lib/placement/types';
-import { formatScorePercentLabel } from '@/lib/format-score';
+import { formatScorePercentLabel, averageScorePercent, roundRatePercent, roundScorePercent } from '@/lib/format-score';
+import { AppModal, AppModalPanel } from '@/components/ui/app-modal';
 import { cn } from '@/lib/utils';
 
 type StatusFilter = 'all' | 'in_progress' | 'completed';
@@ -77,6 +79,11 @@ export function TestReportsDashboard() {
   }, []);
 
   useEffect(() => {
+    const testIdFromUrl = searchParams.get('testId')?.trim();
+    if (testIdFromUrl) setSelectedTestId(testIdFromUrl);
+  }, [searchParams]);
+
+  useEffect(() => {
     void load(examType, selectedTestId);
   }, [examType, selectedTestId, load]);
 
@@ -103,6 +110,55 @@ export function TestReportsDashboard() {
   const selectedTestName =
     payload?.tests.find((t) => t.id === selectedTestId)?.name ?? undefined;
 
+  const meta = ADMIN_EXAM_TYPE_META[examType];
+
+  const filteredSummary = useMemo(() => {
+    if (filteredRows.length === 0) return null;
+    const completedRows = filteredRows.filter((r) =>
+      isCompletedAttemptStatus(r.status, r.completed_at),
+    );
+    const inProgressCount = filteredRows.filter(
+      (r) => isInProgressStatus(r.status) && !r.completed_at,
+    ).length;
+    const scores = completedRows.map((r) => r.score);
+    const uniqueStudents = new Set(filteredRows.map((r) => r.user_id)).size;
+    const passed = scores.filter((s) => s >= 40).length;
+    return {
+      total_attempts: filteredRows.length,
+      in_progress_count: inProgressCount,
+      completed_count: completedRows.length,
+      unique_students: uniqueStudents,
+      avg_score: scores.length > 0 ? averageScorePercent(scores) : 0,
+      pass_rate: scores.length > 0 ? roundRatePercent((passed / scores.length) * 100) : 0,
+      highest_score: scores.length > 0 ? roundScorePercent(Math.max(...scores)) : 0,
+    };
+  }, [filteredRows]);
+
+  const downloadPdf = () => {
+    if (!payload || filteredRows.length === 0) return;
+    downloadTestReportPdf({
+      examLabel: meta.label,
+      testName: selectedTestId !== 'all' ? selectedTestName : undefined,
+      rows: filteredRows,
+      summary: filteredSummary ?? payload.summary,
+    });
+  };
+
+  const downloadCsv = () => {
+    if (!payload) return;
+    downloadTestReportCsv(
+      {
+        ...payload,
+        rows: filteredRows,
+        summary: filteredSummary ?? payload.summary,
+      },
+      {
+        testId: selectedTestId,
+        testName: selectedTestName,
+      },
+    );
+  };
+
   const openElevateXScorecard = async (row: TestReportsPayload['rows'][0]) => {
     setScorecardLoading(true);
     try {
@@ -123,8 +179,6 @@ export function TestReportsDashboard() {
       setScorecardLoading(false);
     }
   };
-
-  const meta = ADMIN_EXAM_TYPE_META[examType];
 
   const detailReport =
     payload && detailCard
@@ -147,21 +201,25 @@ export function TestReportsDashboard() {
       />
       <AdminPageHeader
         title="Test reports"
-        description="Separate dashboards for each exam family — filter by test and download CSV reports."
+        description="Per-exam dashboards with student scores — download overall exam reports as PDF or CSV."
         actions={
           payload ? (
-            <Button
-              className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-              onClick={() =>
-                downloadTestReportCsv(payload, {
-                  testId: selectedTestId,
-                  testName: selectedTestName,
-                })
-              }
-              disabled={payload.rows.length === 0}
-            >
-              Download report (CSV)
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                className="bg-[#0c2340] hover:bg-[#16304f] text-white shrink-0"
+                onClick={downloadPdf}
+                disabled={filteredRows.length === 0}
+              >
+                Download report (PDF)
+              </Button>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                onClick={downloadCsv}
+                disabled={filteredRows.length === 0}
+              >
+                Download report (CSV)
+              </Button>
+            </div>
           ) : null
         }
       />
@@ -389,12 +447,8 @@ export function TestReportsDashboard() {
       )}
 
       {scorecardModal ? (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/50 backdrop-blur-[2px]"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="flex w-full max-w-5xl max-h-[min(100dvh-1.5rem,920px)] flex-col rounded-xl bg-white shadow-2xl overflow-hidden border border-slate-200">
+        <AppModal open onClose={() => setScorecardModal(null)} ariaLabel="Close scorecard">
+          <AppModalPanel maxWidthClass="max-w-5xl">
             <div className="shrink-0 border-b border-slate-200 px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-lg font-bold text-[#0c2340]">
@@ -423,8 +477,8 @@ export function TestReportsDashboard() {
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 min-h-0">
               <ElevateXScorecardView scorecard={scorecardModal.scorecard} compact />
             </div>
-          </div>
-        </div>
+          </AppModalPanel>
+        </AppModal>
       ) : null}
     </>
   );

@@ -1,6 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +10,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { formatScorePercentLabel } from '@/lib/format-score';
+import { ADMIN_EXAM_TYPE_META } from '@/lib/admin/exam-type';
+import { downloadTestReportPdf } from '@/lib/admin/export-test-report-pdf';
+import {
+  reportFiltersForTestOverview,
+  scheduleLabelForTestOverview,
+} from '@/lib/admin/test-overview-report';
+import type { TestReportsPayload } from '@/lib/admin/test-reports-data';
 import type { AdminTestOverviewItem } from '@/lib/admin/tests-overview-data';
 
 type AdminTestDetailModalProps = {
@@ -40,15 +49,48 @@ function DetailRow({ label, children }: { label: string; children: ReactNode }) 
 }
 
 export function AdminTestDetailModal({ test, open, onOpenChange }: AdminTestDetailModalProps) {
+  const [downloading, setDownloading] = useState(false);
+
   if (!test) return null;
 
   const targetDepartments =
     test.departments.length > 0 ? test.departments.join(', ') : 'All departments';
   const targetYears = test.years.length > 0 ? test.years.join(', ') : 'All years';
 
+  const downloadExamReportPdf = async () => {
+    setDownloading(true);
+    try {
+      const { examType, testId } = reportFiltersForTestOverview(test);
+      const q = new URLSearchParams({ examType });
+      if (testId) q.set('testId', testId);
+      const res = await fetch(`/api/admin/test-reports?${q.toString()}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        alert('Could not load exam report data.');
+        return;
+      }
+      const payload = (await res.json()) as TestReportsPayload;
+      if (payload.rows.length === 0) {
+        alert('No student attempts recorded for this exam yet.');
+        return;
+      }
+      downloadTestReportPdf({
+        examLabel: ADMIN_EXAM_TYPE_META[examType].label,
+        testName: test.title,
+        scheduleLabel: scheduleLabelForTestOverview(test),
+        rows: payload.rows,
+        summary: payload.summary,
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[min(90dvh,800px)] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[min(calc(100dvh-2rem),800px)] overflow-y-auto overscroll-contain flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl text-[#0c2340] pr-8">{test.title}</DialogTitle>
           <DialogDescription className="flex flex-wrap items-center gap-2 pt-1">
@@ -106,6 +148,25 @@ export function AdminTestDetailModal({ test, open, onOpenChange }: AdminTestDeta
             </DetailRow>
           ) : null}
         </dl>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            className="bg-[#0c2340] hover:bg-[#16304f]"
+            disabled={downloading || test.total_attempts === 0}
+            onClick={() => void downloadExamReportPdf()}
+          >
+            {downloading ? 'Preparing PDF…' : 'Download exam report (PDF)'}
+          </Button>
+          <Button variant="outline" asChild>
+            <Link
+              href={`/admin/reports?type=${reportFiltersForTestOverview(test).examType}${
+                test.test_id ? `&testId=${encodeURIComponent(test.test_id)}` : ''
+              }`}
+            >
+              Open full reports
+            </Link>
+          </Button>
+        </div>
 
         <section className="mt-4">
           <h3 className="text-sm font-semibold text-gray-800 mb-2">Departments attempted</h3>

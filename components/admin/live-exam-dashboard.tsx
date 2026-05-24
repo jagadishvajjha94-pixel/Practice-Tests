@@ -32,6 +32,12 @@ type LiveBoard = {
   entries: LiveBoardEntry[];
   submitted_count: number;
   in_progress_count: number;
+  highest_score?: number;
+  top_scorer?: {
+    student_name: string;
+    roll_number: string;
+    score: number;
+  } | null;
 };
 
 type LiveWritingEntry = LiveBoardEntry & {
@@ -101,7 +107,7 @@ function PodiumCard({
         {entry.student_name}
       </p>
       <p className="text-[10px] font-mono text-violet-200/80 truncate max-w-[120px]">
-        {entry.roll_number}
+        {entry.roll_number || '—'}
       </p>
       <p
         className={cn(
@@ -229,12 +235,26 @@ export function LiveExamDashboard() {
 
   const entries = board?.entries ?? [];
   const multiLive = schedules.length > 1;
-  const submittedEntries = entries.filter((e) => e.submitted_at);
+  const submittedEntries = entries
+    .filter((e) => e.submitted_at)
+    .sort((a, b) => b.score - a.score || a.rank - b.rank);
+  const liveLeaders = entries
+    .filter((e) => !e.submitted_at)
+    .sort((a, b) => b.score - a.score || a.rank - b.rank);
+  const podiumSource = submittedEntries.length > 0 ? submittedEntries : liveLeaders;
   const podium = {
-    first: submittedEntries[0],
-    second: submittedEntries[1],
-    third: submittedEntries[2],
+    first: podiumSource[0],
+    second: podiumSource[1],
+    third: podiumSource[2],
   };
+  const highestScore =
+    board?.highest_score ??
+    (entries.length ? Math.max(...entries.map((e) => e.score)) : 0);
+  const topScorer = board?.top_scorer ?? podiumSource[0] ?? null;
+  const podiumLabel =
+    submittedEntries.length > 0
+      ? 'Top performers this session · Gold · Silver · Bronze'
+      : 'Live leaders · partial scores · Gold · Silver · Bronze';
 
   return (
     <section className="mb-8 overflow-hidden rounded-2xl border border-violet-400/25 shadow-[0_24px_64px_-16px_rgba(26,10,62,0.65)]">
@@ -321,10 +341,21 @@ export function LiveExamDashboard() {
                   : ''}
               </p>
 
-              <div className="grid grid-cols-3 gap-3 mb-6 max-w-2xl">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 max-w-3xl">
                 <div className="rounded-xl border border-violet-300/30 bg-violet-500/15 px-3 py-3 text-center">
                   <p className="text-2xl font-black text-violet-100 tabular-nums">{entries.length}</p>
                   <p className="text-[10px] uppercase tracking-wider text-violet-200/70">On board</p>
+                </div>
+                <div className="rounded-xl border border-amber-400/40 bg-amber-500/15 px-3 py-3 text-center">
+                  <p className="text-2xl font-black text-amber-200 tabular-nums">
+                    {formatScorePercentLabel(highestScore)}
+                  </p>
+                  <p className="text-[10px] uppercase tracking-wider text-amber-100/70">Highest score</p>
+                  {topScorer ? (
+                    <p className="text-[10px] text-amber-100/80 font-mono mt-1 truncate">
+                      {topScorer.roll_number || topScorer.student_name}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-3 text-center">
                   <p className="text-2xl font-black text-emerald-200 tabular-nums">
@@ -339,10 +370,9 @@ export function LiveExamDashboard() {
                   <p className="text-[10px] uppercase tracking-wider text-cyan-100/70">In progress</p>
                 </div>
               </div>
-
               <div className="mb-6">
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-200/90 mb-3 text-center">
-                  Top performers this session · Gold · Silver · Bronze
+                  {podiumLabel}
                 </p>
                 <div className="grid grid-cols-3 gap-2 sm:gap-4 max-w-xl mx-auto items-end">
                   <PodiumCard entry={podium.second} place={2} />
@@ -418,11 +448,11 @@ export function LiveExamDashboard() {
                             <div className="mt-1 sm:mt-0 min-w-0">
                               <p className="font-semibold text-white truncate">{entry.student_name}</p>
                               <p className="text-xs text-violet-200/70 font-mono sm:hidden">
-                                {entry.roll_number}
+                                {entry.roll_number || '—'}
                               </p>
                             </div>
                             <span className="hidden sm:block text-sm text-violet-100/90 font-mono truncate">
-                              {entry.roll_number}
+                              {entry.roll_number || '—'}
                             </span>
                             <span
                               className={cn(

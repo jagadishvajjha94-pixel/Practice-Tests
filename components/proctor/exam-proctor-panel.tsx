@@ -127,13 +127,15 @@ export function ExamProctorPanel({
       ) : null}
 
       {autoSubmitTriggered ? (
-        <div className="fixed inset-0 z-[220] bg-black/60 flex items-center justify-center p-4">
-          <div className="rounded-xl bg-white p-6 max-w-md text-center shadow-xl">
-            <p className="text-lg font-bold text-[#0c2340]">Exam ending — policy limit reached</p>
-            <p className="text-sm text-slate-600 mt-2">
-              {maxViolations} proctoring incidents were recorded. Your answers are being submitted
-              automatically.
-            </p>
+        <div className="fixed inset-0 z-[220] overflow-y-auto overscroll-contain bg-black/60">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="rounded-xl bg-white p-6 max-w-md w-full text-center shadow-xl my-auto">
+              <p className="text-lg font-bold text-[#0c2340]">Exam ending — policy limit reached</p>
+              <p className="text-sm text-slate-600 mt-2">
+                {maxViolations} proctoring incidents were recorded. Your answers are being submitted
+                automatically.
+              </p>
+            </div>
           </div>
         </div>
       ) : null}

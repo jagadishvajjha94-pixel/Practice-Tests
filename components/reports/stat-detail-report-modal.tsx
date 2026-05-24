@@ -49,7 +49,7 @@ export function StatDetailReportModal({
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-8 animate-in fade-in-0 duration-300"
+      className="fixed inset-0 z-[110] overflow-y-auto overscroll-contain animate-in fade-in-0 duration-300"
       role="dialog"
       aria-modal="true"
       aria-labelledby="stat-report-title"
@@ -57,14 +57,15 @@ export function StatDetailReportModal({
       {/* Backdrop */}
       <button
         type="button"
-        className="absolute inset-0 bg-[#0a1628]/72 backdrop-blur-md cursor-default"
+        className="fixed inset-0 bg-[#0a1628]/72 backdrop-blur-md cursor-default"
         aria-label="Close report"
         onClick={onClose}
       />
 
+      <div className="flex min-h-full items-start sm:items-center justify-center p-3 sm:p-8">
       {/* Panel */}
       <div
-        className="stat-report-modal-panel relative flex w-full max-w-6xl max-h-[min(100dvh-1.5rem,920px)] flex-col overflow-hidden rounded-[1.35rem] border border-[#c4a052]/25 bg-white animate-in zoom-in-95 slide-in-from-bottom-4 fade-in-0 duration-300"
+        className="stat-report-modal-panel relative z-[1] my-auto flex w-full max-w-6xl max-h-[min(calc(100dvh-1.5rem),920px)] flex-col overflow-hidden rounded-[1.35rem] border border-[#c4a052]/25 bg-white animate-in zoom-in-95 slide-in-from-bottom-4 fade-in-0 duration-300"
         style={{ boxShadow: 'var(--shadow-lux-lg), 0 0 0 1px rgba(196,160,82,0.12)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -261,6 +262,7 @@ export function StatDetailReportModal({
             </p>
           </footer>
         </div>
+      </div>
       </div>
     </div>
   );
