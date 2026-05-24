@@ -149,17 +149,20 @@ export async function findCompletedElevateXAttempt(
   }
 
   const stats = await fetchStudentDashboardStats(supabase, userId);
+  let placeholderFallback: CompletedAttemptSummary | null = null;
   for (const entry of stats) {
     if (!rowMatchesElevateX(entry)) continue;
     if (entry.status !== 'completed' && !entry.completed_at) continue;
-    return {
+    const summary = {
       id: entry.id,
       score: entry.score,
       completed_at: entry.completed_at,
     };
+    if (!isPlaceholderAttemptId(String(entry.id))) return summary;
+    if (!placeholderFallback) placeholderFallback = summary;
   }
 
-  return null;
+  return placeholderFallback;
 }
 
 export function normalizeAttemptRow(row: AttemptRow): TestAttempt {
@@ -259,6 +262,10 @@ export async function fetchTestAttemptById(
   supabase: SupabaseClient,
   attemptId: string,
 ): Promise<{ row: AttemptRow | null; error: { message: string } | null }> {
+  if (isPlaceholderAttemptId(attemptId)) {
+    return { row: null, error: null };
+  }
+
   for (const cols of ATTEMPT_BY_ID_SELECT_VARIANTS) {
     const { data, error } = await supabase
       .from('test_attempts')
@@ -627,8 +634,13 @@ export async function fetchStudentDashboardAttempts(
 export type { DashboardStatEntry };
 
 /** Local-only placeholder ids that get replaced once the server persists. */
-function isPlaceholderId(id: string): boolean {
+export function isPlaceholderAttemptId(id: string): boolean {
   return id.startsWith('local-') || id.startsWith('pending-');
+}
+
+/** @deprecated Use isPlaceholderAttemptId */
+function isPlaceholderId(id: string): boolean {
+  return isPlaceholderAttemptId(id);
 }
 
 /** Time bucket so a local-* and a server uuid for the same submission collapse. */

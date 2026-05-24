@@ -16,6 +16,7 @@ export default function PlacementResultPage({
   const { attemptId } = use(params);
   const [scorecard, setScorecard] = useState<PlacementScorecard | null>(null);
   const [missing, setMissing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,11 +38,19 @@ export default function PlacementResultPage({
           cache: 'no-store',
         });
         if (res.ok) {
-          const json = (await res.json()) as { scorecard?: PlacementScorecard };
+          const json = (await res.json()) as { scorecard?: PlacementScorecard; error?: string };
           if (json.scorecard && !cancelled) {
             setScorecard(json.scorecard);
             setLoading(false);
             return;
+          }
+          if (!cancelled && json.error) {
+            setLoadError(json.error);
+          }
+        } else {
+          const json = (await res.json().catch(() => ({}))) as { error?: string };
+          if (!cancelled && json.error) {
+            setLoadError(json.error);
           }
         }
       } catch {
@@ -72,8 +81,8 @@ export default function PlacementResultPage({
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-4">
         <p className="text-slate-700 max-w-md">
-          We could not load your ElevateX scorecard. If you finished the exam on another device, sign in
-          here and open the result link from your dashboard, or ask the exam cell to view your report.
+          {loadError ??
+            'We could not load your ElevateX scorecard. If you finished the exam on another device, sign in here and open the result link from your dashboard, or ask the exam cell to view your report.'}
         </p>
         <Button asChild>
           <Link href="/dashboard">Back to dashboard</Link>

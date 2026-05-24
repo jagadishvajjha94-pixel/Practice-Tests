@@ -151,6 +151,7 @@ export async function POST(request: Request) {
     elapsedSec: input.elapsedSec,
     completedAtIso: input.completedAtIso,
     totalQuestions: totalQuestions || undefined,
+    answers: Object.keys(answersIn).length > 0 ? answersIn : undefined,
   });
 
   try {

@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { departmentsMatch } from '@/lib/faculty/department-match';
-import {
-  isElevateXAttemptMeta,
-  parseElevateXScorecardFromAnswers,
-} from '@/lib/placement/scorecard-payload';
-import { fetchTestAttemptById } from '@/lib/test-attempts';
+import { fetchElevateXScorecardForAttempt } from '@/lib/placement/fetch-elevatex-scorecard';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,41 +29,26 @@ export async function GET(
     return NextResponse.json({ error: 'Faculty department not configured' }, { status: 403 });
   }
 
-  const { row, error } = await fetchTestAttemptById(service, attemptId);
+  const result = await fetchElevateXScorecardForAttempt(service, attemptId);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  if (!row) {
-    return NextResponse.json({ error: 'Attempt not found' }, { status: 404 });
-  }
-
-  if (!isElevateXAttemptMeta(String(row.test_id ?? ''), String(row.test_title ?? ''))) {
-    return NextResponse.json({ error: 'Not an ElevateX attempt' }, { status: 400 });
+  if (!('scorecard' in result)) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
   const { data: student } = await service
     .from('users')
     .select('branch')
-    .eq('id', row.user_id)
+    .eq('id', result.userId)
     .maybeSingle();
 
   const studentBranch = String(student?.branch ?? '').trim();
-  if (!departmentsMatch(studentBranch, facultyDept)) {
+  if (studentBranch && !departmentsMatch(studentBranch, facultyDept)) {
     return NextResponse.json({ error: 'Student is outside your department scope' }, { status: 403 });
   }
 
-  const scorecard = parseElevateXScorecardFromAnswers(row.answers);
-  if (!scorecard) {
-    return NextResponse.json(
-      { error: 'ElevateX scorecard is not stored for this attempt.' },
-      { status: 404 },
-    );
-  }
-
   return NextResponse.json({
-    scorecard,
-    attemptId: String(row.id),
-    userId: String(row.user_id),
+    scorecard: result.scorecard,
+    attemptId: result.attemptId,
+    userId: result.userId,
   });
 }

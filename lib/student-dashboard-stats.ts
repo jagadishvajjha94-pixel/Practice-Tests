@@ -12,6 +12,8 @@ export type DashboardStatEntry = {
   completed_at: string | null;
   time_taken: number | null;
   total_questions?: number;
+  /** ElevateX scorecard payload when test_attempts row could not be saved. */
+  answers?: unknown;
 };
 
 export function statEntryToAttempt(entry: DashboardStatEntry): TestAttempt & { test: Test } {
@@ -52,6 +54,7 @@ export function buildStatEntry(input: {
   elapsedSec?: number;
   completedAtIso?: string;
   totalQuestions?: number;
+  answers?: unknown;
 }): DashboardStatEntry {
   const now = input.completedAtIso ?? new Date().toISOString();
   return {
@@ -65,6 +68,7 @@ export function buildStatEntry(input: {
     completed_at: now,
     time_taken: input.elapsedSec ?? null,
     total_questions: input.totalQuestions,
+    ...(input.answers != null ? { answers: input.answers } : {}),
   };
 }
 
@@ -109,10 +113,10 @@ export async function appendStudentDashboardStat(
   }
 }
 
-export async function fetchStudentDashboardStats(
+export async function fetchDashboardStatEntries(
   supabase: SupabaseClient,
   userId: string,
-): Promise<Array<TestAttempt & { test: Test }>> {
+): Promise<DashboardStatEntry[]> {
   const { data, error } = await supabase
     .from('student_dashboard_stats')
     .select('attempts')
@@ -127,6 +131,40 @@ export async function fetchStudentDashboardStats(
     throw error;
   }
 
-  return parseAttemptsJson(data?.attempts).map(statEntryToAttempt);
+  return parseAttemptsJson(data?.attempts);
+}
+
+/** Find a dashboard stat row by placeholder or server attempt id (admin/faculty lookup). */
+export async function findDashboardStatEntryByAttemptId(
+  supabase: SupabaseClient,
+  attemptId: string,
+): Promise<{ entry: DashboardStatEntry; userId: string } | null> {
+  const { data, error } = await supabase.from('student_dashboard_stats').select('user_id, attempts');
+
+  if (error) {
+    const msg = String(error.message ?? '').toLowerCase();
+    if (error.code === 'PGRST205' || msg.includes('student_dashboard_stats')) {
+      return null;
+    }
+    throw error;
+  }
+
+  for (const row of data ?? []) {
+    const entries = parseAttemptsJson(row.attempts);
+    const hit = entries.find((entry) => String(entry.id) === attemptId);
+    if (hit) {
+      return { entry: hit, userId: String(row.user_id) };
+    }
+  }
+
+  return null;
+}
+
+export async function fetchStudentDashboardStats(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<Array<TestAttempt & { test: Test }>> {
+  const entries = await fetchDashboardStatEntries(supabase, userId);
+  return entries.map(statEntryToAttempt);
 }
 

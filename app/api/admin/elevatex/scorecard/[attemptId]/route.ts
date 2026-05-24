@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
-import {
-  isElevateXAttemptMeta,
-  parseElevateXScorecardFromAnswers,
-} from '@/lib/placement/scorecard-payload';
-import { fetchTestAttemptById } from '@/lib/test-attempts';
+import { fetchElevateXScorecardForAttempt } from '@/lib/placement/fetch-elevatex-scorecard';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,35 +17,15 @@ export async function GET(
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
   }
 
-  const { row, error } = await fetchTestAttemptById(service, attemptId);
+  const result = await fetchElevateXScorecardForAttempt(service, attemptId);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  if (!row) {
-    return NextResponse.json({ error: 'Attempt not found' }, { status: 404 });
-  }
-
-  const testTitle = String(row.test_title ?? '');
-  const testId = String(row.test_id ?? '');
-  if (!isElevateXAttemptMeta(testId, testTitle)) {
-    return NextResponse.json({ error: 'Not an ElevateX attempt' }, { status: 400 });
-  }
-
-  const scorecard = parseElevateXScorecardFromAnswers(row.answers);
-  if (!scorecard) {
-    return NextResponse.json(
-      {
-        error:
-          'ElevateX scorecard is not available for this attempt. The student may have completed the exam before scorecard storage was enabled.',
-      },
-      { status: 404 },
-    );
+  if (!('scorecard' in result)) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
   return NextResponse.json({
-    scorecard,
-    attemptId: String(row.id),
-    userId: String(row.user_id),
+    scorecard: result.scorecard,
+    attemptId: result.attemptId,
+    userId: result.userId,
   });
 }
