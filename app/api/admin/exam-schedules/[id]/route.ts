@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { examSchedulesMigrationHint } from '@/lib/db-migration-hints';
 import { normalizeEndsAtForGoLive } from '@/lib/exam-schedule';
+import { deleteExamScheduleById } from '@/lib/delete-faculty-exam';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -95,12 +96,10 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   const admin = getServiceSupabase();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
+  }  const result = await deleteExamScheduleById(admin, id);
+  if ('error' in result) {
+    return NextResponse.json({ error: result.error }, { status: 500 });
   }
 
-  const { error } = await admin.from('exam_schedules').delete().eq('id', id);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, message: 'Schedule deleted.' });
 }

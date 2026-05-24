@@ -30,6 +30,38 @@ export default function FacultyDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [detailCard, setDetailCard] = useState<FacultyDashboardCardKey | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const reloadExams = async () => {
+    const examsRes = await fetch('/api/faculty/exams');
+    if (examsRes.ok) {
+      const json = (await examsRes.json()) as { requests: FacultyExamRequest[] };
+      setRequests(json.requests ?? []);
+    }
+  };
+
+  const deleteExam = async (r: FacultyExamRequest) => {
+    const warn =
+      r.status === 'approved'
+        ? `"${r.title}" is live for students. Deleting removes the test, schedules, and attempt records. Continue?`
+        : `Delete "${r.title}"? This cannot be undone.`;
+    if (!window.confirm(warn)) return;
+
+    setDeletingId(r.id);
+    try {
+      const res = await fetch(`/api/faculty/exams/${encodeURIComponent(r.id)}`, {
+        method: 'DELETE',
+      });
+      const json = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) {
+        alert(json.error ?? 'Delete failed');
+        return;
+      }
+      await reloadExams();
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -221,6 +253,7 @@ export default function FacultyDashboardPage() {
                   <th>Questions</th>
                   <th>Duration</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -261,6 +294,18 @@ export default function FacultyDashboardPage() {
                               ? 'Rejected'
                               : 'Awaiting admin'}
                         </Badge>
+                      </td>
+                      <td>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="text-red-700 border-red-200 hover:bg-red-50"
+                          disabled={deletingId === r.id}
+                          onClick={() => void deleteExam(r)}
+                        >
+                          {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                        </Button>
                       </td>
                     </tr>
                   );

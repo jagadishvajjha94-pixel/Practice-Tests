@@ -126,6 +126,57 @@ export default function AdminExamSchedulesPage() {
     }
   };
 
+  const deleteSchedule = async (schedule: ExamScheduleRow) => {
+    if (
+      !window.confirm(
+        `Delete schedule "${schedule.title}"? Students will no longer see this exam window. The published test stays unless you delete the full exam below.`,
+      )
+    ) {
+      return;
+    }
+    setActing(schedule.id);
+    try {
+      const res = await fetch(`/api/admin/exam-schedules/${encodeURIComponent(schedule.id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        alert(json.error ?? 'Delete failed');
+        return;
+      }
+      if (activeScheduleId === schedule.id) setActiveScheduleId(null);
+      await load();
+    } finally {
+      setActing(null);
+    }
+  };
+
+  const deleteApprovedExam = async (exam: ApprovedExam) => {
+    if (
+      !window.confirm(
+        `Delete "${exam.title}" completely? This removes the test, all schedules, and student attempts.`,
+      )
+    ) {
+      return;
+    }
+    setActing(exam.id);
+    try {
+      const res = await fetch(`/api/admin/exam-requests/${encodeURIComponent(exam.id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        alert(json.error ?? 'Delete failed');
+        return;
+      }
+      await load();
+    } finally {
+      setActing(null);
+    }
+  };
+
   const runExamCleanup = async (apply: boolean) => {
     if (apply) {
       const ok = window.confirm(
@@ -383,6 +434,15 @@ export default function AdminExamSchedulesPage() {
                               End
                             </Button>
                           ) : null}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={acting === s.id}
+                            className="text-red-700 border-red-200 hover:bg-red-50"
+                            onClick={() => void deleteSchedule(s)}
+                          >
+                            Delete
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -393,6 +453,50 @@ export default function AdminExamSchedulesPage() {
           </div>
         )}
       </Card>
+
+      {approvedExams.length > 0 ? (
+        <Card className="p-6">
+          <h3 className="font-semibold text-[#0c2340] mb-4">Published faculty exams</h3>
+          <p className="text-sm text-slate-600 mb-4">
+            Delete removes the full exam (test, schedules, and attempts). Use schedule Delete above
+            to remove only one time window.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm app-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Department</th>
+                  <th>Years</th>
+                  <th>Duration</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {approvedExams.map((e) => (
+                  <tr key={e.id}>
+                    <td className="font-medium">{e.title}</td>
+                    <td>{e.department}</td>
+                    <td>{(e.target_years ?? []).join(', ')}</td>
+                    <td>{e.duration_minutes} min</td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={acting === e.id}
+                        className="text-red-700 border-red-200 hover:bg-red-50"
+                        onClick={() => void deleteApprovedExam(e)}
+                      >
+                        Delete exam
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : null}
 
       <Card className="p-6 border-amber-200 bg-amber-50/40">
         <h3 className="font-semibold text-[#0c2340] mb-2">Clean up old exams</h3>

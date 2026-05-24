@@ -31,6 +31,29 @@ export default function AdminApprovalsPage() {
     void load();
   }, []);
 
+  const deleteExam = async (r: EnrichedRequest) => {
+    const warn =
+      r.status === 'approved'
+        ? `Delete "${r.title}" and remove its published test, schedules, and student attempts?`
+        : `Delete pending exam "${r.title}"?`;
+    if (!window.confirm(warn)) return;
+
+    setActing(r.id);
+    try {
+      const res = await fetch(`/api/admin/exam-requests/${encodeURIComponent(r.id)}`, {
+        method: 'DELETE',
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        alert(json.error ?? 'Delete failed');
+        return;
+      }
+      await load();
+    } finally {
+      setActing(null);
+    }
+  };
+
   const review = async (id: string, action: 'approve' | 'reject') => {
     setActing(id);
     try {
@@ -51,6 +74,7 @@ export default function AdminApprovalsPage() {
   };
 
   const pending = requests.filter((r) => r.status === 'pending');
+  const other = requests.filter((r) => r.status !== 'pending');
 
   if (loading) {
     return <p className="text-gray-600">Loading approvals…</p>;
@@ -127,6 +151,14 @@ export default function AdminApprovalsPage() {
                     >
                       Reject
                     </Button>
+                    <Button
+                      variant="outline"
+                      disabled={acting === r.id}
+                      className="text-red-700 border-red-200 hover:bg-red-50"
+                      onClick={() => void deleteExam(r)}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 </div>
                 {r.description ? (
@@ -166,6 +198,48 @@ export default function AdminApprovalsPage() {
           })}
         </ul>
       )}
+
+      {other.length > 0 ? (
+        <Card className="p-6 mt-8">
+          <h3 className="font-semibold text-[#0c2340] mb-4">Approved & rejected exams</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm app-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Department</th>
+                  <th>Status</th>
+                  <th>Submitted</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {other.map((r) => (
+                  <tr key={r.id}>
+                    <td className="font-medium">{r.title}</td>
+                    <td>{r.department}</td>
+                    <td className="capitalize">{r.status}</td>
+                    <td className="text-slate-600 whitespace-nowrap">
+                      {new Date(r.created_at).toLocaleDateString()}
+                    </td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-700 border-red-200 hover:bg-red-50"
+                        disabled={acting === r.id}
+                        onClick={() => void deleteExam(r)}
+                      >
+                        Delete
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }
