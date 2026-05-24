@@ -788,7 +788,7 @@ export function AdminDashboard() {
           <Card className="p-6 hover:shadow-lg transition cursor-pointer">
             <Link href="/admin/tests">
               <h2 className="text-xl font-bold text-[#0c2340] mb-3">Tests</h2>
-              <p className="text-slate-600 mb-4">Create test sets, assign questions, and manage test settings</p>
+              <p className="text-slate-600 mb-4">View live, upcoming, and ended tests with student attempt stats</p>
               <div className="text-blue-600 font-medium">Manage tests →</div>
             </Link>
           </Card>
