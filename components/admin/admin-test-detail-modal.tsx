@@ -20,11 +20,13 @@ import {
 } from '@/lib/admin/test-overview-report';
 import type { TestReportsPayload } from '@/lib/admin/test-reports-data';
 import type { AdminTestOverviewItem } from '@/lib/admin/tests-overview-data';
+import { formatCollegeDateTime } from '@/lib/college-timezone';
 
 type AdminTestDetailModalProps = {
   test: AdminTestOverviewItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onDeleted?: () => void;
 };
 
 function statusTone(status: AdminTestOverviewItem['status']) {
@@ -34,9 +36,7 @@ function statusTone(status: AdminTestOverviewItem['status']) {
 }
 
 function formatWhen(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+  return formatCollegeDateTime(iso);
 }
 
 function DetailRow({ label, children }: { label: string; children: ReactNode }) {
@@ -48,14 +48,56 @@ function DetailRow({ label, children }: { label: string; children: ReactNode }) 
   );
 }
 
-export function AdminTestDetailModal({ test, open, onOpenChange }: AdminTestDetailModalProps) {
+function deleteConfirmMessage(test: AdminTestOverviewItem): string {
+  if (test.kind === 'faculty_schedule') {
+    return `Delete schedule window "${test.title}"? The published exam stays unless you delete the full exam from Exam schedules.`;
+  }
+  if (test.kind === 'evalora_module') {
+    return `Delete "${test.title}" from the student portal?`;
+  }
+  return `Delete "${test.title}" completely? This removes schedules, rosters, and attempts.`;
+}
+
+export function AdminTestDetailModal({
+  test,
+  open,
+  onOpenChange,
+  onDeleted,
+}: AdminTestDetailModalProps) {
   const [downloading, setDownloading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (!test) return null;
 
   const targetDepartments =
     test.departments.length > 0 ? test.departments.join(', ') : 'All departments';
   const targetYears = test.years.length > 0 ? test.years.join(', ') : 'All years';
+
+  const deleteTest = async () => {
+    if (!test) return;
+    if (!window.confirm(deleteConfirmMessage(test))) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/admin/tests-overview/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ overviewId: test.id }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+      if (!res.ok) {
+        alert(json.error ?? 'Delete failed');
+        return;
+      }
+      onOpenChange(false);
+      onDeleted?.();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const downloadExamReportPdf = async () => {
     setDownloading(true);
@@ -166,6 +208,19 @@ export function AdminTestDetailModal({ test, open, onOpenChange }: AdminTestDeta
               Open full reports
             </Link>
           </Button>
+          <Button
+            variant="outline"
+            disabled={deleting}
+            className="text-red-700 border-red-200 hover:bg-red-50"
+            onClick={() => void deleteTest()}
+          >
+            {deleting ? 'Deleting…' : 'Delete'}
+          </Button>
+          {test.kind === 'faculty_published' || test.kind === 'faculty_schedule' ? (
+            <Button variant="ghost" asChild>
+              <Link href="/admin/exam-schedules">Exam schedules →</Link>
+            </Button>
+          ) : null}
         </div>
 
         <section className="mt-4">

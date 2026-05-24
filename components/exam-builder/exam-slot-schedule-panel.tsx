@@ -175,8 +175,8 @@ export function ExamSlotSchedulePanel({
         <div>
           <p className="text-sm font-semibold text-[#0c2340]">8 slots · {EXAM_SLOT_CAPACITY_DEFAULT} students each</p>
           <p className="text-xs text-slate-600 mt-1">
-            Set exam date and timings per slot. Import an Excel/CSV roster, map columns, then assign students to slots (max{' '}
-            {EXAM_SLOT_CAPACITY_DEFAULT} per slot).
+            Set exam date and timings per slot in <strong>IST (Indian Standard Time)</strong>. Import an Excel/CSV roster,
+            map columns, then assign students to slots (max {EXAM_SLOT_CAPACITY_DEFAULT} per slot).
           </p>
           {slotPublishHint ? (
             <p className="text-xs text-emerald-800 mt-2 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5">
@@ -302,7 +302,7 @@ export function ExamSlotSchedulePanel({
             />
           </label>
           <label className="block text-xs font-medium text-slate-600">
-            Start time
+            Start time (IST)
             <Input
               type="time"
               className="mt-1 h-9"
@@ -312,7 +312,7 @@ export function ExamSlotSchedulePanel({
             />
           </label>
           <label className="block text-xs font-medium text-slate-600">
-            End time
+            End time (IST)
             <Input
               type="time"
               className="mt-1 h-9"

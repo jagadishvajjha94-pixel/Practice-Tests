@@ -102,7 +102,9 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   const admin = getServiceSupabase();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
-  }  const result = await deleteExamScheduleById(admin, id);
+  }
+
+  const result = await deleteExamScheduleById(admin, id);
   if ('error' in result) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }

@@ -12,6 +12,7 @@ import type {
   AdminTestOverviewItem,
   AdminTestsOverviewPayload,
 } from '@/lib/admin/tests-overview-data';
+import { formatCollegeDateTime } from '@/lib/college-timezone';
 import { cn } from '@/lib/utils';
 
 type StatusFilter = 'all' | AdminTestBucket;
@@ -24,9 +25,9 @@ function statusTone(status: AdminTestBucket) {
 
 function formatSchedule(starts: string | null, ends: string | null): string {
   if (!starts) return 'Not scheduled';
-  const startLabel = new Date(starts).toLocaleString();
+  const startLabel = formatCollegeDateTime(starts);
   if (!ends) return startLabel;
-  return `${startLabel} → ${new Date(ends).toLocaleString()}`;
+  return `${startLabel} → ${formatCollegeDateTime(ends)}`;
 }
 
 export default function AdminTestsPage() {
@@ -44,26 +45,27 @@ export default function AdminTestsPage() {
   const [selectedTest, setSelectedTest] = useState<AdminTestOverviewItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch('/api/admin/tests-overview', { credentials: 'include' });
-        const json = (await res.json()) as AdminTestsOverviewPayload & { error?: string };
+  const load = async () => {
+    try {
+      const res = await fetch('/api/admin/tests-overview', { credentials: 'include' });
+      const json = (await res.json()) as AdminTestsOverviewPayload & { error?: string };
 
-        if (!res.ok) {
-          setLoadError(json.error ?? 'Failed to load tests');
-          return;
-        }
-
-        setTests(json.tests ?? []);
-        setCounts(json.counts ?? { live: 0, upcoming: 0, ended: 0, total: 0 });
-      } catch {
-        setLoadError('Failed to load tests');
-      } finally {
-        setLoading(false);
+      if (!res.ok) {
+        setLoadError(json.error ?? 'Failed to load tests');
+        return;
       }
-    };
 
+      setLoadError(null);
+      setTests(json.tests ?? []);
+      setCounts(json.counts ?? { live: 0, upcoming: 0, ended: 0, total: 0 });
+    } catch {
+      setLoadError('Failed to load tests');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     void load();
   }, []);
 
@@ -239,6 +241,7 @@ export default function AdminTestsPage() {
           setModalOpen(open);
           if (!open) setSelectedTest(null);
         }}
+        onDeleted={() => void load()}
       />
     </div>
   );

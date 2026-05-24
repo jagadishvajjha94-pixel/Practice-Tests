@@ -9,6 +9,7 @@ import { PLACEMENT_EXAM_NAME, PLACEMENT_EXAM_TAGLINE } from '@/lib/placement/con
 import { isElevateXModule } from '@/lib/elevatex';
 import { ElevateXLiveInfo } from '@/components/elevatex/elevatex-live-info';
 import type { StudentEvaloraModule } from '@/lib/evalora/module-schedule';
+import { formatCollegeDateTime } from '@/lib/college-timezone';
 
 function ModuleCard({ mod, live }: { mod: StudentEvaloraModule; live: boolean }) {
   const isElevateX = isElevateXModule(mod.module_key);
@@ -33,8 +34,8 @@ function ModuleCard({ mod, live }: { mod: StudentEvaloraModule; live: boolean })
       ) : null}
       {mod.notice ? <p className="text-sm text-slate-700 mb-3 rounded-lg bg-slate-50 p-3 border border-slate-100">{mod.notice}</p> : null}
       <div className="flex flex-wrap gap-2 text-xs text-slate-500 mb-4">
-        <span>Starts {new Date(mod.starts_at).toLocaleString()}</span>
-        {mod.ends_at ? <span>· Ends {new Date(mod.ends_at).toLocaleString()}</span> : null}
+        <span>Starts {formatCollegeDateTime(mod.starts_at)}</span>
+        {mod.ends_at ? <span>· Ends {formatCollegeDateTime(mod.ends_at)}</span> : null}
       </div>
       {live ? (
         <Link href={mod.href}>
@@ -42,7 +43,7 @@ function ModuleCard({ mod, live }: { mod: StudentEvaloraModule; live: boolean })
         </Link>
       ) : (
         <Button disabled className="w-full" variant="outline">
-          Opens {new Date(mod.starts_at).toLocaleString()}
+          Opens {formatCollegeDateTime(mod.starts_at)}
         </Button>
       )}
     </Card>

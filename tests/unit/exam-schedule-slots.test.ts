@@ -57,10 +57,8 @@ describe('normalizeRoll', () => {
 });
 
 describe('combineDateAndTime', () => {
-  it('builds a valid ISO timestamp from date and HH:mm', () => {
-    const iso = combineDateAndTime('2026-06-15', '09:30');
-    expect(iso).toBeTruthy();
-    expect(new Date(iso).getTime()).not.toBeNaN();
+  it('builds UTC ISO from IST date and HH:mm', () => {
+    expect(combineDateAndTime('2026-06-15', '09:30')).toBe('2026-06-15T04:00:00.000Z');
   });
 
   it('returns empty string for invalid input', () => {

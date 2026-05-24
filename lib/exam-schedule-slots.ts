@@ -8,6 +8,7 @@ import {
   scheduleStartMs,
   type ExamScheduleRow,
 } from '@/lib/exam-schedule';
+import { combineDateAndTimeIst, formatCollegeDateTime } from '@/lib/college-timezone';
 
 export const EXAM_SLOT_COUNT = 8;
 export const EXAM_SLOT_CAPACITY_DEFAULT = 130;
@@ -47,13 +48,7 @@ export function normalizeRoll(value: string): string {
 }
 
 export function combineDateAndTime(dateStr: string, timeStr: string): string {
-  const date = dateStr.trim();
-  const time = timeStr.trim();
-  if (!date || !time) return '';
-  const isoLocal = `${date}T${time.length === 5 ? `${time}:00` : time}`;
-  const ms = new Date(isoLocal).getTime();
-  if (Number.isNaN(ms)) return '';
-  return new Date(ms).toISOString();
+  return combineDateAndTimeIst(dateStr, timeStr);
 }
 
 export function parseScheduleSlotsJson(raw: unknown): ExamScheduleSlotInput[] {
@@ -665,8 +660,8 @@ export async function checkStudentSlotExamAccess(
     };
   }
 
-  const start = mySlot ? new Date(mySlot.starts_at).toLocaleString() : '';
-  const end = mySlot ? new Date(mySlot.ends_at).toLocaleString() : '';
+  const start = mySlot ? formatCollegeDateTime(mySlot.starts_at) : '';
+  const end = mySlot ? formatCollegeDateTime(mySlot.ends_at) : '';
 
   return {
     allowed: false,
@@ -952,24 +947,16 @@ export function formatSlotWindowLabel(slot: {
   }
 
   if (slot.starts_at) {
-    const start = new Date(slot.starts_at);
-    if (!Number.isNaN(start.getTime())) {
-      const startLabel = start.toLocaleString(undefined, {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+    const startLabel = formatCollegeDateTime(slot.starts_at);
+    if (startLabel !== '—') {
       if (slot.ends_at) {
-        const end = new Date(slot.ends_at);
-        if (!Number.isNaN(end.getTime())) {
-          const endLabel = end.toLocaleString(undefined, {
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-          return `${startLabel} – ${endLabel}`;
-        }
+        const endLabel = formatCollegeDateTime(slot.ends_at, {
+          day: undefined,
+          month: undefined,
+          year: undefined,
+          timeZoneName: undefined,
+        });
+        return `${startLabel} – ${endLabel}`;
       }
       return startLabel;
     }
@@ -1048,7 +1035,7 @@ export function resolveStudentSlotPortalNotice(input: {
       exam_title: input.examTitle,
       assigned_slot: slotNum,
       headline: `${headlineBase} · Not started yet`,
-      detail: `Opens ${new Date(mySchedule.starts_at).toLocaleString()}. Log in at your slot time to begin.`,
+      detail: `Opens ${formatCollegeDateTime(mySchedule.starts_at)}. Log in at your slot time to begin.`,
       tone: 'info',
     };
   }

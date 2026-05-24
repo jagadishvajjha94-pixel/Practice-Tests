@@ -13,6 +13,7 @@ import type { PortalExamItem, StudentPortalPayload } from '@/lib/student-portal'
 import type { StudentSlotExamPortalNotice } from '@/lib/exam-schedule-slots';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { COLLEGE } from '@/lib/college-brand';
+import { formatCollegeDateTime } from '@/lib/college-timezone';
 
 type PortalResponse = StudentPortalPayload & { studentName?: string | null };
 
@@ -216,8 +217,8 @@ function FeaturedLiveExamCard({ exam }: { exam: PortalExamItem | null }) {
       ) : null}
 
       <div className="flex flex-wrap gap-2 text-xs text-slate-600 mb-6">
-        <span>Starts {new Date(exam.starts_at).toLocaleString()}</span>
-        {exam.ends_at ? <span>· Ends {new Date(exam.ends_at).toLocaleString()}</span> : null}
+        <span>Starts {formatCollegeDateTime(exam.starts_at)}</span>
+        {exam.ends_at ? <span>· Ends {formatCollegeDateTime(exam.ends_at)}</span> : null}
         {exam.duration_minutes ? <span>· {exam.duration_minutes} minutes</span> : null}
       </div>
 

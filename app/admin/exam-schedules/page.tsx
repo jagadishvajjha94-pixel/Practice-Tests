@@ -19,6 +19,11 @@ import {
 } from '@/lib/exam-schedule-slots';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/ui/loading-screen';
+import {
+  formatCollegeDateTime,
+  isoToDatetimeLocalInput,
+  parseDatetimeLocalAsIst,
+} from '@/lib/college-timezone';
 
 type ApprovedExam = {
   id: string;
@@ -32,17 +37,11 @@ type ApprovedExam = {
 };
 
 function toLocalInputValue(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return isoToDatetimeLocalInput(iso);
 }
 
 function fromLocalInputValue(value: string): string | null {
-  if (!value) return null;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  return parseDatetimeLocalAsIst(value);
 }
 
 function statusBadgeTone(
@@ -144,13 +143,15 @@ export default function AdminExamSchedulesPage() {
         method: 'DELETE',
         credentials: 'include',
       });
-      const json = (await res.json()) as { error?: string };
+      const json = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
       if (!res.ok) {
-        alert(json.error ?? 'Delete failed');
+        alert(json.error ?? `Delete failed (${res.status})`);
         return;
       }
       if (activeScheduleId === schedule.id) setActiveScheduleId(null);
       await load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Delete failed');
     } finally {
       setActing(null);
     }
@@ -170,12 +171,14 @@ export default function AdminExamSchedulesPage() {
         method: 'DELETE',
         credentials: 'include',
       });
-      const json = (await res.json()) as { error?: string };
+      const json = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
       if (!res.ok) {
-        alert(json.error ?? 'Delete failed');
+        alert(json.error ?? `Delete failed (${res.status})`);
         return;
       }
       await load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Delete failed');
     } finally {
       setActing(null);
     }
@@ -314,7 +317,7 @@ export default function AdminExamSchedulesPage() {
               </div>
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Starts at
+                  Starts at (IST)
                 </label>
                 <Input
                   type="datetime-local"
@@ -325,7 +328,7 @@ export default function AdminExamSchedulesPage() {
               </div>
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Ends at (optional)
+                  Ends at (IST, optional)
                 </label>
                 <Input
                   type="datetime-local"
@@ -415,10 +418,10 @@ export default function AdminExamSchedulesPage() {
                         <Badge tone={statusBadgeTone(resolved.display)}>{resolved.label}</Badge>
                       </td>
                       <td className="text-slate-600 whitespace-nowrap">
-                        {new Date(s.starts_at).toLocaleString()}
+                        {formatCollegeDateTime(s.starts_at)}
                       </td>
                       <td className="text-slate-600 whitespace-nowrap">
-                        {s.ends_at ? new Date(s.ends_at).toLocaleString() : '—'}
+                        {s.ends_at ? formatCollegeDateTime(s.ends_at) : '—'}
                       </td>
                       <td>
                         <div className="flex flex-wrap gap-1">

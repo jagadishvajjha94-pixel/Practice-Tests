@@ -12,19 +12,18 @@ import type { EvaloraModuleDef } from '@/lib/evalora/modules';
 import type { EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
 import { ELEVATEX_MODULE_KEY } from '@/lib/elevatex';
 import { ElevateXSlotAdminSection } from '@/components/admin/elevatex-slot-admin-section';
+import {
+  formatCollegeDateTime,
+  isoToDatetimeLocalInput,
+  parseDatetimeLocalAsIst,
+} from '@/lib/college-timezone';
 
 function toLocalInputValue(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return isoToDatetimeLocalInput(iso);
 }
 
 function fromLocalInputValue(value: string): string | null {
-  if (!value) return null;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  return parseDatetimeLocalAsIst(value);
 }
 
 export default function AdminEvaloraModulesPage() {
@@ -178,7 +177,7 @@ export default function AdminEvaloraModulesPage() {
           </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Starts at
+              Starts at (IST)
             </label>
             <Input
               type="datetime-local"
@@ -189,7 +188,7 @@ export default function AdminEvaloraModulesPage() {
           </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Ends at (optional)
+              Ends at (IST, optional)
             </label>
             <Input
               type="datetime-local"
@@ -251,10 +250,10 @@ export default function AdminEvaloraModulesPage() {
                       </Badge>
                     </td>
                     <td className="py-3 pr-3 text-slate-600 whitespace-nowrap">
-                      {new Date(s.starts_at).toLocaleString()}
+                      {formatCollegeDateTime(s.starts_at)}
                     </td>
                     <td className="py-3 pr-3 text-slate-600 whitespace-nowrap">
-                      {s.ends_at ? new Date(s.ends_at).toLocaleString() : '—'}
+                      {s.ends_at ? formatCollegeDateTime(s.ends_at) : '—'}
                     </td>
                     <td className="py-3 pr-3 text-slate-500 max-w-[12rem] truncate">
                       {s.notice ?? '—'}
