@@ -309,7 +309,7 @@ export default function TakeTestPage({
             Sharing the link does not grant access.
           </p>
           <Button asChild className="w-full">
-            <Link href="/home">Return to dashboard</Link>
+            <Link href="/exams">Return to examinations</Link>
           </Button>
         </Card>
       </div>

@@ -19,7 +19,7 @@ export default function TestResultPage() {
             Close window
           </Button>
           <Button asChild variant="outline">
-            <Link href="/dashboard">Back to dashboard</Link>
+            <Link href="/exams">Back to examinations</Link>
           </Button>
         </div>
       </div>

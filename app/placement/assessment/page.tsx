@@ -245,7 +245,7 @@ export default function PlacementAssessmentStartPage() {
                   <Link href={`/placement/result/${priorAttempt.attemptId}`}>View your result</Link>
                 </Button>
                 <Button variant="outline" asChild>
-                  <Link href="/home">Back to home</Link>
+                  <Link href="/exams">Back to examinations</Link>
                 </Button>
               </div>
             </div>
@@ -275,7 +275,7 @@ export default function PlacementAssessmentStartPage() {
                 </Button>
               ) : null}
               <Button variant="ghost" asChild>
-                <Link href="/home">Back to home</Link>
+                <Link href="/exams">Back to examinations</Link>
               </Button>
             </div>
           )}

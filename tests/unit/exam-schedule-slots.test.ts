@@ -40,15 +40,31 @@ describe('combineDateAndTime', () => {
 });
 
 describe('parseRosterCsv', () => {
-  it('parses headered CSV', () => {
+  it('parses headered CSV with department and year', () => {
     const rows = parseRosterCsv(
-      'roll_number,name,email\nRCE001,Alice,alice@test.com\nRCE002,Bob,',
+      'roll,name,email,department,year\nRCE001,Alice,alice@test.com,CSE,3\nRCE002,Bob,,ECE,2',
     );
     expect(rows).toHaveLength(2);
     expect(rows[0]).toEqual({
       roll_number: 'RCE001',
       student_name: 'Alice',
       email: 'alice@test.com',
+      branch: 'CSE',
+      academic_year: '3',
+    });
+    expect(rows[1]?.branch).toBe('ECE');
+  });
+
+  it('parses ElevateX-style roll,email,password,department,year rows', () => {
+    const rows = parseRosterCsv(
+      'RCE001,alice@test.com,Exam2026,CSE,3\nRCE002,bob@test.com,Exam2026,ECE,2',
+    );
+    expect(rows[0]).toMatchObject({
+      roll_number: 'RCE001',
+      email: 'alice@test.com',
+      password: 'Exam2026',
+      branch: 'CSE',
+      academic_year: '3',
     });
   });
 

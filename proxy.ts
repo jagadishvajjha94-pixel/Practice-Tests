@@ -73,7 +73,8 @@ export async function proxy(request: NextRequest) {
 
   if (
     !user &&
-    (pathname.startsWith('/home') ||
+    (pathname.startsWith('/exams') ||
+      pathname.startsWith('/home') ||
       pathname.startsWith('/dashboard') ||
       pathname.startsWith('/placement') ||
       pathname.startsWith('/tests/rmset') ||
@@ -114,10 +115,19 @@ export async function proxy(request: NextRequest) {
 
     if (role === 'student') {
       if (isFacultyRoute(pathname) || isAdminRoute(pathname)) {
-        return NextResponse.redirect(new URL('/home', request.url))
+        return NextResponse.redirect(new URL('/exams', request.url))
       }
-      if (pathname === '/tests') {
-        return NextResponse.redirect(new URL('/home', request.url))
+      if (
+        pathname === '/dashboard' ||
+        pathname.startsWith('/dashboard/') ||
+        pathname === '/home' ||
+        pathname === '/profile' ||
+        pathname.startsWith('/ai/')
+      ) {
+        return NextResponse.redirect(new URL('/exams', request.url))
+      }
+      if (pathname === '/tests' || pathname === '/placement') {
+        return NextResponse.redirect(new URL('/exams', request.url))
       }
     }
   }

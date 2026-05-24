@@ -56,7 +56,7 @@ export function ExamSlotSchedulePanel({
       const text = String(reader.result ?? '');
       const roster = parseRosterCsv(text);
       if (roster.length === 0) {
-        setImportNote('No roll numbers found. Use one column (roll no.) or roll,name,email.');
+        setImportNote('No roll numbers found. Use roll,name,email,department,year or roll,email,password,department,year.');
         return;
       }
       if (roster.length > EXAM_SLOT_CAPACITY_DEFAULT) {
@@ -195,7 +195,9 @@ export function ExamSlotSchedulePanel({
             />
             Upload CSV
           </label>
-          <span className="text-[10px] text-slate-500">Columns: roll_no, name (optional), email (optional)</span>
+          <span className="text-[10px] text-slate-500">
+            Columns: roll, name, email, department, year (password optional)
+          </span>
         </div>
         {current && current.roster.length > 0 ? (
           <div className="max-h-32 overflow-auto text-[11px] font-mono text-slate-600 border border-slate-100 rounded p-2 bg-slate-50">
@@ -203,6 +205,8 @@ export function ExamSlotSchedulePanel({
               <div key={r.roll_number}>
                 {r.roll_number}
                 {r.student_name ? ` · ${r.student_name}` : ''}
+                {r.branch ? ` · ${r.branch}` : ''}
+                {r.academic_year ? ` · Y${r.academic_year}` : ''}
               </div>
             ))}
             {current.roster.length > 8 ? (

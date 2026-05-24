@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { departmentsMatch, examMatchesDepartment } from '@/lib/faculty/department-match';
 import { departmentsForPerformanceView } from '@/lib/department-groups';
+import { studentAuthEmail } from '@/lib/college-auth';
+import { normalizeRoll } from '@/lib/exam-schedule-slots';
 import { isElevateXAttemptMeta } from '@/lib/placement/scorecard-payload';
 import {
   averageScorePercent,
@@ -53,6 +55,100 @@ export type MatchedAttempt = RawAttempt & {
 
 const EXAM_SELECT =
   'id, title, topic, published_test_id, target_years, target_branches, department, duration_minutes';
+
+export async function listSlotRosterStudentsForExams(
+  admin: SupabaseClient,
+  departments: string[],
+  publishedExams: PublishedDeptExam[],
+): Promise<DeptStudent[]> {
+  const targets = departments.filter(Boolean);
+  const requestIds = publishedExams.map((exam) => exam.id);
+  if (targets.length === 0 || requestIds.length === 0) return [];
+
+  const examDeptById = new Map(publishedExams.map((exam) => [exam.id, exam.department]));
+  const { data: entries } = await admin
+    .from('exam_slot_roster_entries')
+    .select(
+      'roll_number, student_name, email, branch, academic_year, faculty_exam_request_id',
+    )
+    .in('faculty_exam_request_id', requestIds);
+
+  const candidates: Array<{
+    roll: string;
+    email: string;
+    full_name: string | null;
+    branch: string;
+    academic_year: string | null;
+  }> = [];
+  const seenRolls = new Set<string>();
+
+  for (const row of entries ?? []) {
+    const roll = normalizeRoll(String(row.roll_number ?? ''));
+    if (!roll || seenRolls.has(roll)) continue;
+
+    const branch =
+      (row.branch as string | null)?.trim() ||
+      examDeptById.get(String(row.faculty_exam_request_id)) ||
+      '';
+    if (!targets.some((dept) => departmentsMatch(branch, dept))) continue;
+
+    seenRolls.add(roll);
+    candidates.push({
+      roll,
+      email: String(row.email ?? studentAuthEmail(roll)).toLowerCase(),
+      full_name: (row.student_name as string | null) ?? null,
+      branch,
+      academic_year: (row.academic_year as string | null) ?? null,
+    });
+  }
+
+  if (candidates.length === 0) return [];
+
+  const emails = candidates.map((row) => row.email);
+  const { data: userRows } = await admin
+    .from('users')
+    .select('id, email, full_name, branch, academic_year')
+    .in('email', emails);
+
+  const userByEmail = new Map(
+    (userRows ?? []).map((row) => [String(row.email).toLowerCase(), row]),
+  );
+
+  return candidates.map((candidate) => {
+    const linked = userByEmail.get(candidate.email);
+    if (linked?.id) {
+      return {
+        id: linked.id as string,
+        email: String(linked.email ?? candidate.email),
+        full_name: (linked.full_name as string | null) ?? candidate.full_name,
+        branch: (linked.branch as string | null) ?? candidate.branch,
+        academic_year:
+          (linked.academic_year as string | null) ?? candidate.academic_year,
+      };
+    }
+
+    return {
+      id: `roster:${candidate.roll}`,
+      email: candidate.email,
+      full_name: candidate.full_name,
+      branch: candidate.branch || null,
+      academic_year: candidate.academic_year,
+    };
+  });
+}
+
+function mergeStudentsById(primary: DeptStudent[], extra: DeptStudent[]): DeptStudent[] {
+  const byId = new Map(primary.map((student) => [student.id, student]));
+  for (const student of extra) {
+    if (byId.has(student.id)) continue;
+    const byEmail = [...byId.values()].find(
+      (row) => row.email.toLowerCase() === student.email.toLowerCase(),
+    );
+    if (byEmail) continue;
+    byId.set(student.id, student);
+  }
+  return Array.from(byId.values());
+}
 
 export async function listStudentsInDepartments(
   admin: SupabaseClient,
@@ -462,9 +558,15 @@ export async function loadFacultyPerformanceData(
 ): Promise<FacultyPerformancePayload> {
   const publishedExams = await listDepartmentApprovedExams(admin, department);
   const scopeDepartments = departmentsForPerformanceView(department, publishedExams);
-  const students = await listStudentsInDepartments(admin, scopeDepartments);
+  const [students, rosterStudents] = await Promise.all([
+    listStudentsInDepartments(admin, scopeDepartments),
+    listSlotRosterStudentsForExams(admin, scopeDepartments, publishedExams),
+  ]);
+  const mergedStudents = mergeStudentsById(students, rosterStudents);
 
-  const studentIds = students.map((s) => s.id);
+  const studentIds = mergedStudents
+    .map((s) => s.id)
+    .filter((id) => !id.startsWith('roster:'));
   const [deptAttempts, elevatexAttempts] = await Promise.all([
     fetchDepartmentExamAttempts(admin, studentIds, publishedExams),
     fetchElevateXAttemptsForStudents(admin, studentIds),
@@ -479,5 +581,5 @@ export async function loadFacultyPerformanceData(
     attempts.push(row);
   }
 
-  return buildFacultyPerformancePayload(department, publishedExams, students, attempts);
+  return buildFacultyPerformancePayload(department, publishedExams, mergedStudents, attempts);
 }

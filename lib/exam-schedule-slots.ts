@@ -13,6 +13,9 @@ export type ExamSlotRosterEntry = {
   roll_number: string;
   student_name?: string;
   email?: string;
+  branch?: string;
+  academic_year?: string;
+  password?: string;
 };
 
 export type ExamScheduleSlotInput = {
@@ -70,6 +73,9 @@ export function parseScheduleSlotsJson(raw: unknown): ExamScheduleSlotInput[] {
         roll_number: roll,
         student_name: entry.student_name ? String(entry.student_name).trim() : undefined,
         email: entry.email ? String(entry.email).trim() : undefined,
+        branch: entry.branch ? String(entry.branch).trim() : undefined,
+        academic_year: entry.academic_year ? String(entry.academic_year).trim() : undefined,
+        password: entry.password ? String(entry.password).trim() : undefined,
       });
     }
     out.push({
@@ -132,6 +138,44 @@ export function enrichScheduleSlots(slots: ExamScheduleSlotInput[]): ParsedExamS
   }));
 }
 
+export function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if ((ch === ',' || ch === ';' || ch === '\t') && !inQuotes) {
+      out.push(cur.trim());
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+function headerIndex(headers: string[], aliases: string[]): number {
+  for (let i = 0; i < headers.length; i++) {
+    const normalized = headers[i]!.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (aliases.some((alias) => normalized.includes(alias))) return i;
+  }
+  return -1;
+}
+
+function readCell(parts: string[], index: number): string | undefined {
+  if (index < 0 || index >= parts.length) return undefined;
+  const value = parts[index]?.trim();
+  return value || undefined;
+}
+
 export function parseRosterCsv(text: string): ExamSlotRosterEntry[] {
   const lines = text
     .split(/\r?\n/)
@@ -139,22 +183,58 @@ export function parseRosterCsv(text: string): ExamSlotRosterEntry[] {
     .filter(Boolean);
   if (lines.length === 0) return [];
 
-  const header = lines[0].toLowerCase();
+  const firstParts = splitCsvLine(lines[0]!);
+  const headerCells = firstParts.map((p) => p.toLowerCase());
   const hasHeader =
-    header.includes('roll') || header.includes('name') || header.includes('email');
+    headerIndex(headerCells, ['roll', 'rollnumber', 'rollno', 'registration']) >= 0 ||
+    headerIndex(headerCells, ['name', 'fullname', 'studentname']) >= 0 ||
+    headerIndex(headerCells, ['email']) >= 0 ||
+    headerIndex(headerCells, ['department', 'dept', 'branch']) >= 0;
+
   const dataLines = hasHeader ? lines.slice(1) : lines;
+
+  const rollIdx = hasHeader
+    ? headerIndex(headerCells, ['roll', 'rollnumber', 'rollno', 'registration'])
+    : 0;
+  const nameIdx = hasHeader ? headerIndex(headerCells, ['name', 'fullname', 'studentname']) : 1;
+  const emailIdx = hasHeader ? headerIndex(headerCells, ['email', 'mail']) : -1;
+  const passwordIdx = hasHeader ? headerIndex(headerCells, ['password', 'pass', 'pwd']) : -1;
+  const branchIdx = hasHeader
+    ? headerIndex(headerCells, ['department', 'dept', 'branch'])
+    : -1;
+  const yearIdx = hasHeader
+    ? headerIndex(headerCells, ['year', 'academicyear', 'batch'])
+    : -1;
 
   const out: ExamSlotRosterEntry[] = [];
   const seen = new Set<string>();
   for (const line of dataLines) {
-    const parts = line.split(/[,;\t]/).map((p) => p.trim());
-    const roll = normalizeRoll(parts[0] ?? '');
+    const parts = splitCsvLine(line);
+    const roll = normalizeRoll(readCell(parts, rollIdx >= 0 ? rollIdx : 0) ?? '');
     if (!roll || seen.has(roll)) continue;
     seen.add(roll);
+
+    let email = emailIdx >= 0 ? readCell(parts, emailIdx) : undefined;
+    let password = passwordIdx >= 0 ? readCell(parts, passwordIdx) : undefined;
+    let branch = branchIdx >= 0 ? readCell(parts, branchIdx) : undefined;
+    let academicYear = yearIdx >= 0 ? readCell(parts, yearIdx) : undefined;
+    let studentName = nameIdx >= 0 ? readCell(parts, nameIdx) : undefined;
+
+    if (!hasHeader && parts.length >= 2 && parts[1]?.includes('@')) {
+      email = readCell(parts, 1);
+      password = readCell(parts, 2);
+      branch = readCell(parts, 3);
+      academicYear = readCell(parts, 4);
+      studentName = undefined;
+    }
+
     out.push({
       roll_number: roll,
-      student_name: parts[1] || undefined,
-      email: parts[2] || undefined,
+      student_name: studentName,
+      email,
+      branch,
+      academic_year: academicYear,
+      password,
     });
   }
   return out;
@@ -179,13 +259,109 @@ export async function persistSlotRoster(
         roll_number: student.roll_number,
         student_name: student.student_name ?? null,
         email: student.email ?? null,
+        branch: student.branch ?? null,
+        academic_year: student.academic_year ?? null,
       });
     }
   }
   if (rows.length === 0) return;
 
-  const { error } = await admin.from('exam_slot_roster_entries').insert(rows);
+  let { error } = await admin.from('exam_slot_roster_entries').insert(rows);
+  if (error?.message?.includes('branch') || error?.message?.includes('academic_year')) {
+    const fallbackRows = rows.map((row) => {
+      const { branch: _b, academic_year: _y, ...rest } = row;
+      return rest;
+    });
+    const retry = await admin.from('exam_slot_roster_entries').insert(fallbackRows);
+    error = retry.error;
+  }
   if (error && !error.message.includes('exam_slot_roster')) {
+    throw new Error(error.message);
+  }
+}
+
+export async function rebuildSlotsFromRosterEntries(
+  admin: SupabaseClient,
+  requestId: string,
+  scheduleMeta?: ExamScheduleSlotInput[],
+): Promise<ExamScheduleSlotInput[]> {
+  const { data: entries, error } = await admin
+    .from('exam_slot_roster_entries')
+    .select('slot_number, roll_number, student_name, email, branch, academic_year')
+    .eq('faculty_exam_request_id', requestId)
+    .order('slot_number');
+
+  if (error || !entries?.length) return [];
+
+  const metaBySlot = new Map((scheduleMeta ?? []).map((slot) => [slot.slot_number, slot]));
+  const bySlot = new Map<number, ExamSlotRosterEntry[]>();
+
+  for (const row of entries) {
+    const slotNum = Number(row.slot_number);
+    if (!Number.isFinite(slotNum)) continue;
+    const list = bySlot.get(slotNum) ?? [];
+    list.push({
+      roll_number: normalizeRoll(String(row.roll_number)),
+      student_name: (row.student_name as string | null) ?? undefined,
+      email: (row.email as string | null) ?? undefined,
+      branch: (row.branch as string | null) ?? undefined,
+      academic_year: (row.academic_year as string | null) ?? undefined,
+    });
+    bySlot.set(slotNum, list);
+  }
+
+  return Array.from(bySlot.keys())
+    .sort((a, b) => a - b)
+    .map((slotNum) => {
+      const meta = metaBySlot.get(slotNum);
+      return {
+        slot_number: slotNum,
+        exam_date: meta?.exam_date ?? '',
+        start_time: meta?.start_time ?? '09:00',
+        end_time: meta?.end_time ?? '11:00',
+        capacity: meta?.capacity ?? EXAM_SLOT_CAPACITY_DEFAULT,
+        roster: bySlot.get(slotNum) ?? [],
+      };
+    });
+}
+
+export type CreatedSlotSchedule = {
+  scheduleId: string;
+  slot_number: number;
+};
+
+export async function syncExamStudentRosters(
+  admin: SupabaseClient,
+  schedules: CreatedSlotSchedule[],
+  slots: ExamScheduleSlotInput[],
+): Promise<void> {
+  if (schedules.length === 0) return;
+
+  const scheduleBySlot = new Map(schedules.map((row) => [row.slot_number, row.scheduleId]));
+  const scheduleIds = schedules.map((row) => row.scheduleId);
+
+  await admin.from('exam_student_roster').delete().in('exam_schedule_id', scheduleIds);
+
+  const rows: Array<Record<string, unknown>> = [];
+  for (const slot of slots) {
+    const scheduleId = scheduleBySlot.get(slot.slot_number);
+    if (!scheduleId) continue;
+    for (const student of slot.roster) {
+      rows.push({
+        exam_schedule_id: scheduleId,
+        roll_number: student.roll_number,
+        email: student.email ?? null,
+        full_name: student.student_name ?? null,
+        branch: student.branch ?? null,
+        academic_year: student.academic_year ?? null,
+      });
+    }
+  }
+
+  if (rows.length === 0) return;
+
+  const { error } = await admin.from('exam_student_roster').insert(rows);
+  if (error && !error.message.includes('exam_student_roster')) {
     throw new Error(error.message);
   }
 }
@@ -377,9 +553,9 @@ export async function createSchedulesFromSlots(
     createdBy: string;
     slots: ExamScheduleSlotInput[];
   },
-): Promise<string[]> {
+): Promise<CreatedSlotSchedule[]> {
   const parsed = enrichScheduleSlots(input.slots);
-  const ids: string[] = [];
+  const created: CreatedSlotSchedule[] = [];
 
   for (const slot of parsed) {
     const payload: Record<string, unknown> = {
@@ -415,13 +591,15 @@ export async function createSchedulesFromSlots(
         .select('id')
         .single();
       if (retry.error) throw new Error(retry.error.message);
-      if (retry.data?.id) ids.push(String(retry.data.id));
+      if (retry.data?.id) {
+        created.push({ scheduleId: String(retry.data.id), slot_number: slot.slot_number });
+      }
     } else if (data?.id) {
-      ids.push(String(data.id));
+      created.push({ scheduleId: String(data.id), slot_number: slot.slot_number });
     }
   }
 
-  return ids;
+  return created;
 }
 
 export function filterSchedulesForStudentSlots(

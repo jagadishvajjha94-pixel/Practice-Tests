@@ -24,7 +24,7 @@ export function useStudentSignIn() {
       password,
       department,
       year,
-      redirectTo = '/home',
+      redirectTo = '/exams',
     }: StudentSignInOptions) => {
       setError(null);
       setLoading(true);

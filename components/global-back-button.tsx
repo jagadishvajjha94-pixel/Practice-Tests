@@ -7,7 +7,9 @@ export default function GlobalBackButton() {
   const router = useRouter();
   const pathname = usePathname();
 
-  if (!pathname || pathname === '/' || isExamFocusRoute(pathname)) return null;
+  if (!pathname || pathname === '/' || pathname === '/exams' || isExamFocusRoute(pathname)) {
+    return null;
+  }
 
   return (
     <button

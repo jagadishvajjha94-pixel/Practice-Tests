@@ -39,7 +39,7 @@ function StudentLoginForm() {
   const redirect = searchParams.get('redirect');
   const notice = searchParams.get('notice');
   const postLogin =
-    redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/home';
+    redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/exams';
 
   const signupOpen = !isSignupDisabled();
   const signupHref = redirect

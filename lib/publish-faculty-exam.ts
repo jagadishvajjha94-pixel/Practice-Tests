@@ -11,7 +11,10 @@ import { parseQuestionsJson, type FacultyExamQuestion, type FacultyMcqQuestion }
 import {
   createSchedulesFromSlots,
   parseScheduleSlotsJson,
+  rebuildSlotsFromRosterEntries,
+  syncExamStudentRosters,
 } from '@/lib/exam-schedule-slots';
+import { provisionStudentsFromSlotRoster } from '@/lib/roster-student-provision';
 
 const DEPT_EXAMS_SLUG = 'department-exams';
 
@@ -41,6 +44,87 @@ async function ensureDepartmentExamsCategory(admin: SupabaseClient): Promise<str
   return created.id as string;
 }
 
+async function finalizeSlotSchedulesOnPublish(
+  admin: SupabaseClient,
+  request: Record<string, unknown>,
+  requestId: string,
+  testIdStr: string,
+  adminUserId: string,
+): Promise<void> {
+  const usesSlotScheduling = Boolean(request.uses_slot_scheduling);
+  if (!usesSlotScheduling) return;
+
+  const scheduleMeta = parseScheduleSlotsJson(request.schedule_slots_json);
+  let slots = scheduleMeta;
+  if (slots.length === 0 || slots.some((slot) => slot.roster.length === 0)) {
+    const rebuilt = await rebuildSlotsFromRosterEntries(admin, requestId, scheduleMeta);
+    if (rebuilt.length > 0) {
+      if (slots.length === 0) {
+        slots = rebuilt;
+      } else {
+        slots = slots.map((slot) => {
+          const rebuiltSlot = rebuilt.find((row) => row.slot_number === slot.slot_number);
+          if (!rebuiltSlot?.roster.length) return slot;
+          return {
+            ...slot,
+            roster: slot.roster.length > 0 ? slot.roster : rebuiltSlot.roster,
+          };
+        });
+      }
+    }
+  }
+
+  if (slots.length === 0) return;
+
+  const targetDepartments = Array.from(
+    new Set([String(request.department), ...((request.target_branches as string[]) ?? [])]),
+  );
+
+  await provisionStudentsFromSlotRoster(admin, {
+    slots,
+    defaultDepartment: String(request.department),
+    defaultYears: (request.target_years as string[]) ?? [],
+  });
+
+  const { data: existingSchedules } = await admin
+    .from('exam_schedules')
+    .select('id, slot_number')
+    .eq('faculty_exam_request_id', requestId);
+
+  const existingBySlot = new Map<number, string>();
+  for (const row of existingSchedules ?? []) {
+    const slotNum = Number(row.slot_number);
+    if (Number.isFinite(slotNum) && row.id) {
+      existingBySlot.set(slotNum, String(row.id));
+    }
+  }
+
+  let schedules: Array<{ scheduleId: string; slot_number: number }>;
+  if ((existingSchedules ?? []).length > 0) {
+    schedules = slots
+      .map((slot) => {
+        const scheduleId = existingBySlot.get(slot.slot_number);
+        return scheduleId ? { scheduleId, slot_number: slot.slot_number } : null;
+      })
+      .filter((row): row is { scheduleId: string; slot_number: number } => row != null);
+  } else {
+    schedules = await createSchedulesFromSlots(admin, {
+      requestId,
+      testId: testIdStr,
+      title: String(request.title),
+      description: (request.description as string | null) ?? null,
+      targetDepartments,
+      targetYears: (request.target_years as string[]) ?? [],
+      createdBy: adminUserId,
+      slots,
+    });
+  }
+
+  if (schedules.length > 0) {
+    await syncExamStudentRosters(admin, schedules, slots);
+  }
+}
+
 export async function publishFacultyExamRequest(
   admin: SupabaseClient,
   requestId: string,
@@ -55,7 +139,9 @@ export async function publishFacultyExamRequest(
   if (fetchError) throw new Error(fetchError.message);
   if (!request) throw new Error('Exam request not found');
   if (request.status === 'approved' && request.published_test_id) {
-    return { testId: request.published_test_id as string };
+    const testIdStr = String(request.published_test_id);
+    await finalizeSlotSchedulesOnPublish(admin, request, requestId, testIdStr, adminUserId);
+    return { testId: testIdStr };
   }
   if (request.status !== 'pending') {
     throw new Error('Only pending requests can be approved');
@@ -149,6 +235,7 @@ export async function publishFacultyExamRequest(
       .update({ ...approvedBase, published_test_id: publishedTestId })
       .eq('id', requestId);
     if (!error) {
+      await finalizeSlotSchedulesOnPublish(admin, request, requestId, testIdStr, adminUserId);
       return { testId: testIdStr };
     }
     updateError = error;
@@ -163,6 +250,7 @@ export async function publishFacultyExamRequest(
     .eq('id', requestId);
 
   if (!fallbackUpdateError) {
+    await finalizeSlotSchedulesOnPublish(admin, request, requestId, testIdStr, adminUserId);
     return { testId: testIdStr };
   }
 
@@ -180,23 +268,6 @@ export async function publishFacultyExamRequest(
     );
   }
 
-  const usesSlotScheduling = Boolean(request.uses_slot_scheduling);
-  const slotPayload = parseScheduleSlotsJson(request.schedule_slots_json);
-  if (usesSlotScheduling && slotPayload.length > 0) {
-    const targetDepartments = Array.from(
-      new Set([String(request.department), ...((request.target_branches as string[]) ?? [])]),
-    );
-    await createSchedulesFromSlots(admin, {
-      requestId,
-      testId: testIdStr,
-      title: String(request.title),
-      description: (request.description as string | null) ?? null,
-      targetDepartments,
-      targetYears: (request.target_years as string[]) ?? [],
-      createdBy: adminUserId,
-      slots: slotPayload,
-    });
-  }
-
+  await finalizeSlotSchedulesOnPublish(admin, request, requestId, testIdStr, adminUserId);
   return { testId: testIdStr };
 }

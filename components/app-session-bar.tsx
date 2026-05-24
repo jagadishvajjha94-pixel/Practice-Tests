@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
@@ -46,8 +45,7 @@ export default function AppSessionBar() {
   if (!email) return null;
   if (isExamFocusRoute(pathname)) return null;
   if (pathname === '/' || pathname?.startsWith('/auth')) return null;
-  // Account shortcuts on student home and dashboard.
-  if (pathname !== '/home' && pathname !== '/dashboard') return null;
+  if (pathname !== '/exams') return null;
 
   const handleLogout = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -71,29 +69,14 @@ export default function AppSessionBar() {
       <span className="truncate font-medium text-slate-700" title={email}>
         {email}
       </span>
-      <div className="flex shrink-0 items-center gap-1.5">
-        {pathname !== '/home' ? (
-          <Button variant="ghost" size="sm" className="h-8 px-2 text-[#1e3a5f]" asChild>
-            <Link href="/home">Home</Link>
-          </Button>
-        ) : null}
-        {pathname !== '/dashboard' ? (
-          <Button variant="ghost" size="sm" className="h-8 px-2 text-[#1e3a5f]" asChild>
-            <Link href="/dashboard">Dashboard</Link>
-          </Button>
-        ) : null}
-        <Button variant="ghost" size="sm" className="h-8 px-2 text-[#1e3a5f]" asChild>
-          <Link href="/profile">Profile</Link>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 border-slate-300 text-slate-800 hover:bg-slate-50"
-          onClick={() => void handleLogout()}
-        >
-          Log out
-        </Button>
-      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 border-slate-300 text-slate-800 hover:bg-slate-50"
+        onClick={() => void handleLogout()}
+      >
+        Log out
+      </Button>
     </div>
   );
 

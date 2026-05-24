@@ -112,6 +112,13 @@ export async function createFacultyExamRequestRecord(
     insertPayload.department_group_id = groupId;
   }
 
+  if (input.usesSlotScheduling) {
+    insertPayload.uses_slot_scheduling = true;
+    if (input.scheduleSlots?.length) {
+      insertPayload.schedule_slots_json = input.scheduleSlots;
+    }
+  }
+
   let { data: row, error } = await admin
     .from('faculty_exam_requests')
     .insert(insertPayload)
