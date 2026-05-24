@@ -52,8 +52,8 @@ export async function POST(request: NextRequest) {
   if (error || !data.user) {
     const hint =
       email !== DEFAULT_ADMIN_EMAIL
-        ? ` Use ${DEFAULT_ADMIN_EMAIL} or click "Create / reset default admin".`
-        : ' Click "Create / reset default admin" on the login page, then try again.';
+        ? ` Use the admin email issued by the examination cell.`
+        : ' Contact the examination cell if you need access.';
     return NextResponse.json(
       {
         error: error?.message ?? 'Invalid login credentials',

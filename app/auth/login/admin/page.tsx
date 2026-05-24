@@ -1,7 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { Suspense, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,54 +16,15 @@ import {
   SUPABASE_PUBLIC_ENV_MESSAGE,
 } from '@/lib/supabase-public-env';
 import { StatusAlert } from '@/components/ui/status-alert';
-import {
-  DEFAULT_ADMIN_EMAIL,
-  DEFAULT_ADMIN_PASSWORD,
-} from '@/lib/admin-defaults';
+import { DEFAULT_ADMIN_EMAIL } from '@/lib/admin-defaults';
 
 function AdminLoginForm() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [bootstrapping, setBootstrapping] = useState(false);
-  const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    setUsername(DEFAULT_ADMIN_EMAIL);
-    setPassword(DEFAULT_ADMIN_PASSWORD);
-  }, []);
-
-  const onBootstrapAdmin = async () => {
-    setError(null);
-    setSuccess(null);
-    setBootstrapping(true);
-    try {
-      const res = await fetch('/api/admin/bootstrap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: DEFAULT_ADMIN_EMAIL,
-          password: DEFAULT_ADMIN_PASSWORD,
-          fullName: 'RCE Training & Placement Admin',
-        }),
-      });
-      const json = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
-      if (!res.ok) throw new Error(json.error ?? 'Could not create admin account');
-      setUsername(DEFAULT_ADMIN_EMAIL);
-      setPassword(DEFAULT_ADMIN_PASSWORD);
-      setSuccess(
-        json.message ??
-          `Default admin ready. Sign in with ${DEFAULT_ADMIN_EMAIL} / ${DEFAULT_ADMIN_PASSWORD}`,
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Setup failed');
-    } finally {
-      setBootstrapping(false);
-    }
-  };
 
   const verifyAdmin = async () => {
     const verifyRes = await fetch('/api/admin/verify', { method: 'POST' });
@@ -80,7 +40,7 @@ function AdminLoginForm() {
 
     throw new Error(
       verifyJson.error ??
-        `This account does not have admin access. Use ${DEFAULT_ADMIN_EMAIL} or contact the examination cell.`,
+        'This account does not have admin access. Contact the examination cell.',
     );
   };
 
@@ -106,7 +66,7 @@ function AdminLoginForm() {
       const email = trimmed.includes('@') ? trimmed.toLowerCase() : adminAuthEmail(trimmed);
       if (!trimmed.includes('@')) {
         throw new Error(
-          `Enter the full admin email (e.g. ${DEFAULT_ADMIN_EMAIL}). Username-only login maps to @admin.ramachandra.edu and will not work for the default admin.`,
+          `Enter your full admin email (e.g. ${DEFAULT_ADMIN_EMAIL}).`,
         );
       }
 
@@ -119,7 +79,6 @@ function AdminLoginForm() {
       const signInJson = (await signInRes.json().catch(() => ({}))) as {
         error?: string;
         hint?: string;
-        attemptedEmail?: string;
       };
       if (!signInRes.ok) {
         throw new Error(
@@ -144,7 +103,6 @@ function AdminLoginForm() {
       >
         <form onSubmit={onSubmit} className="space-y-4 text-left">
           {error ? <StatusAlert variant="error">{error}</StatusAlert> : null}
-          {success ? <StatusAlert variant="success">{success}</StatusAlert> : null}
 
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-slate-700 mb-1">
@@ -154,19 +112,14 @@ function AdminLoginForm() {
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder={DEFAULT_ADMIN_EMAIL}
+              placeholder="admin@your-college.edu"
               className="bg-white border-slate-300"
               autoComplete="username"
               required
             />
             {fieldErrors.username ? (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.username}</p>
-            ) : (
-              <p className="mt-1 text-xs text-slate-500">
-                Default: <span className="font-mono">{DEFAULT_ADMIN_EMAIL}</span> /{' '}
-                <span className="font-mono">{DEFAULT_ADMIN_PASSWORD}</span>
-              </p>
-            )}
+            ) : null}
           </div>
 
           <div>
@@ -194,20 +147,6 @@ function AdminLoginForm() {
           >
             {loading ? 'Signing in…' : 'Sign in to admin panel'}
           </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            disabled={bootstrapping || loading}
-            onClick={onBootstrapAdmin}
-            className="w-full border-slate-300"
-          >
-            {bootstrapping ? 'Setting up…' : 'Create / reset default admin'}
-          </Button>
-
-          <p className="text-xs text-center text-slate-500">
-            Or run: <span className="font-mono">node scripts/bootstrap-admin.mjs</span>
-          </p>
         </form>
       </AuthCard>
     </PortalShell>

@@ -14,7 +14,6 @@ import {
 } from '@/lib/college-auth';
 import { useCollegeSignIn } from '@/components/auth/use-college-sign-in';
 import { isSupabasePublicEnvConfigured, SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
-import { isSignupDisabled } from '@/lib/auth-features';
 import { StatusAlert } from '@/components/ui/status-alert';
 
 function FacultyLoginForm() {
@@ -24,11 +23,6 @@ function FacultyLoginForm() {
     redirect && redirect.startsWith('/') && !redirect.startsWith('//')
       ? redirect
       : '/faculty/dashboard';
-
-  const signupOpen = !isSignupDisabled();
-  const signupHref = redirect
-    ? `/auth/signup/faculty?redirect=${encodeURIComponent(redirect)}`
-    : '/auth/signup/faculty';
 
   const { signIn, loading, error, setError } = useCollegeSignIn();
   const [employeeId, setEmployeeId] = useState('');
@@ -120,15 +114,6 @@ function FacultyLoginForm() {
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </Button>
-
-          {signupOpen ? (
-            <p className="text-center text-sm text-slate-700">
-              New faculty?{' '}
-              <Link href={signupHref} className="font-semibold text-[#1e3a5f] hover:underline">
-                Create account
-              </Link>
-            </p>
-          ) : null}
         </form>
       </AuthCard>
     </PortalShell>
