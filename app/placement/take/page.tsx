@@ -32,6 +32,8 @@ import {
   saveSession,
 } from '@/lib/placement/session';
 import { recordDashboardAttempt } from '@/lib/record-dashboard-attempt';
+import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import type {
   PlacementMcqAnswerMap,
   PlacementSectionId,
@@ -69,6 +71,8 @@ export default function PlacementTakePage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const submitGuardRef = useRef(false);
+  const liveAttemptIdRef = useRef('');
+  const proctorSessionIdRef = useRef('');
   const handleSubmitRef = useRef<(reason: 'manual' | 'timeout') => Promise<void>>(async () => {});
   const proctorVideoRef = useRef<HTMLVideoElement>(null);
   const proctorSummaryRef = useRef<ProctorSummary | null>(null);
@@ -93,6 +97,7 @@ export default function PlacementTakePage() {
     enabled: proctorActive,
     requireCamera: true,
     videoRef: proctorVideoRef,
+    attemptIdRef: liveAttemptIdRef,
     onMaxViolations: ({ violationCount: count }) => {
       proctorSummaryRef.current = {
         sessionId: proctorSessionId,
@@ -171,6 +176,10 @@ export default function PlacementTakePage() {
     sessionRef.current = session;
   }, [session]);
 
+  useEffect(() => {
+    proctorSessionIdRef.current = proctorSessionId;
+  }, [proctorSessionId]);
+
   // Autosave (every 5s) — uses ref so the latest answers are always persisted.
   useEffect(() => {
     if (!session) return;
@@ -180,6 +189,72 @@ export default function PlacementTakePage() {
     }, 5000);
     return () => window.clearInterval(id);
   }, [session]);
+
+  // Report in-progress attempt so admin live leaderboard shows students writing.
+  useEffect(() => {
+    if (!hydrated || !session || session.submitted) return;
+
+    const reportProgress = async () => {
+      const current = sessionRef.current;
+      if (!current || current.submitted) return;
+
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      let scorePercent = 0;
+      try {
+        scorePercent = computePlacementScorecard(current).percentage;
+      } catch {
+        scorePercent = 0;
+      }
+
+      const dept = findDepartment(current.candidate.departmentId);
+      const elapsedSec = Math.max(0, PLACEMENT_TOTAL_SEC - current.globalTimeLeftSec);
+      const activeProctorSession = proctorSessionIdRef.current;
+      const violations = activeProctorSession ? getExamViolations(activeProctorSession) : [];
+
+      try {
+        const headers = await getSupabaseAuthHeaders(supabase);
+        const res = await fetch('/api/student/test-attempts/progress', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({
+            testId: elevateXTestId,
+            testName: `ElevateX · ${dept?.name ?? 'Department'}`,
+            scorePercent,
+            elapsedSec,
+            startedAtIso: current.candidate.startedAt,
+            attemptId: liveAttemptIdRef.current || undefined,
+            proctorSessionId: activeProctorSession || undefined,
+            proctorViolationCount: violations.length,
+            answers: {
+              __proctor: {
+                sessionId: activeProctorSession,
+                violationCount: violations.length,
+                violations: violations.map((v) => ({ type: v.type, at: v.at })),
+              },
+            },
+          }),
+        });
+        if (res.ok) {
+          const json = (await res.json()) as { id?: string };
+          if (json.id) liveAttemptIdRef.current = String(json.id);
+        }
+      } catch {
+        /* offline — local session still saved */
+      }
+    };
+
+    void reportProgress();
+    const interval = window.setInterval(() => void reportProgress(), 5000);
+    return () => window.clearInterval(interval);
+  }, [hydrated, session, elevateXTestId]);
 
   // Disable copy / paste on the take page.
   useEffect(() => {

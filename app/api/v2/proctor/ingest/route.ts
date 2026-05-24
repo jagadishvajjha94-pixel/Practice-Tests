@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import {
+  ensureExamViolationsTableIfPossible,
+  isExamViolationsSchemaError,
+} from '@/lib/ensure-exam-violations';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 
 const PROCTOR_URL = (process.env.AI_PROCTOR_URL ?? 'http://127.0.0.1:8090').replace(/\/$/, '');
@@ -8,6 +12,34 @@ type IngestItem = {
   type: string;
   metadata?: Record<string, unknown>;
 };
+
+function normalizeStoredTestId(testId: string | undefined | null): string | null {
+  const value = String(testId ?? '').trim();
+  return value || null;
+}
+
+async function insertViolationRows(
+  admin: NonNullable<ReturnType<typeof getServiceSupabase>>,
+  rows: Array<{
+    user_id: string;
+    test_id: string | null;
+    attempt_id: string | null;
+    violation_type: string;
+    metadata: Record<string, unknown>;
+  }>,
+): Promise<{ ok: boolean; error?: string }> {
+  let { error } = await admin.from('exam_violations').insert(rows);
+
+  if (error && isExamViolationsSchemaError(error)) {
+    const ensured = await ensureExamViolationsTableIfPossible();
+    if (ensured) {
+      ({ error } = await admin.from('exam_violations').insert(rows));
+    }
+  }
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
 
 export async function POST(request: Request) {
   const auth = await requireAuth(['student', 'faculty', 'admin']);
@@ -47,19 +79,22 @@ export async function POST(request: Request) {
 
   let stored = 0;
   if (admin && items.length) {
+    const testId = normalizeStoredTestId(body.testId);
+    const attemptId = body.attemptId ? String(body.attemptId) : null;
     const rows = items.map((item) => ({
       user_id: userId,
-      test_id: body.testId ?? null,
-      attempt_id: body.attemptId ?? null,
+      test_id: testId,
+      attempt_id: attemptId,
       violation_type: item.type,
       metadata: {
         ...(item.metadata ?? {}),
         sessionId,
+        testId: body.testId ?? testId,
       },
     }));
-    const { error: insertErr } = await admin.from('exam_violations').insert(rows);
-    if (insertErr) {
-      return NextResponse.json({ error: insertErr.message, stored: 0 }, { status: 500 });
+    const inserted = await insertViolationRows(admin, rows);
+    if (!inserted.ok) {
+      return NextResponse.json({ error: inserted.error ?? 'Insert failed', stored: 0 }, { status: 500 });
     }
     stored = rows.length;
   }

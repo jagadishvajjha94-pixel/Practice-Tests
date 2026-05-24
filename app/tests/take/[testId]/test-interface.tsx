@@ -163,6 +163,7 @@ export default function TestInterface({
     enabled: proctorActive,
     requireCamera: true,
     videoRef: proctorVideoRef,
+    attemptIdRef: liveAttemptIdRef,
     onMaxViolations: ({ violationCount: count }) => {
       proctorSummaryRef.current = {
         sessionId: proctorSessionId,

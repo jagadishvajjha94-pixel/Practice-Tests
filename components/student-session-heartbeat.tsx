@@ -51,10 +51,16 @@ export function StudentSessionHeartbeat() {
       });
     };
 
+    const onExamRoute =
+      pathname?.startsWith('/placement') ||
+      pathname?.startsWith('/tests/take') ||
+      pathname?.startsWith('/exam/');
+    const intervalMs = onExamRoute ? 60 * 1000 : 5 * 60 * 1000;
+
     ping();
-    const timer = setInterval(ping, 5 * 60 * 1000);
+    const timer = setInterval(ping, intervalMs);
     return () => clearInterval(timer);
-  }, [active]);
+  }, [active, pathname]);
 
   return null;
 }

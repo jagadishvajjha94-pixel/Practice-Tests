@@ -66,8 +66,11 @@ export async function POST(request: Request) {
       ? (body.answers as Record<string, unknown>)
       : {};
   const attemptId = typeof body.attemptId === 'string' ? body.attemptId : '';
+  const proctorSessionId =
+    typeof body.proctorSessionId === 'string' ? body.proctorSessionId.trim() : '';
+  const proctorViolationCount = Number(body.proctorViolationCount) || 0;
 
-  const basePatch = {
+  const basePatch: Record<string, unknown> = {
     user_id: userId,
     test_id: testId,
     test_title: testName,
@@ -79,6 +82,9 @@ export async function POST(request: Request) {
     started_at: typeof body.startedAtIso === 'string' ? body.startedAtIso : nowIso,
     completed_at: null,
   };
+
+  if (proctorSessionId) basePatch.proctor_session_id = proctorSessionId;
+  if (proctorViolationCount > 0) basePatch.proctor_violations = proctorViolationCount;
 
   if (attemptId) {
     const { data: updated, error } = await service

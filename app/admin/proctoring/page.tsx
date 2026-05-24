@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 
+const POLL_MS = 2000;
+
 type ViolationRow = {
   id: string;
   user_id: string;
@@ -49,8 +51,19 @@ export default function AdminProctoringPage() {
 
   useEffect(() => {
     if (!live) return;
-    const id = window.setInterval(() => void load(), 10000);
-    return () => clearInterval(id);
+    const tick = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    tick();
+    const id = window.setInterval(tick, POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [live, load]);
 
   if (loading) {
@@ -61,7 +74,7 @@ export default function AdminProctoringPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="Proctoring"
-        description="Exam integrity flags — tab switches, camera absence (>5s), suspicious behavior, and auto-submits after 7 incidents."
+        description="Live exam integrity — tab switches, camera issues, suspicious behavior, and auto-submits. Updates every 2s during live exams (ElevateX /placement and /tests/take)."
         actions={
           <div className="flex gap-2">
             <Button variant={live ? 'default' : 'outline'} size="sm" onClick={() => setLive((v) => !v)}>
@@ -127,7 +140,13 @@ export default function AdminProctoringPage() {
                       {r.violation_type.replace(/_/g, ' ')}
                     </Badge>
                   </td>
-                  <td className="p-3 text-xs">{r.test_id?.slice(0, 8) ?? '—'}</td>
+                  <td className="p-3 text-xs">
+                    {String(
+                      (r.metadata?.testId as string | undefined) ??
+                        r.test_id ??
+                        '—',
+                    )}
+                  </td>
                   <td className="p-3 text-xs text-muted-foreground max-w-xs truncate">
                     {r.metadata ? JSON.stringify(r.metadata) : '—'}
                   </td>
@@ -136,7 +155,8 @@ export default function AdminProctoringPage() {
               {!rows.length ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                    No violations yet. Students will appear here during proctored exams on /tests/take.
+                    No proctoring incidents yet. During ElevateX or faculty exams, violations appear here
+                    within a few seconds (tab switch, face absent, copy/paste, etc.).
                   </td>
                 </tr>
               ) : null}

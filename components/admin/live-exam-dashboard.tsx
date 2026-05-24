@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatScorePercentLabel } from '@/lib/format-score';
 import { cn } from '@/lib/utils';
 
-const POLL_MS = 3000;
+const POLL_MS = 1500;
 
 type LiveSchedule = {
   id: string;
@@ -187,8 +187,21 @@ export function LiveExamDashboard() {
 
   useEffect(() => {
     if (!live) return;
-    const timer = setInterval(() => void refresh(), POLL_MS);
-    return () => clearInterval(timer);
+
+    const tick = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+
+    tick();
+    const timer = setInterval(tick, POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [live, refresh]);
 
   if (loading) {

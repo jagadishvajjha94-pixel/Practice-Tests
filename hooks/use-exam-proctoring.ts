@@ -22,6 +22,7 @@ type Options = {
   enabled?: boolean;
   requireCamera?: boolean;
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  attemptIdRef?: React.RefObject<string | null | undefined>;
   onMaxViolations?: (summary: { violationCount: number; violations: ExamViolationEvent[] }) => void;
 };
 
@@ -42,6 +43,7 @@ export function useExamProctoring({
   enabled = true,
   requireCamera = true,
   videoRef,
+  attemptIdRef,
   onMaxViolations,
 }: Options) {
   const [violations, setViolations] = useState<ExamViolationEvent[]>([]);
@@ -70,6 +72,7 @@ export function useExamProctoring({
         body: JSON.stringify({
           testId,
           sessionId,
+          attemptId: attemptIdRef?.current || undefined,
           batch,
         }),
         keepalive: true,
@@ -77,7 +80,7 @@ export function useExamProctoring({
     } catch {
       /* best effort */
     }
-  }, [testId, sessionId]);
+  }, [testId, sessionId, attemptIdRef]);
 
   const scheduleIngest = useCallback(
     (type: string, metadata?: Record<string, unknown>) => {

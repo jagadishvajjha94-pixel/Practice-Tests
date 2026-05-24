@@ -8,8 +8,12 @@ import {
 } from '@/lib/exam-schedule';
 import { syncExpiredLiveExamSchedules } from '@/lib/exam-schedule-sync';
 import type { EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
+import { isStudentSessionLockSchemaError } from '@/lib/ensure-student-session-lock';
 import { isElevateXModule, isElevateXAttemptTitle, isElevateXTestId } from '@/lib/elevatex';
 import { resolveStoredPercent, testIdsMatch } from '@/lib/test-attempts';
+
+/** Active login within this window counts as "currently writing" when no attempt row exists yet. */
+const RECENT_ACTIVE_WRITER_MS = 10 * 60 * 1000;
 
 export type LiveBoardEntry = {
   attempt_id: string;
@@ -54,11 +58,13 @@ export async function buildAllLiveWritingActivity(
   preloadedAttempts?: RollupAttempt[],
 ): Promise<LiveWritingEntry[]> {
   const rows: LiveWritingEntry[] = [];
+  const seenUserIds = new Set<string>();
 
   for (const schedule of schedules) {
     const board = await buildLiveExamBoard(admin, schedule, preloadedAttempts);
     for (const entry of board.entries) {
       if (entry.submitted_at) continue;
+      seenUserIds.add(entry.user_id);
       rows.push({
         ...entry,
         schedule_id: schedule.id,
@@ -67,6 +73,9 @@ export async function buildAllLiveWritingActivity(
       });
     }
   }
+
+  const sessionWriters = await loadActiveSessionWriters(admin, schedules, seenUserIds);
+  rows.push(...sessionWriters);
 
   return rows.sort(
     (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
@@ -102,10 +111,24 @@ function scheduleSessionBounds(schedule: ExamScheduleRow): { startMs: number; en
 }
 
 /** Attempt must belong to this scheduled live window — not older runs of the same test. */
-function attemptInLiveSession(attempt: RollupAttempt, schedule: ExamScheduleRow): boolean {
+function attemptInLiveSession(
+  attempt: RollupAttempt,
+  schedule: ExamScheduleRow,
+  now = Date.now(),
+): boolean {
   const { startMs, endMs } = scheduleSessionBounds(schedule);
   const attemptMs = new Date(attempt.created_at).getTime();
   if (Number.isNaN(attemptMs)) return false;
+
+  const status = String(attempt.status ?? '').toLowerCase();
+  const isActive =
+    status === 'in_progress' || status === 'started' || status === 'active';
+
+  if (isActive && isScheduleLiveNow(schedule, now)) {
+    const recentCutoff = now - 4 * 60 * 60 * 1000;
+    if (attemptMs >= recentCutoff) return true;
+  }
+
   if (attemptMs < startMs - 60_000) return false;
   if (endMs !== null && attemptMs > endMs + 120_000) return false;
   return true;
@@ -217,6 +240,19 @@ async function loadAttemptsForSchedule(
     for (const row of byTestId ?? []) {
       add(rowToRollupAttempt(row as Record<string, unknown>, schedule.title));
     }
+
+    let inProgressQuery = admin
+      .from('test_attempts')
+      .select('*')
+      .eq('test_id', scheduleTestId)
+      .in('status', ['in_progress', 'started', 'active'])
+      .order('created_at', { ascending: false })
+      .limit(300);
+
+    const { data: inProgressRows } = await inProgressQuery;
+    for (const row of inProgressRows ?? []) {
+      add(rowToRollupAttempt(row as Record<string, unknown>, schedule.title));
+    }
   }
 
   // ElevateX legacy ids (placement-*) during this session only
@@ -244,6 +280,89 @@ async function loadAttemptsForSchedule(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     ),
   );
+}
+
+async function loadActiveSessionWriters(
+  admin: SupabaseClient,
+  schedules: ExamScheduleRow[],
+  excludeUserIds: Set<string>,
+): Promise<LiveWritingEntry[]> {
+  if (schedules.length === 0) return [];
+
+  const cutoff = new Date(Date.now() - RECENT_ACTIVE_WRITER_MS).toISOString();
+  const { data, error } = await admin
+    .from('student_active_sessions')
+    .select('roll_number, user_id, last_seen_at')
+    .gte('last_seen_at', cutoff);
+
+  if (error) {
+    if (isStudentSessionLockSchemaError(error)) return [];
+    return [];
+  }
+
+  const schedule = schedules[0];
+  const userIds = (data ?? [])
+    .map((row) => String(row.user_id ?? ''))
+    .filter((id) => id && !excludeUserIds.has(id));
+
+  if (userIds.length === 0) return [];
+
+  const usersById = new Map<
+    string,
+    { full_name: string | null; email: string; metadata?: Record<string, unknown> }
+  >();
+
+  const { data: users } = await admin
+    .from('users')
+    .select('id, email, full_name')
+    .in('id', userIds);
+
+  for (const u of users ?? []) {
+    usersById.set(u.id as string, {
+      email: String(u.email ?? ''),
+      full_name: (u.full_name as string | null) ?? null,
+    });
+  }
+
+  for (const uid of userIds) {
+    if (usersById.has(uid)) continue;
+    const { data: authUser } = await admin.auth.admin.getUserById(uid);
+    if (authUser?.user) {
+      usersById.set(uid, {
+        email: authUser.user.email ?? '',
+        full_name:
+          (authUser.user.user_metadata?.full_name as string | undefined) ??
+          (authUser.user.user_metadata?.name as string | undefined) ??
+          null,
+        metadata: authUser.user.user_metadata as Record<string, unknown>,
+      });
+    }
+  }
+
+  const sessionByUser = new Map(
+    (data ?? []).map((row) => [String(row.user_id), row as Record<string, unknown>]),
+  );
+
+  return userIds.map((userId, index) => {
+    const sessionRow = sessionByUser.get(userId);
+    const user = usersById.get(userId);
+    const email = user?.email ?? '';
+    const lastSeen = String(sessionRow?.last_seen_at ?? new Date().toISOString());
+    return {
+      attempt_id: `session-${userId}`,
+      user_id: userId,
+      roll_number: rollNumberFromUser(email, user?.metadata) || String(sessionRow?.roll_number ?? ''),
+      student_name: user?.full_name || email || 'Student',
+      score: 0,
+      status: 'in_progress',
+      submitted_at: null,
+      updated_at: lastSeen,
+      rank: index + 1,
+      schedule_id: schedule.id,
+      schedule_title: schedule.title,
+      test_title: schedule.title,
+    };
+  });
 }
 
 function evaloraToExamSchedule(row: EvaloraModuleScheduleRow): ExamScheduleRow {
@@ -415,6 +534,25 @@ export async function buildLiveExamBoard(
       rank: index + 1,
     };
   });
+
+  const sessionWriters = await loadActiveSessionWriters(
+    admin,
+    [schedule],
+    new Set(entries.map((e) => e.user_id)),
+  );
+  for (const writer of sessionWriters) {
+    entries.push({
+      attempt_id: writer.attempt_id,
+      user_id: writer.user_id,
+      roll_number: writer.roll_number,
+      student_name: writer.student_name,
+      score: writer.score,
+      status: writer.status,
+      submitted_at: null,
+      updated_at: writer.updated_at,
+      rank: entries.length + 1,
+    });
+  }
 
   return {
     schedule,

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ensureExamViolationsTableIfPossible } from '@/lib/ensure-exam-violations';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
 import { loadProctoringViolations } from '@/lib/proctoring/proctoring-data';
 
@@ -12,6 +13,8 @@ export async function GET() {
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }
+
+  await ensureExamViolationsTableIfPossible();
 
   const { violations, summary } = await loadProctoringViolations(admin);
 

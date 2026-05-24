@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isExamViolationsSchemaError } from '@/lib/ensure-exam-violations';
 
 export type ProctorViolationRow = {
   id: string;
@@ -19,14 +20,10 @@ export type ProctoringSummary = {
 };
 
 function isMissingTable(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
-  const e = error as { code?: string; message?: string };
-  const msg = String(e.message ?? '').toLowerCase();
-  return (
-    e.code === 'PGRST205' ||
-    e.code === '42P01' ||
-    msg.includes('schema cache') ||
-    msg.includes('does not exist')
+  return isExamViolationsSchemaError(
+    error && typeof error === 'object'
+      ? (error as { code?: string; message?: string })
+      : null,
   );
 }
 
@@ -167,8 +164,9 @@ export async function loadProctoringViolations(
   let attemptQuery = admin
     .from('test_attempts')
     .select(
-      'id, user_id, test_id, proctor_violations, proctor_auto_submit, proctor_session_id, answers, completed_at, created_at',
+      'id, user_id, test_id, proctor_violations, proctor_auto_submit, proctor_session_id, answers, completed_at, created_at, status',
     )
+    .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
     .order('created_at', { ascending: false })
     .limit(500);
 
@@ -197,8 +195,10 @@ export async function loadProctoringViolations(
       const record = row as Record<string, unknown>;
       const count = Number(record.proctor_violations ?? 0);
       const auto = Boolean(record.proctor_auto_submit);
-      const hasProctorInAnswers = Boolean(parseProctorFromAnswers(record.answers)?.violations.length);
-      if (count > 0 || auto || hasProctorInAnswers) {
+      const parsed = parseProctorFromAnswers(record.answers);
+      const hasProctorInAnswers = Boolean(parsed?.violations.length);
+      const inProgress = String(record.status ?? '').toLowerCase() === 'in_progress';
+      if (count > 0 || auto || hasProctorInAnswers || (inProgress && parsed?.sessionId)) {
         attemptRows.push(...rowsFromAttempt(record));
       }
     }
