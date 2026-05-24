@@ -47,7 +47,8 @@ export default function SetupPage() {
     setError(null);
     try {
       const res = await fetch('/api/setup/seed-elevatex-sample', { method: 'POST' });
-      const json = (await res.json()) as {
+      const raw = await res.text();
+      let json: {
         error?: string;
         password?: string;
         supabaseProject?: string;
@@ -55,7 +56,18 @@ export default function SetupPage() {
         scheduleWarning?: string;
         legacyRemoved?: string[];
         accounts?: SeedAccount[];
-      };
+      } = {};
+      if (raw.trim()) {
+        try {
+          json = JSON.parse(raw) as typeof json;
+        } catch {
+          throw new Error(
+            raw.slice(0, 200) || `Seed failed with empty response (HTTP ${res.status})`,
+          );
+        }
+      } else if (!res.ok) {
+        throw new Error(`Seed failed with empty response (HTTP ${res.status})`);
+      }
       if (!res.ok) throw new Error(json.error ?? 'ElevateX seed failed');
       setElevatexPassword(json.password ?? ELEVATEX_SAMPLE_PASSWORD);
       setElevatexAccounts(json.accounts ?? defaultElevatexAccounts);

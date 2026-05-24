@@ -5,6 +5,9 @@ import { writeElevateXCredentialsPublicCsv } from '@/lib/elevatex-credentials-ex
 import { seedElevateXSample } from '@/lib/elevatex-sample-seed';
 import path from 'node:path';
 
+/** Seeding 42 users can exceed the default 10s limit on Vercel Hobby. */
+export const maxDuration = 60;
+
 function getServiceRoleKey(): string | undefined {
   const raw = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!raw || raw.includes('YOUR_')) return undefined;
@@ -16,49 +19,56 @@ function getServiceRoleKey(): string | undefined {
  * and go-lives ElevateX for 10:00 AM IST today on this Supabase project.
  */
 export async function POST() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const serviceRoleKey = getServiceRoleKey();
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+    const serviceRoleKey = getServiceRoleKey();
 
-  if (!supabaseUrl || !serviceRoleKey || !supabaseUrl.includes('.supabase.co')) {
-    return NextResponse.json(
-      {
-        error:
-          'Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (service role) for this deployment.',
-      },
-      { status: 500 },
-    );
+    if (!supabaseUrl || !serviceRoleKey || !supabaseUrl.includes('.supabase.co')) {
+      return NextResponse.json(
+        {
+          error:
+            'Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (service role) for this deployment.',
+        },
+        { status: 500 },
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const password =
+      process.env.ELEVATEX_SAMPLE_PASSWORD?.trim() || ELEVATEX_SAMPLE_PASSWORD;
+
+    const result = await seedElevateXSample(supabase, supabaseUrl, password);
+
+    if ('error' in result) {
+      return NextResponse.json(
+        { error: result.error, partial: result.partial },
+        { status: 500 },
+      );
+    }
+
+    const csvPath = writeElevateXCredentialsPublicCsv(path.join(process.cwd()), password);
+
+    return NextResponse.json({
+      success: true,
+      message:
+        'ElevateX Slot 1 test students are ready (EXS1001–EXS1042). Legacy EX26001–15 removed.',
+      password: result.password,
+      supabaseProject: result.supabaseProject,
+      scheduleId: result.scheduleId,
+      scheduleWarning: result.scheduleWarning,
+      scheduleLabel: result.scheduleLabel,
+      legacyRemoved: result.legacyRemoved,
+      accounts: result.accounts,
+      studentLogin: '/auth/login/student',
+      credentialsCsv: '/elevatex-slot1-credentials.csv',
+      csvWriteSkipped: csvPath === null,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'ElevateX seed failed unexpectedly';
+    console.error('[seed-elevatex-sample]', err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const password =
-    process.env.ELEVATEX_SAMPLE_PASSWORD?.trim() || ELEVATEX_SAMPLE_PASSWORD;
-
-  const result = await seedElevateXSample(supabase, supabaseUrl, password);
-
-  if ('error' in result) {
-    return NextResponse.json(
-      { error: result.error, partial: result.partial },
-      { status: 500 },
-    );
-  }
-
-  writeElevateXCredentialsPublicCsv(path.join(process.cwd()), password);
-
-  return NextResponse.json({
-    success: true,
-    message:
-      'ElevateX Slot 1 test students are ready (EXS1001–EXS1042). Legacy EX26001–15 removed.',
-    password: result.password,
-    supabaseProject: result.supabaseProject,
-    scheduleId: result.scheduleId,
-    scheduleWarning: result.scheduleWarning,
-    scheduleLabel: result.scheduleLabel,
-    legacyRemoved: result.legacyRemoved,
-    accounts: result.accounts,
-    studentLogin: '/auth/login/student',
-    credentialsCsv: '/elevatex-slot1-credentials.csv',
-  });
 }

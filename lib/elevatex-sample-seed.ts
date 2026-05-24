@@ -34,19 +34,35 @@ function todayIsoInIst(): string {
   }).format(new Date());
 }
 
+async function mapConcurrent<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await fn(items[index]!, index);
+    }
+  }
+
+  const workers = Math.min(Math.max(concurrency, 1), items.length);
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+  return results;
+}
+
 async function upsertAuthStudent(
   supabase: SupabaseClient,
   email: string,
   password: string,
   metadata: Record<string, string>,
+  usersByEmail: Map<string, { id: string }>,
 ): Promise<{ id: string; created: boolean } | { error: string }> {
-  const { data: listed, error: listError } = await supabase.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
-  if (listError) return { error: listError.message };
-
-  const existing = listed.users.find((u) => (u.email ?? '').toLowerCase() === email.toLowerCase());
+  const existing = usersByEmail.get(email.toLowerCase());
 
   if (existing?.id) {
     const { error: updateError } = await supabase.auth.admin.updateUserById(existing.id, {
@@ -67,6 +83,7 @@ async function upsertAuthStudent(
   if (createError || !created.user?.id) {
     return { error: createError?.message ?? 'Failed to create user' };
   }
+  usersByEmail.set(email.toLowerCase(), { id: created.user.id });
   return { id: created.user.id, created: true };
 }
 
@@ -93,24 +110,33 @@ async function upsertStudentProfile(
   return error?.message ?? null;
 }
 
+async function loadAuthUsersByEmail(
+  supabase: SupabaseClient,
+): Promise<{ usersByEmail: Map<string, { id: string }> } | { error: string }> {
+  const { data: listed, error: listError } = await supabase.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+  if (listError) return { error: listError.message };
+
+  const usersByEmail = new Map<string, { id: string }>();
+  for (const user of listed.users) {
+    const email = (user.email ?? '').toLowerCase();
+    if (email && user.id) usersByEmail.set(email, { id: user.id });
+  }
+  return { usersByEmail };
+}
+
 async function deleteLegacySampleStudents(
+  usersByEmail: Map<string, { id: string }>,
   supabase: SupabaseClient,
 ): Promise<{ deleted: string[]; errors: string[] }> {
   const deleted: string[] = [];
   const errors: string[] = [];
 
-  const { data: listed, error: listError } = await supabase.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
-  if (listError) {
-    errors.push(listError.message);
-    return { deleted, errors };
-  }
-
   for (const roll of LEGACY_ELEVATEX_SAMPLE_ROLLS) {
-    const email = studentAuthEmail(roll);
-    const user = listed.users.find((u) => (u.email ?? '').toLowerCase() === email.toLowerCase());
+    const email = studentAuthEmail(roll).toLowerCase();
+    const user = usersByEmail.get(email);
     if (!user?.id) continue;
 
     const { error: delErr } = await supabase.auth.admin.deleteUser(user.id);
@@ -118,6 +144,7 @@ async function deleteLegacySampleStudents(
       errors.push(`${roll}: ${delErr.message}`);
       continue;
     }
+    usersByEmail.delete(email);
     await supabase.from('users').delete().eq('id', user.id);
     deleted.push(roll);
   }
@@ -160,12 +187,17 @@ export async function seedElevateXSample(
     }
   })();
 
+  const loaded = await loadAuthUsersByEmail(supabase);
+  if ('error' in loaded) {
+    return { error: loaded.error };
+  }
+
+  const { usersByEmail } = loaded;
+
   const { deleted: legacyRemoved, errors: legacyRemoveErrors } =
-    await deleteLegacySampleStudents(supabase);
+    await deleteLegacySampleStudents(usersByEmail, supabase);
 
-  const accounts: ElevateXSeedAccountResult[] = [];
-
-  for (const student of ELEVATEX_SAMPLE_STUDENTS) {
+  const seedResults = await mapConcurrent(ELEVATEX_SAMPLE_STUDENTS, 6, async (student) => {
     const email = studentAuthEmail(student.roll);
     const metadata = {
       role: 'student',
@@ -178,22 +210,30 @@ export async function seedElevateXSample(
       academic_year: student.year,
     };
 
-    const outcome = await upsertAuthStudent(supabase, email, password, metadata);
+    const outcome = await upsertAuthStudent(supabase, email, password, metadata, usersByEmail);
     if ('error' in outcome) {
-      return { error: outcome.error, partial: accounts };
+      return { error: outcome.error, roll: student.roll } as const;
     }
 
     const profileWarning = await upsertStudentProfile(supabase, outcome.id, email, student);
 
-    accounts.push({
+    return {
       roll: student.roll,
       email,
       department: student.department,
       year: student.year,
-      status: outcome.created ? 'created' : 'updated',
+      status: outcome.created ? ('created' as const) : ('updated' as const),
       ...(profileWarning ? { profileWarning } : {}),
-    });
+    };
+  });
+
+  const failed = seedResults.find((r): r is { error: string; roll: string } => 'error' in r);
+  if (failed) {
+    const partial = seedResults.filter((r): r is ElevateXSeedAccountResult => !('error' in r));
+    return { error: `${failed.roll}: ${failed.error}`, partial };
   }
+
+  const accounts = seedResults as ElevateXSeedAccountResult[];
 
   const slotDate = options?.slotDateIso ?? todayIsoInIst();
   const { startsAt, endsAt, label: scheduleLabel } = getElevateXSlot1ScheduleWindow(slotDate);

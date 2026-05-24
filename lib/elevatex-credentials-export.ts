@@ -22,13 +22,17 @@ export function formatElevateXCredentialsCsv(
   return lines.join('\n');
 }
 
-/** Write CSV to public/ so deployed app can link /elevatex-slot1-credentials.csv */
+/** Write CSV to public/ when filesystem is writable (local dev). Returns null on serverless. */
 export function writeElevateXCredentialsPublicCsv(
   rootDir: string,
   password: string = ELEVATEX_SAMPLE_PASSWORD,
-): string {
-  const outPath = path.join(rootDir, 'public', 'elevatex-slot1-credentials.csv');
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, formatElevateXCredentialsCsv(ELEVATEX_SAMPLE_STUDENTS, password), 'utf8');
-  return outPath;
+): string | null {
+  try {
+    const outPath = path.join(rootDir, 'public', 'elevatex-slot1-credentials.csv');
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, formatElevateXCredentialsCsv(ELEVATEX_SAMPLE_STUDENTS, password), 'utf8');
+    return outPath;
+  } catch {
+    return null;
+  }
 }
