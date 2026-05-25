@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import {
   FileSpreadsheet,
   FileText,
@@ -20,6 +20,8 @@ type StatDetailReportModalProps = {
   onClose: () => void;
   report: TableReportPayload | null;
   fileBase?: string;
+  /** Optional controls shown below the header (e.g. date filter). */
+  toolbar?: ReactNode;
 };
 
 export function StatDetailReportModal({
@@ -159,6 +161,12 @@ export function StatDetailReportModal({
             </div>
           </div>
         </header>
+
+        {toolbar ? (
+          <div className="shrink-0 border-b border-slate-200/80 bg-white px-5 sm:px-8 py-4">
+            {toolbar}
+          </div>
+        ) : null}
 
         {/* Summary KPI strip */}
         {report.summaryLines?.length ? (

@@ -20,13 +20,19 @@ import { LiveExamDashboard } from '@/components/admin/live-exam-dashboard';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { StatDetailReportModal } from '@/components/reports/stat-detail-report-modal';
+import { AdminAttendanceReportModal } from '@/components/admin/admin-attendance-report-modal';
 import { AdminTestDetailModal } from '@/components/admin/admin-test-detail-modal';
+import {
+  buildAttendanceDayRows,
+  summarizeAttendanceDay,
+} from '@/lib/admin/attendance-report';
 import {
   buildAdminDashboardCardReport,
   type AdminDashboardCardKey,
   type AdminDashboardReportContext,
 } from '@/lib/admin/dashboard-card-reports';
 import { buildDashboardTestOverviewItem } from '@/lib/admin/dashboard-test-report';
+import { getTodayDateKeyInIST, formatDateKeyLabel } from '@/lib/admin/report-date-filter';
 import type { AdminTestOverviewItem } from '@/lib/admin/tests-overview-data';
 
 type DashboardStudent = {
@@ -86,6 +92,8 @@ export function AdminDashboard() {
   const [testDetailScopeUserIds, setTestDetailScopeUserIds] = useState<string[] | undefined>(
     undefined,
   );
+  const [attendanceDateKey, setAttendanceDateKey] = useState(() => getTodayDateKeyInIST());
+  const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
 
@@ -401,6 +409,22 @@ export function AdminDashboard() {
     categoryNameByTestId.set(testId, cat?.name ?? '');
   }
 
+  const attendanceDayRows = buildAttendanceDayRows(
+    attendanceDateKey,
+    filteredStudents,
+    allAttempts,
+  );
+  const attendanceDaySummary = summarizeAttendanceDay(
+    attendanceDateKey,
+    filteredStudents,
+    allAttempts,
+  );
+
+  const openAttendanceReport = (dateKey?: string) => {
+    if (dateKey) setAttendanceDateKey(dateKey);
+    setAttendanceModalOpen(true);
+  };
+
   const openTestWiseDetails = (row: (typeof testWisePerformance)[0]) => {
     const categorySlug = categorySlugByTestId.get(row.testId) ?? '';
     const scopeUserIds = [
@@ -524,6 +548,14 @@ export function AdminDashboard() {
         open={testDetailModalOpen}
         onOpenChange={setTestDetailModalOpen}
         scopeUserIds={testDetailScopeUserIds}
+      />
+      <AdminAttendanceReportModal
+        open={attendanceModalOpen}
+        onClose={() => setAttendanceModalOpen(false)}
+        dateKey={attendanceDateKey}
+        onDateKeyChange={setAttendanceDateKey}
+        students={filteredStudents}
+        attempts={allAttempts}
       />
       <LiveExamDashboard />
       <Card className="mb-6 border-amber-200 bg-amber-50/80 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -696,10 +728,10 @@ export function AdminDashboard() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
             label="Attendance rate"
-            value={formatScorePercentLabel(attendanceRate)}
-            hint={`${stats.totalStudentsAttended} of ${stats.totalRegisteredUsers} students have attempted at least one test`}
+            value={formatScorePercentLabel(attendanceDaySummary.attendanceRate)}
+            hint={`${attendanceDaySummary.attendedCount} of ${attendanceDaySummary.totalStudents} students on ${formatDateKeyLabel(attendanceDateKey)} (IST) — click for date-wise report`}
             accent="blue"
-            onClick={() => openCard('attendance_rate')}
+            onClick={() => openAttendanceReport()}
           />
           <StatCard
             label="Overall average score"
@@ -840,47 +872,119 @@ export function AdminDashboard() {
         </Card>
 
         <Card className="p-6 mb-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
-            <h2 className="text-xl font-bold text-[#0c2340]">Student attendance and performance report</h2>
-            <p className="text-sm text-slate-500">
-              Showing {filteredStudents.length} of {allStudents.length} students
-            </p>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-[#0c2340]">Student attendance and performance report</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Date-wise attendance (IST) · {formatDateKeyLabel(attendanceDateKey)} ·{' '}
+                <span className="font-semibold text-emerald-700">
+                  {formatScorePercentLabel(attendanceDaySummary.attendanceRate)} present
+                </span>{' '}
+                ({attendanceDaySummary.attendedCount}/{attendanceDaySummary.totalStudents})
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 items-center shrink-0">
+              <Input
+                type="date"
+                value={attendanceDateKey}
+                max={getTodayDateKeyInIST()}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v) setAttendanceDateKey(v);
+                }}
+                className="w-[11.5rem]"
+                aria-label="Attendance date"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setAttendanceDateKey(getTodayDateKeyInIST())}
+              >
+                Today
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="bg-[#0c2340] hover:bg-[#16304f]"
+                onClick={() => openAttendanceReport()}
+              >
+                View & download report
+              </Button>
+            </div>
           </div>
+          <p className="text-sm text-slate-500 mb-4">
+            Showing {filteredStudents.length} of {allStudents.length} students ·{' '}
+            {attendanceDaySummary.attemptsOnDate} attempts on selected date
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Student</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Attempts (written)</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Average</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Highest</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Top Test</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Last Attempt</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Status (date)</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Attempts on date</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Tests on date</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Lifetime avg</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Lifetime highest</th>
+                  <th className="text-right py-3 px-4 font-semibold text-slate-700">Report</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-slate-500">
+                    <td colSpan={7} className="text-center py-8 text-slate-500">
                       No students matched your filters.
                     </td>
                   </tr>
                 ) : (
-                  filteredStudents.map((student) => (
-                    <tr key={student.id} className="border-b border-slate-100 hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <p className="font-medium text-[#0c2340]">{student.full_name || student.email}</p>
-                        <p className="text-xs text-slate-500">{student.email}</p>
-                      </td>
-                      <td className="py-3 px-4 text-[#0c2340]">{student.attempts}</td>
-                      <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(student.avgScore)}</td>
-                      <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(student.highestScore)}</td>
-                      <td className="py-3 px-4 text-slate-700">{student.highestTestName || '-'}</td>
-                      <td className="py-3 px-4 text-slate-700">
-                        {student.latestAttemptAt ? new Date(student.latestAttemptAt).toLocaleString() : 'No attempts'}
-                      </td>
-                    </tr>
-                  ))
+                  attendanceDayRows.map((row) => {
+                    const student = filteredStudents.find((s) => s.id === row.studentId);
+                    if (!student) return null;
+                    return (
+                      <tr
+                        key={row.studentId}
+                        className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => openAttendanceReport()}
+                      >
+                        <td className="py-3 px-4">
+                          <p className="font-medium text-[#0c2340]">{student.full_name || student.email}</p>
+                          <p className="text-xs text-slate-500">{student.email}</p>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={cn(
+                              'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold',
+                              row.status === 'Attended'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-slate-100 text-slate-600',
+                            )}
+                          >
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-[#0c2340]">{row.attemptsOnDate}</td>
+                        <td className="py-3 px-4 text-slate-700 max-w-[200px] truncate" title={row.testsOnDate}>
+                          {row.testsOnDate}
+                        </td>
+                        <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(student.avgScore)}</td>
+                        <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(student.highestScore)}</td>
+                        <td className="py-3 px-4 text-right">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openAttendanceReport();
+                            }}
+                          >
+                            Details
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
