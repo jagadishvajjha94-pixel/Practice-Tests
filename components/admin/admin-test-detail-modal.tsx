@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   Dialog,
@@ -11,15 +11,27 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatAttemptStatus } from '@/lib/attempt-status';
-import { formatScorePercentLabel } from '@/lib/format-score';
+import {
+  formatAttemptStatus,
+  isCompletedAttemptStatus,
+  isInProgressStatus,
+} from '@/lib/attempt-status';
+import {
+  averageScorePercent,
+  formatScorePercentLabel,
+  roundRatePercent,
+  roundScorePercent,
+} from '@/lib/format-score';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { ADMIN_EXAM_TYPE_META } from '@/lib/admin/exam-type';
+import { downloadTestReportCsv } from '@/lib/admin/export-test-report-csv';
 import { downloadTestReportPdf } from '@/lib/admin/export-test-report-pdf';
 import {
-  reportFiltersForTestOverview,
-  scheduleLabelForTestOverview,
-} from '@/lib/admin/test-overview-report';
-import type { TestReportsPayload } from '@/lib/admin/test-reports-data';
+  isDashboardOverviewTest,
+  resolveReportFiltersForOverview,
+} from '@/lib/admin/dashboard-test-report';
+import { scheduleLabelForTestOverview } from '@/lib/admin/test-overview-report';
+import type { TestReportRow, TestReportsPayload } from '@/lib/admin/test-reports-data';
 import type { AdminTestOverviewItem } from '@/lib/admin/tests-overview-data';
 import { formatCollegeDateTime } from '@/lib/college-timezone';
 
@@ -28,7 +40,29 @@ type AdminTestDetailModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDeleted?: () => void;
+  /** Limit results to these students (dashboard filters). */
+  scopeUserIds?: string[];
 };
+
+function computeSummaryFromRows(rows: TestReportRow[]): TestReportsPayload['summary'] {
+  const completedRows = rows.filter((r) => isCompletedAttemptStatus(r.status, r.completed_at));
+  const inProgressCount = rows.filter(
+    (r) => isInProgressStatus(r.status) && !r.completed_at,
+  ).length;
+  const scores = completedRows.map((r) => r.score);
+  const uniqueStudents = new Set(rows.map((r) => r.user_id)).size;
+  const passed = scores.filter((s) => s >= 40).length;
+
+  return {
+    total_attempts: rows.length,
+    in_progress_count: inProgressCount,
+    completed_count: completedRows.length,
+    unique_students: uniqueStudents,
+    avg_score: scores.length > 0 ? averageScorePercent(scores) : 0,
+    pass_rate: scores.length > 0 ? roundRatePercent((passed / scores.length) * 100) : 0,
+    highest_score: scores.length > 0 ? roundScorePercent(Math.max(...scores)) : 0,
+  };
+}
 
 function statusTone(status: AdminTestOverviewItem['status']) {
   if (status === 'live') return 'success';
@@ -63,16 +97,35 @@ function AdminTestDetailModalContent({
   test,
   onOpenChange,
   onDeleted,
+  scopeUserIds,
 }: {
   test: AdminTestOverviewItem;
   onOpenChange: (open: boolean) => void;
   onDeleted?: () => void;
+  scopeUserIds?: string[];
 }) {
   const [reportPayload, setReportPayload] = useState<TestReportsPayload | null>(null);
   const [reportLoading, setReportLoading] = useState(true);
   const [reportError, setReportError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<'pdf' | 'csv' | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const fromDashboard = isDashboardOverviewTest(test);
+
+  const scopeSet = useMemo(
+    () => (scopeUserIds?.length ? new Set(scopeUserIds) : null),
+    [scopeUserIds],
+  );
+
+  const displayPayload = useMemo(() => {
+    if (!reportPayload) return null;
+    if (!scopeSet) return reportPayload;
+    const rows = reportPayload.rows.filter((r) => scopeSet.has(r.user_id));
+    return {
+      ...reportPayload,
+      rows,
+      summary: computeSummaryFromRows(rows),
+    };
+  }, [reportPayload, scopeSet]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,13 +133,12 @@ function AdminTestDetailModalContent({
     setReportError(null);
     setReportLoading(true);
 
-    const { examType, testId, scheduleId } = reportFiltersForTestOverview(test);
+    const { examType, testId, scheduleId } = resolveReportFiltersForOverview(test);
     const q = new URLSearchParams({ examType });
     if (testId) q.set('testId', testId);
     if (scheduleId) q.set('scheduleId', scheduleId);
 
-    fetch(`/api/admin/test-reports?${q.toString()}`, {
-      credentials: 'include',
+    fetchWithAuth(`/api/admin/test-reports?${q.toString()}`, {
       cache: 'no-store',
     })
       .then(async (res) => {
@@ -110,12 +162,14 @@ function AdminTestDetailModalContent({
     };
   }, [test.id]);
 
-  const stats = reportPayload?.summary;
-  const rows = reportPayload?.rows ?? [];
+  const stats = displayPayload?.summary;
+  const rows = displayPayload?.rows ?? [];
   const studentsAttempted = stats?.unique_students ?? test.students_attempted;
   const completedAttempts = stats?.completed_count ?? test.completed_attempts;
   const avgScore = stats?.avg_score ?? test.avg_score;
   const totalAttempts = stats?.total_attempts ?? test.total_attempts;
+  const reportQuery = resolveReportFiltersForOverview(test);
+  const examLabel = ADMIN_EXAM_TYPE_META[reportQuery.examType].label;
 
   const targetDepartments =
     test.departments.length > 0 ? test.departments.join(', ') : 'All departments';
@@ -147,27 +201,39 @@ function AdminTestDetailModalContent({
   };
 
   const downloadExamReportPdf = async () => {
-    if (!reportPayload || rows.length === 0) {
+    if (!displayPayload || rows.length === 0) {
       alert('No student attempts recorded for this exam yet.');
       return;
     }
 
-    setDownloading(true);
+    setDownloading('pdf');
     try {
-      const { examType } = reportFiltersForTestOverview(test);
       downloadTestReportPdf({
-        examLabel: ADMIN_EXAM_TYPE_META[examType].label,
+        examLabel,
         testName: test.title,
-        scheduleLabel: scheduleLabelForTestOverview(test),
-        rows: reportPayload.rows,
-        summary: reportPayload.summary,
+        scheduleLabel: fromDashboard
+          ? 'Dashboard filters applied'
+          : scheduleLabelForTestOverview(test),
+        rows: displayPayload.rows,
+        summary: displayPayload.summary,
       });
     } finally {
-      setDownloading(false);
+      setDownloading(null);
     }
   };
 
-  const reportQuery = reportFiltersForTestOverview(test);
+  const downloadExamReportCsv = () => {
+    if (!displayPayload || rows.length === 0) {
+      alert('No student attempts recorded for this exam yet.');
+      return;
+    }
+    setDownloading('csv');
+    try {
+      downloadTestReportCsv(displayPayload, { testId: test.test_id ?? undefined, testName: test.title });
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   return (
     <DialogContent className="sm:max-w-2xl max-h-[min(calc(100dvh-2rem),800px)] overflow-y-auto overscroll-contain flex flex-col">
@@ -285,10 +351,21 @@ function AdminTestDetailModalContent({
       <div className="mt-4 flex flex-wrap gap-2">
         <Button
           className="bg-[#0c2340] hover:bg-[#16304f]"
-          disabled={downloading || reportLoading || totalAttempts === 0}
+          disabled={downloading !== null || reportLoading || totalAttempts === 0}
           onClick={() => void downloadExamReportPdf()}
         >
-          {downloading ? 'Preparing PDF…' : 'Download slot report (PDF)'}
+          {downloading === 'pdf'
+            ? 'Preparing PDF…'
+            : fromDashboard
+              ? 'Download test report (PDF)'
+              : 'Download slot report (PDF)'}
+        </Button>
+        <Button
+          variant="outline"
+          disabled={downloading !== null || reportLoading || totalAttempts === 0}
+          onClick={downloadExamReportCsv}
+        >
+          {downloading === 'csv' ? 'Preparing CSV…' : 'Download report (CSV)'}
         </Button>
         <Button variant="outline" asChild>
           <Link
@@ -299,14 +376,16 @@ function AdminTestDetailModalContent({
             Open full reports
           </Link>
         </Button>
-        <Button
-          variant="outline"
-          disabled={deleting}
-          className="text-red-700 border-red-200 hover:bg-red-50"
-          onClick={() => void deleteTest()}
-        >
-          {deleting ? 'Deleting…' : 'Delete'}
-        </Button>
+        {!fromDashboard ? (
+          <Button
+            variant="outline"
+            disabled={deleting}
+            className="text-red-700 border-red-200 hover:bg-red-50"
+            onClick={() => void deleteTest()}
+          >
+            {deleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        ) : null}
         {test.kind === 'faculty_published' || test.kind === 'faculty_schedule' ? (
           <Button variant="ghost" asChild>
             <Link href="/admin/exam-schedules">Exam schedules →</Link>
@@ -322,16 +401,18 @@ export function AdminTestDetailModal({
   open,
   onOpenChange,
   onDeleted,
+  scopeUserIds,
 }: AdminTestDetailModalProps) {
   if (!test) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <AdminTestDetailModalContent
-        key={test.id}
+        key={`${test.id}:${scopeUserIds?.join(',') ?? ''}`}
         test={test}
         onOpenChange={onOpenChange}
         onDeleted={onDeleted}
+        scopeUserIds={scopeUserIds}
       />
     </Dialog>
   );

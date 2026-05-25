@@ -20,11 +20,14 @@ import { LiveExamDashboard } from '@/components/admin/live-exam-dashboard';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { StatDetailReportModal } from '@/components/reports/stat-detail-report-modal';
+import { AdminTestDetailModal } from '@/components/admin/admin-test-detail-modal';
 import {
   buildAdminDashboardCardReport,
   type AdminDashboardCardKey,
   type AdminDashboardReportContext,
 } from '@/lib/admin/dashboard-card-reports';
+import { buildDashboardTestOverviewItem } from '@/lib/admin/dashboard-test-report';
+import type { AdminTestOverviewItem } from '@/lib/admin/tests-overview-data';
 
 type DashboardStudent = {
   id: string;
@@ -78,6 +81,11 @@ export function AdminDashboard() {
   const [allStudents, setAllStudents] = useState<DashboardStudent[]>([]);
   const [allAttempts, setAllAttempts] = useState<DashboardAttemptRow[]>([]);
   const [detailCard, setDetailCard] = useState<AdminDashboardCardKey | null>(null);
+  const [selectedTestDetail, setSelectedTestDetail] = useState<AdminTestOverviewItem | null>(null);
+  const [testDetailModalOpen, setTestDetailModalOpen] = useState(false);
+  const [testDetailScopeUserIds, setTestDetailScopeUserIds] = useState<string[] | undefined>(
+    undefined,
+  );
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
 
@@ -359,8 +367,7 @@ export function AdminDashboard() {
         passRate: roundRatePercent((row.passed / row.attempts) * 100),
       };
     })
-    .sort((a, b) => b.attempts - a.attempts)
-    .slice(0, 8);
+    .sort((a, b) => b.attempts - a.attempts);
 
   const recentAttemptsFeed = [...filteredAttempts]
     .sort((a, b) => {
@@ -393,6 +400,28 @@ export function AdminDashboard() {
     categorySlugByTestId.set(testId, cat?.slug ?? '');
     categoryNameByTestId.set(testId, cat?.name ?? '');
   }
+
+  const openTestWiseDetails = (row: (typeof testWisePerformance)[0]) => {
+    const categorySlug = categorySlugByTestId.get(row.testId) ?? '';
+    const scopeUserIds = [
+      ...new Set(
+        filteredAttempts
+          .filter((a) => String(a.test_id ?? '') === row.testId && a.user_id)
+          .map((a) => String(a.user_id)),
+      ),
+    ];
+    setSelectedTestDetail(
+      buildDashboardTestOverviewItem({
+        testId: row.testId,
+        testName: row.testName,
+        attempts: row.attempts,
+        avgScore: row.avgScore,
+        categorySlug,
+      }),
+    );
+    setTestDetailScopeUserIds(scopeUserIds.length > 0 ? scopeUserIds : undefined);
+    setTestDetailModalOpen(true);
+  };
 
   const reportContext: AdminDashboardReportContext = {
     stats,
@@ -489,6 +518,12 @@ export function AdminDashboard() {
         onClose={() => setDetailCard(null)}
         report={detailReport}
         fileBase={detailCard ? `admin-${detailCard}` : undefined}
+      />
+      <AdminTestDetailModal
+        test={selectedTestDetail}
+        open={testDetailModalOpen}
+        onOpenChange={setTestDetailModalOpen}
+        scopeUserIds={testDetailScopeUserIds}
       />
       <LiveExamDashboard />
       <Card className="mb-6 border-amber-200 bg-amber-50/80 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -748,7 +783,9 @@ export function AdminDashboard() {
         <Card className="p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-[#0c2340]">Test-wise performance overview</h2>
-            <p className="text-sm text-slate-500">Top tests by number of attempts</p>
+            <p className="text-sm text-slate-500">
+              Click a test for student-wise results and PDF/CSV download
+            </p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -759,23 +796,41 @@ export function AdminDashboard() {
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Avg score</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Highest score</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Pass rate</th>
+                  <th className="text-right py-3 px-4 font-semibold text-slate-700">Report</th>
                 </tr>
               </thead>
               <tbody>
                 {testWisePerformance.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-500">
+                    <td colSpan={6} className="py-8 text-center text-slate-500">
                       No test attempts available for current filters.
                     </td>
                   </tr>
                 ) : (
                   testWisePerformance.map((row) => (
-                    <tr key={row.testId} className="border-b border-slate-100 hover:bg-gray-50">
+                    <tr
+                      key={row.testId}
+                      className="border-b border-slate-100 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => openTestWiseDetails(row)}
+                    >
                       <td className="py-3 px-4 text-[#0c2340] font-medium">{row.testName}</td>
                       <td className="py-3 px-4 text-[#0c2340]">{row.attempts}</td>
                       <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(row.avgScore)}</td>
                       <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(row.highestScore)}</td>
                       <td className="py-3 px-4 text-[#0c2340]">{formatScorePercentLabel(row.passRate)}</td>
+                      <td className="py-3 px-4 text-right">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openTestWiseDetails(row);
+                          }}
+                        >
+                          View details
+                        </Button>
+                      </td>
                     </tr>
                   ))
                 )}
