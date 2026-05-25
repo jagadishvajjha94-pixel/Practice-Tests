@@ -7,7 +7,7 @@ import { CollegeLogo } from '@/components/auth/college-logo';
 import { COLLEGE } from '@/lib/college-brand';
 import { isExamFocusRoute } from '@/lib/exam-routes';
 import { defaultRedirectForRole, type AppRole } from '@/lib/roles';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { createSupabaseBrowserClient, getBrowserAuthUser } from '@/lib/supabase-browser';
 
 function homeHrefForRole(role: AppRole | null): string {
   if (!role || role === 'guest') return '/';
@@ -27,9 +27,7 @@ export default function CollegeSiteHeader() {
     }
 
     const sync = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getBrowserAuthUser();
       if (!user) {
         setHomeHref('/');
         return;

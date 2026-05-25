@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { browserAuthLockNoOp } from './supabase-auth-lock';
 import {
   getPublicSupabaseAnonKey,
   getPublicSupabaseUrl,
@@ -14,7 +15,9 @@ function getClient(): SupabaseClient {
   if (!url || !key) {
     throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
   }
-  _client = createClient(url, key);
+  _client = createClient(url, key, {
+    auth: { lock: browserAuthLockNoOp, lockAcquireTimeout: 0 },
+  });
   return _client;
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { getBrowserAuthUser, getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { isExamFocusRoute } from '@/lib/exam-routes';
 
 export default function AppSessionBar() {
@@ -25,9 +25,7 @@ export default function AppSessionBar() {
     }
 
     const refresh = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getBrowserAuthUser();
       setEmail(user?.email ?? null);
     };
 

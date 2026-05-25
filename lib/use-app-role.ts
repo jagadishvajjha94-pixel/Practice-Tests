@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { getBrowserAuthUser } from '@/lib/supabase-browser';
 import type { AppRole } from '@/lib/roles';
 
 export function useAppRole() {
@@ -9,15 +9,7 @@ export function useAppRole() {
 
   useEffect(() => {
     const run = async () => {
-      const supabase = createSupabaseBrowserClient();
-      if (!supabase) {
-        setRole('guest');
-        return;
-      }
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getBrowserAuthUser();
       if (!user) {
         setRole('guest');
         return;

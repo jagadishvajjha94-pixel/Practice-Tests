@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { getBrowserAuthUser, getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 /** Keeps the one-login-per-roll lock alive while the student is using the app (including during exams). */
 export function StudentSessionHeartbeat() {
@@ -21,9 +21,7 @@ export function StudentSessionHeartbeat() {
     let cancelled = false;
 
     const sync = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getBrowserAuthUser();
       if (cancelled) return;
       setActive(Boolean(user?.email?.includes('@student.')));
     };
