@@ -91,7 +91,10 @@ async function getExcludedQuestionIds(
   return excluded;
 }
 
-async function questionIdsMatchingTagSlug(admin: SupabaseClient, tagSlug: string): Promise<string[]> {
+export async function questionIdsMatchingTagSlug(
+  admin: SupabaseClient,
+  tagSlug: string,
+): Promise<string[]> {
   const out: string[] = [];
   let offset = 0;
   for (;;) {
@@ -114,7 +117,7 @@ async function questionIdsMatchingTagSlug(admin: SupabaseClient, tagSlug: string
   return out;
 }
 
-async function questionIdsForTag(
+export async function questionIdsForTag(
   admin: SupabaseClient,
   tagId: string,
   tagSlug: string,

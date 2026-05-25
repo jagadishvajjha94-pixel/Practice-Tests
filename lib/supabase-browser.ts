@@ -1,7 +1,7 @@
 'use client'
 
 import { createBrowserClient } from '@supabase/ssr'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { processLock, type SupabaseClient } from '@supabase/supabase-js'
 import { getPublicSupabaseAnonKey, getPublicSupabaseUrl } from './supabase-public-env'
 
 let browserSingleton: SupabaseClient | undefined
@@ -17,7 +17,11 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
   if (!url || !key) {
     return null
   }
-  browserSingleton = createBrowserClient(url, key)
+  // Avoid navigator.locks (cross-tab "steal" AbortError when multiple tabs or
+  // React Strict Mode compete). processLock serializes auth within this tab only.
+  browserSingleton = createBrowserClient(url, key, {
+    auth: { lock: processLock },
+  })
   return browserSingleton
 }
 

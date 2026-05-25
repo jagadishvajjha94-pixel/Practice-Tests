@@ -1,29 +1,45 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Question } from '@/lib/types';
+import { Badge } from '@/components/ui/badge';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { fetchAdminCategories } from '@/lib/fetch-admin-categories';
 import type { CategoryOption } from '@/lib/ai-generator-config';
+import { cn } from '@/lib/utils';
+import type {
+  QuestionBankOverview,
+  QuestionBankRow,
+  QuestionBankSectionKey,
+} from '@/lib/admin/question-bank-catalog';
+
+type TopicPayload = {
+  topic: { id: string; slug: string; name: string };
+  total: number;
+  questions: QuestionBankRow[];
+};
 
 export default function QuestionsManagementPage() {
-  const router = useRouter();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState<QuestionBankOverview | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [selectedSection, setSelectedSection] = useState<QuestionBankSectionKey | ''>('');
+  const [selectedTopicSlug, setSelectedTopicSlug] = useState('');
+  const [topicLoading, setTopicLoading] = useState(false);
+  const [topicPayload, setTopicPayload] = useState<TopicPayload | null>(null);
+  const [topicOffset, setTopicOffset] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
+
+  const [showManage, setShowManage] = useState(false);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [categoryWarning, setCategoryWarning] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
   const [formData, setFormData] = useState({
     question_text: '',
     category_id: '',
@@ -34,44 +50,104 @@ export default function QuestionsManagementPage() {
     explanation: '',
   });
 
+  const loadOverview = useCallback(async () => {
+    setOverviewError(null);
+    const res = await fetch('/api/admin/question-bank', { credentials: 'include', cache: 'no-store' });
+    if (!res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(json.error ?? 'Could not load question bank');
+    }
+    const data = (await res.json()) as QuestionBankOverview;
+    setOverview(data);
+    if (data.sections.length > 0) {
+      setSelectedSection((prev) => prev || data.sections[0]!.key);
+      setSelectedTopicSlug((prev) => prev || data.sections[0]!.topics[0]?.slug || '');
+    }
+  }, []);
+
+  const loadTopic = useCallback(
+    async (slug: string, offset: number) => {
+      if (!slug) return;
+      setTopicLoading(true);
+      try {
+        const q = new URLSearchParams({
+          topicSlug: slug,
+          offset: String(offset),
+          limit: '50',
+        });
+        const res = await fetch(`/api/admin/question-bank?${q.toString()}`, {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(json.error ?? 'Could not load topic questions');
+        }
+        setTopicPayload((await res.json()) as TopicPayload);
+        setTopicOffset(offset);
+      } catch (err) {
+        setTopicPayload(null);
+        alert(err instanceof Error ? err.message : 'Load failed');
+      } finally {
+        setTopicLoading(false);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
-    const fetchData = async () => {
+    const init = async () => {
       try {
         const supabase = getSupabaseBrowserClient();
         if (!supabase) {
           setSupabaseEnvMissing(true);
-          setLoading(false);
           return;
         }
-        setIsAdmin(true);
-
-        // Fetch data
-        const { data: questionsData } = await supabase
-          .from('questions')
-          .select('*')
-          .order('created_at', { ascending: false });
-
         const { categories: categoryList, warning } = await fetchAdminCategories();
-
-        setQuestions(questionsData || []);
         setCategories(categoryList);
         if (warning) setCategoryWarning(warning);
-      } catch (error) {
-        console.error('Error:', error);
+        await loadOverview();
+      } catch (err) {
+        setOverviewError(err instanceof Error ? err.message : 'Failed to load');
       } finally {
         setLoading(false);
       }
     };
+    void init();
+  }, [loadOverview]);
 
-    fetchData();
-  }, [router]);
+  useEffect(() => {
+    if (selectedTopicSlug) void loadTopic(selectedTopicSlug, 0);
+  }, [selectedTopicSlug, loadTopic]);
+
+  const activeSection = overview?.sections.find((s) => s.key === selectedSection);
+  const filteredTopics =
+    activeSection?.topics.filter((t) =>
+      t.name.toLowerCase().includes(searchTerm.toLowerCase()),
+    ) ?? [];
+
+  const filteredQuestions =
+    topicPayload?.questions.filter((q) =>
+      q.question_text.toLowerCase().includes(searchTerm.toLowerCase()),
+    ) ?? [];
+
+  const selectTopic = (sectionKey: QuestionBankSectionKey, slug: string) => {
+    setSelectedSection(sectionKey);
+    setSelectedTopicSlug(slug);
+  };
+
+  const downloadTopicCsv = () => {
+    if (!selectedTopicSlug) return;
+    window.open(
+      `/api/admin/question-bank?topicSlug=${encodeURIComponent(selectedTopicSlug)}&export=csv`,
+      '_blank',
+    );
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     setUploading(true);
-
     try {
       const supabase = getSupabaseBrowserClient();
       if (!supabase) {
@@ -79,23 +155,19 @@ export default function QuestionsManagementPage() {
         return;
       }
       const text = await file.text();
-      const lines = text.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',').map(h => h.trim());
-
-      const newQuestions = [];
-
+      const lines = text.split('\n').filter((line) => line.trim());
+      const headers = lines[0].split(',').map((h) => h.trim());
+      const newQuestions: Record<string, unknown>[] = [];
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
-        const questionObj: any = {};
-
+        const values = lines[i].split(',').map((v) => v.trim());
+        const questionObj: Record<string, string> = {};
         headers.forEach((header, index) => {
-          questionObj[header] = values[index];
+          questionObj[header] = values[index] ?? '';
         });
-
-        if (questionObj.question_text && questionObj.category_id && questionObj.correct_answer) {
+        if (questionObj.question_text && questionObj.correct_answer) {
           newQuestions.push({
             question_text: questionObj.question_text,
-            category_id: questionObj.category_id,
+            category_id: questionObj.category_id || categories[0]?.id,
             difficulty: questionObj.difficulty || 'medium',
             type: questionObj.type || 'MCQ',
             options: questionObj.options ? JSON.parse(questionObj.options) : null,
@@ -105,23 +177,14 @@ export default function QuestionsManagementPage() {
           });
         }
       }
-
       if (newQuestions.length > 0) {
         const { error } = await supabase.from('questions').insert(newQuestions);
-
         if (error) throw error;
-
-        // Refresh questions
-        const { data } = await supabase
-          .from('questions')
-          .select('*')
-          .order('created_at', { ascending: false });
-        setQuestions(data || []);
-
-        alert(`${newQuestions.length} questions imported successfully`);
+        alert(`${newQuestions.length} questions imported`);
+        await loadOverview();
+        if (selectedTopicSlug) await loadTopic(selectedTopicSlug, topicOffset);
       }
-    } catch (error) {
-      console.error('Error uploading CSV:', error);
+    } catch {
       alert('Error importing questions');
     } finally {
       setUploading(false);
@@ -130,66 +193,40 @@ export default function QuestionsManagementPage() {
 
   const handleAddQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
       const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        alert(SUPABASE_PUBLIC_ENV_MESSAGE);
-        return;
-      }
+      if (!supabase) return;
       const { error } = await supabase.from('questions').insert({
         question_text: formData.question_text,
         category_id: formData.category_id,
         difficulty: formData.difficulty,
         type: formData.type,
-        options: formData.type === 'MCQ' ? formData.options.split('|').map(o => o.trim()) : null,
+        options: formData.type === 'MCQ' ? formData.options.split('|').map((o) => o.trim()) : null,
         correct_answer: formData.correct_answer,
         explanation: formData.explanation,
+        tags: selectedTopicSlug && selectedTopicSlug !== 'uncategorized' ? [selectedTopicSlug] : null,
       });
-
       if (error) throw error;
-
-      // Refresh
-      const { data } = await supabase
-        .from('questions')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setQuestions(data || []);
-
-      setFormData({
-        question_text: '',
-        category_id: '',
-        difficulty: 'medium',
-        type: 'MCQ',
-        options: '',
-        correct_answer: '',
-        explanation: '',
-      });
       setShowAddForm(false);
-
-      alert('Question added successfully');
-    } catch (error) {
+      await loadOverview();
+      if (selectedTopicSlug) await loadTopic(selectedTopicSlug, 0);
+      alert('Question added');
+    } catch {
       alert('Error adding question');
     }
   };
 
-  const filteredQuestions = questions.filter(q => {
-    const matchesSearch = q.question_text.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !selectedCategory || q.category_id === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Loading...</p>
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <p className="text-gray-600 animate-pulse">Loading question bank…</p>
       </div>
     );
   }
 
   if (supabaseEnvMissing) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="flex items-center justify-center min-h-[40vh] px-4">
         <p className="text-gray-600 text-center max-w-lg">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
       </div>
     );
@@ -197,206 +234,256 @@ export default function QuestionsManagementPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Question bank</h2>
-        <p className="text-sm text-gray-600 mt-1">Add, import, and manage MCQs used in practice and department exams.</p>
-        {categoryWarning ? (
-          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
-            {categoryWarning}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-[#0c2340]">Question bank</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            All MCQs by section and topic — same topics used in Exam builder and RMSET.
           </p>
-        ) : null}
+          {overview ? (
+            <p className="text-sm text-gray-500 mt-2">
+              <span className="font-semibold text-[#1e3a5f]">{overview.total_questions}</span>{' '}
+              questions · <span className="font-semibold">{overview.total_topics}</span> topics ·{' '}
+              <span className="font-semibold">{overview.sections.length}</span> sections
+            </p>
+          ) : null}
+          {overviewError ? (
+            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
+              {overviewError}
+            </p>
+          ) : null}
+          {categoryWarning ? (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+              {categoryWarning}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <Button variant="outline" asChild>
+            <Link href="/admin/exam-builder">Exam builder</Link>
+          </Button>
+          <Button variant="outline" onClick={() => setShowManage((v) => !v)}>
+            {showManage ? 'Hide add/import' : 'Add / import'}
+          </Button>
+          <Button
+            className="bg-[#0c2340] hover:bg-[#16304f]"
+            disabled={!selectedTopicSlug}
+            onClick={downloadTopicCsv}
+          >
+            Download topic CSV
+          </Button>
+        </div>
       </div>
-      <div>
-        {/* Controls */}
-        <div className="mb-8 space-y-4">
-          <div className="flex gap-4">
-            <Button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Add Question Manually
-            </Button>
 
-            <label className="inline-block">
-              <Button variant="outline" className="cursor-pointer">
-                Import from CSV
+      {showManage ? (
+        <Card className="p-4 mb-6 border-blue-100 bg-blue-50/40">
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Button size="sm" onClick={() => setShowAddForm(!showAddForm)}>
+              {showAddForm ? 'Cancel' : 'Add question'}
+            </Button>
+            <label>
+              <Button size="sm" variant="outline" className="cursor-pointer" asChild>
+                <span>Import CSV</span>
               </Button>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleFileUpload}
-                disabled={uploading}
-                className="hidden"
-              />
+              <input type="file" accept=".csv" onChange={handleFileUpload} disabled={uploading} className="hidden" />
             </label>
           </div>
-
-          <div className="flex gap-4">
-            <Input
-              placeholder="Search questions..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1"
-            />
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Add Form */}
-        {showAddForm && (
-          <Card className="p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Add New Question</h2>
-            <form onSubmit={handleAddQuestion} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Question Text</label>
-                <textarea
-                  value={formData.question_text}
-                  onChange={(e) => setFormData({...formData, question_text: e.target.value})}
-                  placeholder="Enter question..."
-                  required
-                  className="w-full border border-gray-300 rounded-lg p-2 min-h-24"
-                />
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <select
-                    value={formData.category_id}
-                    onChange={(e) => setFormData({...formData, category_id: e.target.value})}
-                    required
-                    className="w-full border border-gray-300 rounded-lg p-2"
-                  >
-                    <option value="">Select Category</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
-                  <select
-                    value={formData.difficulty}
-                    onChange={(e) => setFormData({...formData, difficulty: e.target.value})}
-                    className="w-full border border-gray-300 rounded-lg p-2"
-                  >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+          {showAddForm ? (
+            <form onSubmit={handleAddQuestion} className="space-y-3 text-sm">
+              <textarea
+                value={formData.question_text}
+                onChange={(e) => setFormData({ ...formData, question_text: e.target.value })}
+                placeholder="Question text"
+                required
+                className="w-full border rounded-lg p-2 min-h-20"
+              />
+              <div className="grid sm:grid-cols-2 gap-2">
                 <select
-                  value={formData.type}
-                  onChange={(e) => setFormData({...formData, type: e.target.value})}
-                  className="w-full border border-gray-300 rounded-lg p-2"
+                  value={formData.category_id}
+                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                  className="border rounded-lg p-2"
                 >
-                  <option value="MCQ">MCQ</option>
-                  <option value="numeric">Numeric</option>
-                  <option value="verbal">Verbal</option>
+                  <option value="">Category</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
                 </select>
-              </div>
-
-              {formData.type === 'MCQ' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Options (separate with |)</label>
-                  <Input
-                    value={formData.options}
-                    onChange={(e) => setFormData({...formData, options: e.target.value})}
-                    placeholder="Option 1 | Option 2 | Option 3"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer</label>
                 <Input
-                  value={formData.correct_answer}
-                  onChange={(e) => setFormData({...formData, correct_answer: e.target.value})}
-                  placeholder="Correct answer"
-                  required
+                  value={formData.options}
+                  onChange={(e) => setFormData({ ...formData, options: e.target.value })}
+                  placeholder="Options A|B|C|D"
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
-                <textarea
-                  value={formData.explanation}
-                  onChange={(e) => setFormData({...formData, explanation: e.target.value})}
-                  placeholder="Explain why this is correct..."
-                  className="w-full border border-gray-300 rounded-lg p-2 min-h-20"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
-                  Add Question
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowAddForm(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
+              <Input
+                value={formData.correct_answer}
+                onChange={(e) => setFormData({ ...formData, correct_answer: e.target.value })}
+                placeholder="Correct answer (A/B/C/D)"
+                required
+              />
+              <Button type="submit" size="sm">
+                Save to bank
+                {selectedTopicSlug && selectedTopicSlug !== 'uncategorized'
+                  ? ` (tag: ${selectedTopicSlug})`
+                  : ''}
+              </Button>
             </form>
-          </Card>
-        )}
+          ) : null}
+        </Card>
+      ) : null}
 
-        {/* Questions List */}
-        <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Question</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Category</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Difficulty</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Type</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredQuestions.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="text-center py-8 text-gray-500">
-                      No questions found
-                    </td>
-                  </tr>
-                ) : (
-                  filteredQuestions.map((q) => {
-                    const category = categories.find(c => c.id === q.category_id);
-                    return (
-                      <tr key={q.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-3 px-4 text-sm text-gray-900">{q.question_text.substring(0, 50)}...</td>
-                        <td className="py-3 px-4 text-sm text-gray-600">{category?.name}</td>
-                        <td className="py-3 px-4 text-sm"><span className="px-2 py-1 bg-gray-100 rounded text-gray-700 capitalize">{q.difficulty}</span></td>
-                        <td className="py-3 px-4 text-sm text-gray-600">{q.type}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+      <div className="grid lg:grid-cols-[280px_1fr] gap-4 min-h-[480px]">
+        <Card className="p-3 overflow-hidden flex flex-col max-h-[min(70vh,720px)]">
+          <p className="text-xs font-bold uppercase tracking-wider text-gray-500 px-2 mb-2">
+            Sections & topics
+          </p>
+          <Input
+            placeholder="Filter topics…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="mb-2 text-sm"
+          />
+          <div className="overflow-y-auto flex-1 space-y-3 pr-1">
+            {overview?.sections.map((section) => (
+              <div key={section.key}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSection(section.key);
+                    if (section.topics[0]) setSelectedTopicSlug(section.topics[0].slug);
+                  }}
+                  className={cn(
+                    'w-full text-left px-2 py-1.5 rounded-lg text-sm font-semibold',
+                    selectedSection === section.key
+                      ? 'bg-[#0c2340] text-white'
+                      : 'text-[#0c2340] hover:bg-gray-100',
+                  )}
+                >
+                  {section.name}
+                  <span className="ml-1 opacity-80">({section.question_count})</span>
+                </button>
+                {selectedSection === section.key ? (
+                  <ul className="mt-1 space-y-0.5 pl-1">
+                    {filteredTopics.map((topic) => (
+                      <li key={topic.slug}>
+                        <button
+                          type="button"
+                          onClick={() => selectTopic(section.key, topic.slug)}
+                          className={cn(
+                            'w-full text-left px-2 py-1.5 rounded text-xs sm:text-sm truncate',
+                            selectedTopicSlug === topic.slug
+                              ? 'bg-blue-100 text-blue-900 font-medium'
+                              : 'text-gray-700 hover:bg-gray-50',
+                          )}
+                        >
+                          {topic.name}
+                          <Badge tone="neutral" className="ml-1 text-[10px]">
+                            {topic.question_count}
+                          </Badge>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ))}
           </div>
         </Card>
 
-        <p className="text-sm text-gray-600 mt-4">
-          Total: {filteredQuestions.length} / {questions.length} questions
-        </p>
+        <Card className="p-4 flex flex-col min-h-[400px]">
+          {topicLoading ? (
+            <p className="text-sm text-gray-500 animate-pulse">Loading questions…</p>
+          ) : !topicPayload?.topic ? (
+            <p className="text-sm text-gray-500">Select a topic to view questions.</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4 border-b pb-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#0c2340]">{topicPayload.topic.name}</h3>
+                  <p className="text-xs text-gray-500 font-mono">{topicPayload.topic.slug}</p>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Showing {topicOffset + 1}–{topicOffset + filteredQuestions.length} of{' '}
+                  {topicPayload.total}
+                </p>
+              </div>
+
+              {filteredQuestions.length === 0 ? (
+                <p className="text-sm text-gray-500 py-8 text-center">
+                  No questions in this topic. Upload MCQs in Exam builder or use Add / import.
+                </p>
+              ) : (
+                <ul className="space-y-3 overflow-y-auto flex-1 pr-1">
+                  {filteredQuestions.map((q, idx) => {
+                    const opts = [
+                      q.option_a && `A: ${q.option_a}`,
+                      q.option_b && `B: ${q.option_b}`,
+                      q.option_c && `C: ${q.option_c}`,
+                      q.option_d && `D: ${q.option_d}`,
+                    ].filter(Boolean);
+                    return (
+                      <li
+                        key={q.id}
+                        className="rounded-lg border border-gray-200 p-3 hover:border-blue-200 bg-white"
+                      >
+                        <p className="text-xs text-gray-400 mb-1">
+                          #{topicOffset + idx + 1} · {q.difficulty} · {q.type}
+                        </p>
+                        <p className="text-sm text-gray-900 font-medium">{q.question_text}</p>
+                        {opts.length > 0 ? (
+                          <ul className="mt-2 text-xs text-gray-600 space-y-0.5">
+                            {opts.map((line) => (
+                              <li
+                                key={line}
+                                className={cn(
+                                  line?.startsWith(`${q.correct_answer}:`) &&
+                                    'font-semibold text-green-800',
+                                )}
+                              >
+                                {line}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                        <p className="text-xs text-gray-500 mt-2">
+                          Answer: <span className="font-semibold">{q.correct_answer}</span>
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {topicPayload.total > 50 ? (
+                <div className="flex gap-2 mt-4 pt-3 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={topicOffset <= 0}
+                    onClick={() => void loadTopic(selectedTopicSlug, Math.max(0, topicOffset - 50))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={topicOffset + 50 >= topicPayload.total}
+                    onClick={() => void loadTopic(selectedTopicSlug, topicOffset + 50)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          )}
+        </Card>
       </div>
+
+      <p className="text-xs text-gray-500 mt-4">
+        ElevateX uses a separate in-app question engine (technical, aptitude, psychometric, etc.) — not
+        listed here. Department exams and RMSET draw from this bank by topic tags.
+      </p>
     </div>
   );
 }
