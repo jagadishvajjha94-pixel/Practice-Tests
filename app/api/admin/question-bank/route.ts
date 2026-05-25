@@ -70,8 +70,11 @@ export async function GET(request: Request) {
   const limit = Math.min(Math.max(1, Number(searchParams.get('limit') ?? 100) || 100), 500);
 
   try {
-    if (exportFormat === 'csv' && (!topicSlug || exportAll)) {
+    if ((exportFormat === 'csv' || exportFormat === 'json') && (!topicSlug || exportAll)) {
       const rows = await loadFullQuestionBankForExport(admin);
+      if (exportFormat === 'json') {
+        return NextResponse.json({ rows, total: rows.length });
+      }
       const csv = buildQuestionBankCsv(rows);
       const stamp = new Date().toISOString().slice(0, 10);
       return new NextResponse(csv, {
@@ -87,8 +90,11 @@ export async function GET(request: Request) {
       return NextResponse.json(overview);
     }
 
-    if (exportFormat === 'csv') {
-      const { rows } = await loadTopicExportRows(admin, topicSlug);
+    if (exportFormat === 'csv' || exportFormat === 'json') {
+      const { rows, topicName } = await loadTopicExportRows(admin, topicSlug);
+      if (exportFormat === 'json') {
+        return NextResponse.json({ rows, total: rows.length, topic: topicName });
+      }
       const csv = buildQuestionBankCsv(rows);
       const slugPart = topicSlug.replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
       return new NextResponse(csv, {

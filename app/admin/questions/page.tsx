@@ -17,6 +17,11 @@ import type {
   QuestionBankRow,
   QuestionBankSectionKey,
 } from '@/lib/admin/question-bank-catalog';
+import { downloadQuestionBankPdf } from '@/lib/admin/export-question-bank-pdf';
+import {
+  fetchFullQuestionBankExport,
+  fetchTopicQuestionBankExport,
+} from '@/lib/admin/fetch-question-bank-export';
 
 type TopicPayload = {
   topic: { id: string; slug: string; name: string };
@@ -40,6 +45,7 @@ export default function QuestionsManagementPage() {
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [categoryWarning, setCategoryWarning] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pdfDownloading, setPdfDownloading] = useState<'topic' | 'full' | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
     question_text: '',
@@ -156,6 +162,39 @@ export default function QuestionsManagementPage() {
     window.open('/api/admin/question-bank?export=csv&all=1', '_blank');
   };
 
+  const downloadTopicPdf = async () => {
+    if (!selectedTopicSlug || !topicPayload?.topic) return;
+    setPdfDownloading('topic');
+    try {
+      const rows = await fetchTopicQuestionBankExport(selectedTopicSlug);
+      downloadQuestionBankPdf({
+        title: `Question bank — ${topicPayload.topic.name}`,
+        subtitle: `${rows.length} MCQs with options, answers, and explanations`,
+        rows,
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'PDF download failed');
+    } finally {
+      setPdfDownloading(null);
+    }
+  };
+
+  const downloadFullBankPdf = async () => {
+    setPdfDownloading('full');
+    try {
+      const rows = await fetchFullQuestionBankExport();
+      downloadQuestionBankPdf({
+        title: 'Question bank — full export',
+        subtitle: `${rows.length} MCQs across all sections and topics`,
+        rows,
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'PDF download failed');
+    } finally {
+      setPdfDownloading(null);
+    }
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -251,7 +290,7 @@ export default function QuestionsManagementPage() {
           <h2 className="text-2xl font-bold text-[#0c2340]">Question bank</h2>
           <p className="text-sm text-gray-600 mt-1">
             All MCQs by section and topic — same topics used in Exam builder and RMSET. Download the
-            full bank CSV for every question with options, correct answer, and explanation.
+            full bank as CSV or PDF — every question with options, correct answer, and explanation.
           </p>
           {overview ? (
             <p className="text-sm text-gray-500 mt-2">
@@ -283,14 +322,28 @@ export default function QuestionsManagementPage() {
             onClick={downloadFullBankCsv}
             disabled={!overview?.total_questions}
           >
-            Download full bank
+            Full bank (CSV)
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => void downloadFullBankPdf()}
+            disabled={!overview?.total_questions || pdfDownloading !== null}
+          >
+            {pdfDownloading === 'full' ? 'Preparing PDF…' : 'Full bank (PDF)'}
           </Button>
           <Button
             variant="outline"
             disabled={!selectedTopicSlug}
             onClick={downloadTopicCsv}
           >
-            Download topic CSV
+            Topic (CSV)
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!selectedTopicSlug || pdfDownloading !== null}
+            onClick={() => void downloadTopicPdf()}
+          >
+            {pdfDownloading === 'topic' ? 'Preparing PDF…' : 'Topic (PDF)'}
           </Button>
         </div>
       </div>
