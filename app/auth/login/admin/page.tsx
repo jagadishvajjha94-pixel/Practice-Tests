@@ -28,7 +28,10 @@ function AdminLoginForm() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const verifyAdmin = async () => {
-    const verifyRes = await fetch('/api/admin/verify', { method: 'POST' });
+    const verifyRes = await fetch('/api/admin/verify', {
+      method: 'POST',
+      credentials: 'include',
+    });
     const verifyJson = (await verifyRes.json().catch(() => ({}))) as {
       isAdmin?: boolean;
       error?: string;

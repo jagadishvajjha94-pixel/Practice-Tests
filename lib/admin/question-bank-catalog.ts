@@ -132,28 +132,67 @@ export function sectionKeyForTopicSlug(slug: string): QuestionBankSectionKey {
   return slugToSection.get(slug) ?? 'other';
 }
 
-async function countQuestionsForTag(
-  admin: SupabaseClient,
-  tag: { id: string; slug: string },
-): Promise<number> {
-  const ids = await questionIdsForTag(admin, tag.id, tag.slug);
-  return ids.length;
-}
+/** One paginated scan of question_tag_links — O(links) not O(tags × questions). */
+async function loadTagLinkCounts(admin: SupabaseClient): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  let offset = 0;
+  const pageSize = 1000;
 
-async function countUncategorizedQuestions(admin: SupabaseClient): Promise<number> {
-  const taggedIds = new Set<string>();
-  const { data: links } = await admin.from('question_tag_links').select('question_id');
-  for (const row of links ?? []) {
-    if (row.question_id != null) taggedIds.add(normalizeQuestionId(row.question_id));
+  for (;;) {
+    const { data, error } = await admin
+      .from('question_tag_links')
+      .select('tag_id')
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    for (const row of rows) {
+      if (row.tag_id == null) continue;
+      const tagId = String(row.tag_id);
+      counts.set(tagId, (counts.get(tagId) ?? 0) + 1);
+    }
+    if (rows.length < pageSize) break;
+    offset += pageSize;
   }
 
+  return counts;
+}
+
+async function loadAllTaggedQuestionIds(admin: SupabaseClient): Promise<Set<string>> {
+  const taggedIds = new Set<string>();
+  let offset = 0;
+  const pageSize = 1000;
+
+  for (;;) {
+    const { data, error } = await admin
+      .from('question_tag_links')
+      .select('question_id')
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    for (const row of rows) {
+      if (row.question_id != null) taggedIds.add(normalizeQuestionId(row.question_id));
+    }
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return taggedIds;
+}
+
+async function countUncategorizedQuestions(
+  admin: SupabaseClient,
+  taggedIds: Set<string>,
+): Promise<number> {
   let offset = 0;
   let uncategorized = 0;
-  for (;;) {
+  const pageSize = 1000;
+  const maxPages = 80;
+
+  for (let page = 0; page < maxPages; page++) {
     const { data, error } = await admin
       .from('questions')
       .select('id, tags')
-      .range(offset, offset + 900 - 1);
+      .range(offset, offset + pageSize - 1);
     if (error) break;
     const rows = data ?? [];
     for (const row of rows) {
@@ -163,19 +202,47 @@ async function countUncategorizedQuestions(admin: SupabaseClient): Promise<numbe
       if (Array.isArray(tags) && tags.length > 0) continue;
       uncategorized += 1;
     }
-    if (rows.length < 900) break;
-    offset += 900;
+    if (rows.length < pageSize) break;
+    offset += pageSize;
   }
   return uncategorized;
+}
+
+async function questionIdsLinkedToTag(admin: SupabaseClient, tagId: string): Promise<string[]> {
+  const ids: string[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+
+  for (;;) {
+    const { data, error } = await admin
+      .from('question_tag_links')
+      .select('question_id')
+      .eq('tag_id', tagId)
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    for (const row of rows) {
+      if (row.question_id != null) ids.push(normalizeQuestionId(row.question_id));
+    }
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return ids;
 }
 
 export async function loadQuestionBankOverview(
   admin: SupabaseClient,
 ): Promise<QuestionBankOverview> {
-  const { data: tagRows, error: tagErr } = await admin
-    .from('question_tags')
-    .select('id, slug, name')
-    .order('name');
+  const taggedIdsPromise = loadAllTaggedQuestionIds(admin);
+  const [{ data: tagRows, error: tagErr }, linkCounts, taggedIds, tableCountRes, uncategorizedCount] =
+    await Promise.all([
+      admin.from('question_tags').select('id, slug, name').order('name'),
+      loadTagLinkCounts(admin),
+      taggedIdsPromise,
+      admin.from('questions').select('id', { count: 'exact', head: true }),
+      taggedIdsPromise.then((ids) => countUncategorizedQuestions(admin, ids)),
+    ]);
 
   if (tagErr) throw new Error(tagErr.message);
 
@@ -185,11 +252,13 @@ export async function loadQuestionBankOverview(
     const slug = String(row.slug ?? '');
     const name = String(row.name ?? slug);
     if (!slug) continue;
-    const question_count = await countQuestionsForTag(admin, { id, slug });
-    topics.push({ id, slug, name, question_count });
+    topics.push({
+      id,
+      slug,
+      name,
+      question_count: linkCounts.get(id) ?? 0,
+    });
   }
-
-  const uncategorizedCount = await countUncategorizedQuestions(admin);
 
   const sectionMap = new Map<QuestionBankSectionKey, QuestionBankTopicSummary[]>();
   const ensure = (key: QuestionBankSectionKey) => {
@@ -234,9 +303,7 @@ export async function loadQuestionBankOverview(
       };
     });
 
-  const { count: tableTotal } = await admin
-    .from('questions')
-    .select('id', { count: 'exact', head: true });
+  const tableTotal = tableCountRes.count;
 
   return {
     total_questions: tableTotal ?? sections.reduce((sum, s) => sum + s.question_count, 0),
@@ -276,11 +343,7 @@ function rowToBankQuestion(row: Record<string, unknown>): QuestionBankRow {
 }
 
 async function loadUncategorizedQuestionIds(admin: SupabaseClient): Promise<string[]> {
-  const taggedIds = new Set<string>();
-  const { data: links } = await admin.from('question_tag_links').select('question_id');
-  for (const row of links ?? []) {
-    if (row.question_id != null) taggedIds.add(normalizeQuestionId(row.question_id));
-  }
+  const taggedIds = await loadAllTaggedQuestionIds(admin);
 
   const out: string[] = [];
   let offset = 0;
@@ -335,7 +398,10 @@ export async function loadQuestionsForTopic(
       slug: String(tagRow.slug),
       name: String(tagRow.name ?? topicSlug),
     };
-    allIds = await questionIdsForTag(admin, topic.id, topic.slug);
+    allIds = await questionIdsLinkedToTag(admin, topic.id);
+    if (allIds.length === 0) {
+      allIds = await questionIdsForTag(admin, topic.id, topic.slug);
+    }
   }
 
   const total = allIds.length;

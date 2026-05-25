@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { fetchAdminCategories } from '@/lib/fetch-admin-categories';
@@ -52,9 +53,17 @@ export default function QuestionsManagementPage() {
 
   const loadOverview = useCallback(async () => {
     setOverviewError(null);
-    const res = await fetch('/api/admin/question-bank', { credentials: 'include', cache: 'no-store' });
+    const res = await fetchWithAuth('/api/admin/question-bank', { cache: 'no-store' });
     if (!res.ok) {
       const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (res.status === 401) {
+        throw new Error('Session expired. Sign in again at Admin Login.');
+      }
+      if (res.status === 504) {
+        throw new Error(
+          'Question bank timed out (server busy). Refresh the page — if it persists, open one topic at a time instead of full export.',
+        );
+      }
       throw new Error(json.error ?? 'Could not load question bank');
     }
     const data = (await res.json()) as QuestionBankOverview;
@@ -75,8 +84,7 @@ export default function QuestionsManagementPage() {
           offset: String(offset),
           limit: '50',
         });
-        const res = await fetch(`/api/admin/question-bank?${q.toString()}`, {
-          credentials: 'include',
+        const res = await fetchWithAuth(`/api/admin/question-bank?${q.toString()}`, {
           cache: 'no-store',
         });
         if (!res.ok) {

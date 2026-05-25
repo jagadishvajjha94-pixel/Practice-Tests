@@ -10,6 +10,8 @@ import { StatCard } from '@/components/ui/stat-card';
 import { StatDetailReportModal } from '@/components/reports/stat-detail-report-modal';
 import { AdminPageHeader } from '@/components/admin/admin-page-header';
 import { LoadingScreen } from '@/components/ui/loading-screen';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import { getTodayDateKeyInIST } from '@/lib/admin/report-date-filter';
 import { ElevateXScorecardView } from '@/components/placement/elevatex-scorecard-view';
 import { downloadElevateXScorecardPdf } from '@/lib/placement/elevatex-scorecard-pdf';
 import {
@@ -44,13 +46,22 @@ type StatusFilter = 'all' | 'in_progress' | 'completed';
 export function TestReportsDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialType = parseAdminExamType(searchParams.get('type'));
+  const todayOnly =
+    searchParams.get('today') === '1' ||
+    searchParams.get('date') === 'today' ||
+    searchParams.get('date') === getTodayDateKeyInIST();
+  const initialType = todayOnly
+    ? 'elevatex'
+    : parseAdminExamType(searchParams.get('type') ?? searchParams.get('examType'));
 
   const [examType, setExamType] = useState<AdminExamType>(initialType);
   const [selectedTestId, setSelectedTestId] = useState('all');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    todayOnly ? 'completed' : 'all',
+  );
   const [payload, setPayload] = useState<TestReportsPayload | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [scorecardLoading, setScorecardLoading] = useState(false);
   const [scorecardModal, setScorecardModal] = useState<{
@@ -59,17 +70,26 @@ export function TestReportsDashboard() {
   } | null>(null);
   const [detailCard, setDetailCard] = useState<TestReportsCardKey | null>(null);
 
-  const load = useCallback(async (type: AdminExamType, testId: string) => {
+  const load = useCallback(async (type: AdminExamType, testId: string, today: boolean) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const q = new URLSearchParams({ examType: type });
       if (testId && testId !== 'all') q.set('testId', testId);
-      const res = await fetch(`/api/admin/test-reports?${q.toString()}`, {
-        credentials: 'include',
+      if (today) q.set('date', 'today');
+      const res = await fetchWithAuth(`/api/admin/test-reports?${q.toString()}`, {
         cache: 'no-store',
       });
       if (!res.ok) {
         setPayload(null);
+        if (res.status === 504) {
+          setLoadError('Report timed out. Refresh the page, or try again in a minute.');
+        } else if (res.status === 401) {
+          setLoadError('Session expired. Sign in again at Admin Login.');
+        } else {
+          const json = (await res.json().catch(() => ({}))) as { error?: string };
+          setLoadError(json.error ?? 'Could not load report');
+        }
         return;
       }
       setPayload((await res.json()) as TestReportsPayload);
@@ -84,16 +104,23 @@ export function TestReportsDashboard() {
   }, [searchParams]);
 
   useEffect(() => {
-    void load(examType, selectedTestId);
-  }, [examType, selectedTestId, load]);
+    void load(examType, selectedTestId, todayOnly);
+  }, [examType, selectedTestId, todayOnly, load]);
 
   const setExamTypeAndUrl = (type: AdminExamType) => {
     setExamType(type);
     setSelectedTestId('all');
     const params = new URLSearchParams();
+    if (todayOnly) params.set('today', '1');
     if (type !== 'all') params.set('type', type);
     const qs = params.toString();
     router.replace(qs ? `/admin/reports?${qs}` : '/admin/reports', { scroll: false });
+  };
+
+  const openTodayElevateX = () => {
+    router.replace('/admin/reports?type=elevatex&today=1', { scroll: false });
+    setExamType('elevatex');
+    setStatusFilter('completed');
   };
 
   const filteredRows = useMemo(() => {
@@ -139,6 +166,9 @@ export function TestReportsDashboard() {
     downloadTestReportPdf({
       examLabel: meta.label,
       testName: selectedTestId !== 'all' ? selectedTestName : undefined,
+      scheduleLabel: payload.report_date_label
+        ? `Report date (IST): ${payload.report_date_label}`
+        : undefined,
       rows: filteredRows,
       summary: filteredSummary ?? payload.summary,
     });
@@ -162,10 +192,10 @@ export function TestReportsDashboard() {
   const openElevateXScorecard = async (row: TestReportsPayload['rows'][0]) => {
     setScorecardLoading(true);
     try {
-      const res = await fetch(`/api/admin/elevatex/scorecard/${encodeURIComponent(row.attempt_id)}`, {
-        credentials: 'include',
-        cache: 'no-store',
-      });
+      const res = await fetchWithAuth(
+        `/api/admin/elevatex/scorecard/${encodeURIComponent(row.attempt_id)}`,
+        { cache: 'no-store' },
+      );
       if (!res.ok) {
         const json = (await res.json().catch(() => ({}))) as { error?: string };
         alert(json.error ?? 'Scorecard not available for this attempt.');
@@ -200,8 +230,12 @@ export function TestReportsDashboard() {
         fileBase={detailCard ? `test-reports-${examType}-${detailCard}` : undefined}
       />
       <AdminPageHeader
-        title="Test reports"
-        description="Per-exam dashboards with student scores — download overall exam reports as PDF or CSV."
+        title={todayOnly && examType === 'elevatex' ? 'ElevateX — today’s report' : 'Test reports'}
+        description={
+          todayOnly && payload?.report_date_label
+            ? `Students who wrote ElevateX on ${payload.report_date_label} (IST). Download PDF or CSV for the examination cell.`
+            : 'Per-exam dashboards with student scores — download overall exam reports as PDF or CSV.'
+        }
         actions={
           payload ? (
             <div className="flex flex-wrap gap-2">
@@ -223,6 +257,47 @@ export function TestReportsDashboard() {
           ) : null
         }
       />
+
+      {todayOnly && examType === 'elevatex' ? (
+        <Card className="mb-6 border-emerald-200 bg-emerald-50/80 p-4">
+          <p className="text-sm text-emerald-950">
+            <span className="font-semibold">Today only (IST):</span>{' '}
+            {payload?.report_date_label ?? 'Loading…'} — ranked by score. Use{' '}
+            <span className="font-semibold">View scorecard</span> for section-wise marks (technical,
+            aptitude, psychometric, etc.).
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setStatusFilter('completed')}>
+              Completed today
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setStatusFilter('all')}>
+              All activity today
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => router.replace('/admin/reports?type=elevatex', { scroll: false })}
+            >
+              All ElevateX dates
+            </Button>
+          </div>
+        </Card>
+      ) : examType === 'elevatex' ? (
+        <Card className="mb-6 border-blue-100 bg-blue-50/60 p-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-slate-700">
+            Need only students who submitted <span className="font-semibold">today</span>?
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            className="bg-[#0c2340] hover:bg-[#16304f] text-white"
+            onClick={openTodayElevateX}
+          >
+            ElevateX report — today
+          </Button>
+        </Card>
+      ) : null}
 
       <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-thin">
         {ADMIN_EXAM_TYPES.map((type) => {
@@ -254,7 +329,9 @@ export function TestReportsDashboard() {
       {loading ? (
         <LoadingScreen message="Loading test report…" className="min-h-[40vh]" />
       ) : !payload ? (
-        <Card className="p-8 text-center text-slate-600">Could not load report data.</Card>
+        <Card className="p-8 text-center text-slate-600">
+          {loadError ?? 'Could not load report data.'}
+        </Card>
       ) : (
         <>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">

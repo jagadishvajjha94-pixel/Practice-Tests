@@ -514,6 +514,9 @@ export function AdminDashboard() {
         actions={
           <div className="flex flex-wrap gap-2 shrink-0">
             <Button variant="outline" asChild>
+              <Link href="/admin/reports?type=elevatex&today=1">ElevateX today</Link>
+            </Button>
+            <Button variant="outline" asChild>
               <Link href="/admin/reports">Per-test reports</Link>
             </Button>
             <Button onClick={exportFullReportCsv} className="bg-emerald-600 hover:bg-emerald-700 text-white">

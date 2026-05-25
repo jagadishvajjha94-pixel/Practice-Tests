@@ -17,6 +17,8 @@ import {
   loadScheduleForReport,
   scheduleReportContextFromLoaded,
 } from '@/lib/admin/load-schedule-for-report';
+import { loadElevateXTodayReportFast } from '@/lib/admin/elevatex-today-report';
+import { isInstantOnDateKey, parseReportDateFilter } from '@/lib/admin/report-date-filter';
 import { testIdsMatch } from '@/lib/test-attempts';
 
 export type TestReportRow = {
@@ -46,8 +48,15 @@ export type TestOption = {
   attempt_count: number;
 };
 
+export type TestReportsLoadOptions = {
+  /** `today` or YYYY-MM-DD in IST — only attempts active on that calendar day. */
+  dateFilter?: string | null;
+};
+
 export type TestReportsPayload = {
   exam_type: AdminExamType;
+  report_date?: string;
+  report_date_label?: string;
   schedule?: {
     id: string;
     title: string;
@@ -73,7 +82,22 @@ export async function loadTestReportsPayload(
   examType: AdminExamType,
   testIdFilter?: string,
   scheduleIdFilter?: string,
+  options?: TestReportsLoadOptions,
 ): Promise<TestReportsPayload> {
+  const parsedDate = parseReportDateFilter(options?.dateFilter ?? null);
+  const reportDateKey = parsedDate?.dateKey;
+  const reportDateLabel = parsedDate?.label;
+
+  if (
+    examType === 'elevatex' &&
+    reportDateKey &&
+    reportDateLabel &&
+    !scheduleIdFilter &&
+    (!testIdFilter || testIdFilter === 'all')
+  ) {
+    return loadElevateXTodayReportFast(admin, reportDateKey, reportDateLabel);
+  }
+
   const [students, { attempts, testsById }, categoriesRes, testsRes] = await Promise.all([
     loadAdminStudents(admin),
     loadAllAttemptsRollup(admin),
@@ -130,6 +154,17 @@ export async function loadTestReportsPayload(
       if (attemptKey(a) === testIdFilter) return true;
       return Boolean(a.test_id && testIdsMatch(a.test_id, testIdFilter));
     });
+  }
+
+  if (reportDateKey) {
+    filtered = filtered.filter(
+      (a) =>
+        isInstantOnDateKey(a.completed_at, reportDateKey) ||
+        isInstantOnDateKey(a.created_at, reportDateKey),
+    );
+    if (examType === 'elevatex') {
+      filtered = latestAttemptPerUser(filtered);
+    }
   }
 
   let scheduleMeta: TestReportsPayload['schedule'];
@@ -215,6 +250,8 @@ export async function loadTestReportsPayload(
 
   return {
     exam_type: examType,
+    report_date: reportDateKey,
+    report_date_label: reportDateLabel,
     schedule: scheduleMeta,
     summary: {
       total_attempts: rows.length,

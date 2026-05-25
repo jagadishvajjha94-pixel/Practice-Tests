@@ -4,6 +4,7 @@ import { parseAdminExamType } from '@/lib/admin/exam-type';
 import { loadTestReportsPayload } from '@/lib/admin/test-reports-data';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   const auth = await requireAuth(['admin']);
@@ -18,8 +19,13 @@ export async function GET(request: Request) {
   const examType = parseAdminExamType(searchParams.get('examType'));
   const testId = searchParams.get('testId')?.trim() || undefined;
   const scheduleId = searchParams.get('scheduleId')?.trim() || undefined;
+  const dateFilter =
+    searchParams.get('date')?.trim() ||
+    (searchParams.get('today') === '1' ? 'today' : undefined);
 
-  const payload = await loadTestReportsPayload(admin, examType, testId, scheduleId);
+  const payload = await loadTestReportsPayload(admin, examType, testId, scheduleId, {
+    dateFilter,
+  });
 
   return NextResponse.json(payload);
 }

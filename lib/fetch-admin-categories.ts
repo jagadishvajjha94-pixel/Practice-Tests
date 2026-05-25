@@ -2,13 +2,14 @@ import {
   DEFAULT_CATEGORY_OPTIONS,
   type CategoryOption,
 } from '@/lib/ai-generator-config';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 export async function fetchAdminCategories(): Promise<{
   categories: CategoryOption[];
   warning?: string;
 }> {
   try {
-    const res = await fetch('/api/admin/categories', { credentials: 'include' });
+    const res = await fetchWithAuth('/api/admin/categories', { cache: 'no-store' });
     const json = (await res.json()) as {
       categories?: CategoryOption[];
       warning?: string;

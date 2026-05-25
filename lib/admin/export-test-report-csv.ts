@@ -16,6 +16,9 @@ export function downloadTestReportCsv(
 
   lines.push(`${typeLabel} — Test Report`);
   lines.push(`Generated At,${escapeCsv(generatedAt)}`);
+  if (payload.report_date_label) {
+    lines.push(`Report Date (IST),${escapeCsv(payload.report_date_label)}`);
+  }
   if (options?.testName) {
     lines.push(`Filtered Test,${escapeCsv(options.testName)}`);
   }
@@ -52,11 +55,12 @@ export function downloadTestReportCsv(
 
   const slug = payload.exam_type === 'all' ? 'all-tests' : payload.exam_type;
   const testPart = options?.testId && options.testId !== 'all' ? `-${options.testId.slice(0, 8)}` : '';
+  const datePart = payload.report_date ? `-today-${payload.report_date}` : '';
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `test-report-${slug}${testPart}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `test-report-${slug}${testPart}${datePart}-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }

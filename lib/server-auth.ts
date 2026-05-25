@@ -66,8 +66,14 @@ export async function requireAuth(
   }
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  let user = session?.user ?? null;
+  if (!user) {
+    const userRes = await supabase.auth.getUser();
+    user = userRes.data.user ?? null;
+  }
 
   if (!user?.id) {
     return { response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };

@@ -12,6 +12,7 @@ import {
 } from '@/lib/admin/question-bank-catalog';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 async function loadTopicExportRows(
   admin: NonNullable<ReturnType<typeof getServiceSupabase>>,
@@ -38,13 +39,10 @@ async function loadTopicExportRows(
     pageOffset += pageSize;
   }
 
-  const overview = await loadQuestionBankOverview(admin);
-  const section = overview.sections.find((s) => s.topics.some((t) => t.slug === topicSlug));
   const sectionName =
-    section?.name ??
-    (topicSlug === 'uncategorized'
+    topicSlug === 'uncategorized'
       ? QUESTION_BANK_SECTION_LABELS.uncategorized
-      : QUESTION_BANK_SECTION_LABELS[sectionKeyForTopicSlug(topicSlug)]);
+      : QUESTION_BANK_SECTION_LABELS[sectionKeyForTopicSlug(topicSlug)];
 
   const rows: QuestionBankExportRow[] = allRows.map((q) => ({
     ...q,
