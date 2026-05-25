@@ -2,8 +2,11 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
-import { isSupabasePublicEnvConfigured } from '@/lib/supabase-public-env';
+import { formatApiErrorField } from '@/lib/api-error-message';
+import {
+  isSupabasePublicEnvConfigured,
+  SUPABASE_PUBLIC_ENV_MESSAGE,
+} from '@/lib/supabase-public-env';
 
 type StudentSignInOptions = {
   rollNumber: string;
@@ -46,12 +49,12 @@ export function useStudentSignIn() {
         });
 
         const json = (await res.json().catch(() => ({}))) as {
-          error?: string;
+          error?: unknown;
           code?: string;
         };
 
         if (!res.ok) {
-          throw new Error(json.error ?? 'Sign in failed');
+          throw new Error(formatApiErrorField(json.error) ?? 'Sign in failed');
         }
 
         router.push(redirectTo);

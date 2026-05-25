@@ -20,5 +20,17 @@ export async function POST() {
   const service = getServiceSupabase();
   const isAdmin = await checkIsAdmin(service, user.id, user.email);
 
-  return NextResponse.json({ isAdmin, email: user.email });
+  if (!isAdmin) {
+    return NextResponse.json(
+      {
+        isAdmin: false,
+        email: user.email,
+        error:
+          'This account does not have admin access. Contact the examination cell if you need access.',
+      },
+      { status: 403 },
+    );
+  }
+
+  return NextResponse.json({ isAdmin: true, email: user.email });
 }

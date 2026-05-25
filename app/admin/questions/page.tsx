@@ -144,6 +144,10 @@ export default function QuestionsManagementPage() {
     );
   };
 
+  const downloadFullBankCsv = () => {
+    window.open('/api/admin/question-bank?export=csv&all=1', '_blank');
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -238,7 +242,8 @@ export default function QuestionsManagementPage() {
         <div>
           <h2 className="text-2xl font-bold text-[#0c2340]">Question bank</h2>
           <p className="text-sm text-gray-600 mt-1">
-            All MCQs by section and topic — same topics used in Exam builder and RMSET.
+            All MCQs by section and topic — same topics used in Exam builder and RMSET. Download the
+            full bank CSV for every question with options, correct answer, and explanation.
           </p>
           {overview ? (
             <p className="text-sm text-gray-500 mt-2">
@@ -267,6 +272,13 @@ export default function QuestionsManagementPage() {
           </Button>
           <Button
             className="bg-[#0c2340] hover:bg-[#16304f]"
+            onClick={downloadFullBankCsv}
+            disabled={!overview?.total_questions}
+          >
+            Download full bank
+          </Button>
+          <Button
+            variant="outline"
             disabled={!selectedTopicSlug}
             onClick={downloadTopicCsv}
           >
@@ -416,12 +428,25 @@ export default function QuestionsManagementPage() {
               ) : (
                 <ul className="space-y-3 overflow-y-auto flex-1 pr-1">
                   {filteredQuestions.map((q, idx) => {
-                    const opts = [
-                      q.option_a && `A: ${q.option_a}`,
-                      q.option_b && `B: ${q.option_b}`,
-                      q.option_c && `C: ${q.option_c}`,
-                      q.option_d && `D: ${q.option_d}`,
-                    ].filter(Boolean);
+                    const letters = ['A', 'B', 'C', 'D'] as const;
+                    const fromColumns = letters
+                      .map((L) => {
+                        const text =
+                          L === 'A'
+                            ? q.option_a
+                            : L === 'B'
+                              ? q.option_b
+                              : L === 'C'
+                                ? q.option_c
+                                : q.option_d;
+                        return text ? `${L}: ${text}` : null;
+                      })
+                      .filter(Boolean) as string[];
+                    const fromArray =
+                      fromColumns.length === 0 && q.options?.length
+                        ? q.options.map((text, i) => `${letters[i] ?? i + 1}: ${text}`)
+                        : [];
+                    const opts = fromColumns.length > 0 ? fromColumns : fromArray;
                     return (
                       <li
                         key={q.id}
@@ -447,8 +472,13 @@ export default function QuestionsManagementPage() {
                           </ul>
                         ) : null}
                         <p className="text-xs text-gray-500 mt-2">
-                          Answer: <span className="font-semibold">{q.correct_answer}</span>
+                          Answer: <span className="font-semibold text-green-800">{q.correct_answer}</span>
                         </p>
+                        {q.explanation ? (
+                          <p className="text-xs text-gray-600 mt-1 border-t pt-2">
+                            <span className="font-semibold">Explanation:</span> {q.explanation}
+                          </p>
+                        ) : null}
                       </li>
                     );
                   })}

@@ -62,6 +62,59 @@ export type QuestionBankRow = {
   created_at: string | null;
 };
 
+export type QuestionBankExportRow = QuestionBankRow & {
+  section: string;
+  topic: string;
+};
+
+function escapeCsv(value: unknown): string {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`;
+}
+
+function optionsForRow(q: QuestionBankRow): {
+  a: string;
+  b: string;
+  c: string;
+  d: string;
+} {
+  return {
+    a: q.option_a ?? q.options?.[0] ?? '',
+    b: q.option_b ?? q.options?.[1] ?? '',
+    c: q.option_c ?? q.options?.[2] ?? '',
+    d: q.option_d ?? q.options?.[3] ?? '',
+  };
+}
+
+/** CSV document: full question text, all options, correct answer, explanation. */
+export function buildQuestionBankCsv(rows: QuestionBankExportRow[]): string {
+  const lines: string[] = [];
+  lines.push(
+    'Section,Topic,Question ID,Question,Option A,Option B,Option C,Option D,Correct Answer,Difficulty,Type,Explanation,Tags,Created At',
+  );
+  for (const q of rows) {
+    const { a, b, c, d } = optionsForRow(q);
+    lines.push(
+      [
+        escapeCsv(q.section),
+        escapeCsv(q.topic),
+        escapeCsv(q.id),
+        escapeCsv(q.question_text),
+        escapeCsv(a),
+        escapeCsv(b),
+        escapeCsv(c),
+        escapeCsv(d),
+        escapeCsv(q.correct_answer),
+        escapeCsv(q.difficulty),
+        escapeCsv(q.type),
+        escapeCsv(q.explanation ?? ''),
+        escapeCsv((q.tags ?? []).join('|')),
+        escapeCsv(q.created_at ?? ''),
+      ].join(','),
+    );
+  }
+  return lines.join('\n');
+}
+
 const slugToSection = (() => {
   const map = new Map<string, QuestionBankSectionKey>();
   for (const key of Object.keys(SYLLABUS_GROUPS) as SyllabusGroupKey[]) {
@@ -302,6 +355,107 @@ export async function loadQuestionsForTopic(
   }
 
   return { topic, total, questions };
+}
+
+type TagMeta = { slug: string; name: string; section: QuestionBankSectionKey };
+
+async function loadQuestionTopicMap(admin: SupabaseClient): Promise<Map<string, TagMeta[]>> {
+  const { data: tagRows, error: tagErr } = await admin
+    .from('question_tags')
+    .select('id, slug, name');
+  if (tagErr) throw new Error(tagErr.message);
+
+  const tagById = new Map<string, TagMeta>();
+  for (const row of tagRows ?? []) {
+    const slug = String(row.slug ?? '');
+    if (!slug) continue;
+    tagById.set(String(row.id), {
+      slug,
+      name: String(row.name ?? slug),
+      section: sectionKeyForTopicSlug(slug),
+    });
+  }
+
+  const byQuestion = new Map<string, TagMeta[]>();
+  let linkOffset = 0;
+  for (;;) {
+    const { data: links, error: linkErr } = await admin
+      .from('question_tag_links')
+      .select('question_id, tag_id')
+      .range(linkOffset, linkOffset + 900 - 1);
+    if (linkErr) throw new Error(linkErr.message);
+    const rows = links ?? [];
+    for (const link of rows) {
+      if (link.question_id == null || link.tag_id == null) continue;
+      const qid = normalizeQuestionId(link.question_id);
+      const meta = tagById.get(String(link.tag_id));
+      if (!meta) continue;
+      const list = byQuestion.get(qid) ?? [];
+      if (!list.some((t) => t.slug === meta.slug)) list.push(meta);
+      byQuestion.set(qid, list);
+    }
+    if (rows.length < 900) break;
+    linkOffset += 900;
+  }
+
+  return byQuestion;
+}
+
+/** Every question in the bank once, with section/topic labels for export. */
+export async function loadFullQuestionBankForExport(
+  admin: SupabaseClient,
+): Promise<QuestionBankExportRow[]> {
+  const topicsByQuestion = await loadQuestionTopicMap(admin);
+  const exportRows: QuestionBankExportRow[] = [];
+  let offset = 0;
+
+  for (;;) {
+    const { data, error } = await admin
+      .from('questions')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .range(offset, offset + 500 - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    for (const raw of rows) {
+      const q = rowToBankQuestion(raw as Record<string, unknown>);
+      const linked = topicsByQuestion.get(q.id) ?? [];
+      const slugTags = Array.isArray(q.tags)
+        ? q.tags.filter((t) => typeof t === 'string' && t.length > 0)
+        : [];
+
+      if (linked.length > 0) {
+        const sections = [...new Set(linked.map((t) => QUESTION_BANK_SECTION_LABELS[t.section]))];
+        exportRows.push({
+          ...q,
+          section: sections.length === 1 ? sections[0]! : sections.join('; '),
+          topic: linked.map((t) => t.name).join('; '),
+        });
+      } else if (slugTags.length > 0) {
+        const metas = slugTags.map((slug) => ({
+          slug,
+          name: slug,
+          section: sectionKeyForTopicSlug(slug),
+        }));
+        const sections = [...new Set(metas.map((t) => QUESTION_BANK_SECTION_LABELS[t.section]))];
+        exportRows.push({
+          ...q,
+          section: sections.length === 1 ? sections[0]! : sections.join('; '),
+          topic: metas.map((t) => t.name).join('; '),
+        });
+      } else {
+        exportRows.push({
+          ...q,
+          section: QUESTION_BANK_SECTION_LABELS.uncategorized,
+          topic: 'No topic tag',
+        });
+      }
+    }
+    if (rows.length < 500) break;
+    offset += 500;
+  }
+
+  return exportRows;
 }
 
 /** All syllabus units grouped by section (static catalog for exam builder). */

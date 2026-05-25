@@ -6,7 +6,9 @@ import {
   isSupabasePublicEnvConfigured,
   SUPABASE_PUBLIC_ENV_MESSAGE,
 } from '@/lib/supabase-public-env';
+import { ensureAdminAccess } from '@/lib/admin-verify';
 import { DEFAULT_ADMIN_EMAIL } from '@/lib/admin-defaults';
+import { getServiceSupabase } from '@/lib/server-auth';
 
 export async function POST(request: NextRequest) {
   if (!isSupabasePublicEnvConfigured()) {
@@ -52,16 +54,25 @@ export async function POST(request: NextRequest) {
   if (error || !data.user) {
     const hint =
       email !== DEFAULT_ADMIN_EMAIL
-        ? ` Use the admin email issued by the examination cell.`
+        ? ` Use the admin email issued by the examination cell (e.g. ${DEFAULT_ADMIN_EMAIL}).`
         : ' Contact the examination cell if you need access.';
+    const message =
+      typeof error?.message === 'string' && error.message.trim()
+        ? error.message.trim()
+        : 'Invalid email or password.';
     return NextResponse.json(
       {
-        error: error?.message ?? 'Invalid login credentials',
+        error: message,
         hint,
         attemptedEmail: email,
       },
       { status: 401 },
     );
+  }
+
+  const service = getServiceSupabase();
+  if (service) {
+    await ensureAdminAccess(service, data.user.id, data.user.email ?? email);
   }
 
   const jsonResponse = NextResponse.json({

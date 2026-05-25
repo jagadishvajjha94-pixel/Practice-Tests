@@ -16,6 +16,7 @@ import {
   SUPABASE_PUBLIC_ENV_MESSAGE,
 } from '@/lib/supabase-public-env';
 import { StatusAlert } from '@/components/ui/status-alert';
+import { joinApiErrorParts } from '@/lib/api-error-message';
 import { DEFAULT_ADMIN_EMAIL } from '@/lib/admin-defaults';
 
 function AdminLoginForm() {
@@ -77,13 +78,12 @@ function AdminLoginForm() {
         body: JSON.stringify({ email, password: password.trim() }),
       });
       const signInJson = (await signInRes.json().catch(() => ({}))) as {
-        error?: string;
+        error?: unknown;
         hint?: string;
       };
       if (!signInRes.ok) {
         throw new Error(
-          [signInJson.error, signInJson.hint].filter(Boolean).join(' — ') ||
-            'Invalid login credentials',
+          joinApiErrorParts(signInJson, 'Invalid email or password.'),
         );
       }
 
