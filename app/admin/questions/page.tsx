@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,9 @@ export default function QuestionsManagementPage() {
   const [categoryWarning, setCategoryWarning] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [pdfDownloading, setPdfDownloading] = useState<'topic' | 'full' | null>(null);
+  const [pdfTopicSelect, setPdfTopicSelect] = useState('');
+  const [seedingBank, setSeedingBank] = useState(false);
+  const [seedMessage, setSeedMessage] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
     question_text: '',
@@ -134,6 +137,20 @@ export default function QuestionsManagementPage() {
     if (selectedTopicSlug) void loadTopic(selectedTopicSlug, 0);
   }, [selectedTopicSlug, loadTopic]);
 
+  const allTopicsFlat = useMemo(() => {
+    if (!overview) return [];
+    return overview.sections.flatMap((section) =>
+      section.topics.map((topic) => ({
+        ...topic,
+        sectionName: section.name,
+      })),
+    );
+  }, [overview]);
+
+  useEffect(() => {
+    if (selectedTopicSlug) setPdfTopicSelect(selectedTopicSlug);
+  }, [selectedTopicSlug]);
+
   const activeSection = overview?.sections.find((s) => s.key === selectedSection);
   const filteredTopics =
     activeSection?.topics.filter((t) =>
@@ -162,20 +179,66 @@ export default function QuestionsManagementPage() {
     window.open('/api/admin/question-bank?export=csv&all=1', '_blank');
   };
 
-  const downloadTopicPdf = async () => {
-    if (!selectedTopicSlug || !topicPayload?.topic) return;
+  const downloadTopicPdfForSlug = async (slug: string, topicName?: string) => {
+    if (!slug) return;
     setPdfDownloading('topic');
     try {
-      const rows = await fetchTopicQuestionBankExport(selectedTopicSlug);
+      const rows = await fetchTopicQuestionBankExport(slug);
+      const label =
+        topicName ??
+        allTopicsFlat.find((t) => t.slug === slug)?.name ??
+        topicPayload?.topic?.name ??
+        slug;
       downloadQuestionBankPdf({
-        title: `Question bank — ${topicPayload.topic.name}`,
-        subtitle: `${rows.length} MCQs with options, answers, and explanations`,
+        title: `Question bank — ${label}`,
+        subtitle: `${rows.length} MCQs with options, answers, and explanations (IST export)`,
         rows,
       });
     } catch (err) {
       alert(err instanceof Error ? err.message : 'PDF download failed');
     } finally {
       setPdfDownloading(null);
+    }
+  };
+
+  const downloadTopicPdf = async () => {
+    const slug = pdfTopicSelect || selectedTopicSlug;
+    if (!slug) return;
+    await downloadTopicPdfForSlug(slug);
+  };
+
+  const seedSyllabusQuestionBank = async () => {
+    if (
+      !window.confirm(
+        'Load ~150 unique MCQs per syllabus topic into the bank? This replaces previous curated-bank-v2 questions and may take a few minutes.',
+      )
+    ) {
+      return;
+    }
+    setSeedingBank(true);
+    setSeedMessage(null);
+    try {
+      const res = await fetchWithAuth('/api/exam-builder/seed-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionsPerTopic: 150, replaceExisting: true }),
+      });
+      const json = (await res.json()) as {
+        message?: string;
+        questionsInserted?: number;
+        error?: string;
+        warnings?: string[];
+      };
+      if (!res.ok) throw new Error(json.error ?? 'Could not seed question bank');
+      setSeedMessage(
+        `${json.message ?? `Inserted ${json.questionsInserted ?? 0} questions.`} ${(json.warnings ?? []).join(' ')}`.trim(),
+      );
+      await loadOverview();
+      if (selectedTopicSlug) await loadTopic(selectedTopicSlug, 0);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Seed failed');
+    } finally {
+      setSeedingBank(false);
     }
   };
 
@@ -289,8 +352,8 @@ export default function QuestionsManagementPage() {
         <div>
           <h2 className="text-2xl font-bold text-[#0c2340]">Question bank</h2>
           <p className="text-sm text-gray-600 mt-1">
-            All MCQs by section and topic — same topics used in Exam builder and RMSET. Download the
-            full bank as CSV or PDF — every question with options, correct answer, and explanation.
+            Syllabus-wise MCQ bank for Exam builder and RMSET — ~150 unique questions per topic for
+            large cohorts. Select a topic below and download the full set as PDF.
           </p>
           {overview ? (
             <p className="text-sm text-gray-500 mt-2">
@@ -347,6 +410,71 @@ export default function QuestionsManagementPage() {
           </Button>
         </div>
       </div>
+
+      <Card className="p-4 mb-6 border-[#0c2340]/15 bg-slate-50/60">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-[#0c2340] uppercase tracking-wide">
+              Topic-wise PDF download
+            </h3>
+            <p className="text-xs text-gray-600 mt-1">
+              Choose any syllabus topic — downloads every question in that topic with options, answer,
+              and explanation.
+            </p>
+            <label className="block mt-3 text-xs font-medium text-gray-700" htmlFor="pdf-topic-select">
+              Topic
+            </label>
+            <select
+              id="pdf-topic-select"
+              value={pdfTopicSelect}
+              onChange={(e) => {
+                const slug = e.target.value;
+                setPdfTopicSelect(slug);
+                const hit = allTopicsFlat.find((t) => t.slug === slug);
+                if (hit) {
+                  const section = overview?.sections.find((s) =>
+                    s.topics.some((t) => t.slug === slug),
+                  );
+                  if (section) selectTopic(section.key, slug);
+                }
+              }}
+              className="mt-1 w-full max-w-md border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Select a topic…</option>
+              {overview?.sections.map((section) => (
+                <optgroup key={section.key} label={section.name}>
+                  {section.topics.map((topic) => (
+                    <option key={topic.slug} value={topic.slug}>
+                      {topic.name} ({topic.question_count} questions)
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Button
+              className="bg-[#0c2340] hover:bg-[#16304f]"
+              disabled={!pdfTopicSelect || pdfDownloading !== null}
+              onClick={() => void downloadTopicPdf()}
+            >
+              {pdfDownloading === 'topic' ? 'Preparing PDF…' : 'Download topic PDF'}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={seedingBank || !overview}
+              onClick={() => void seedSyllabusQuestionBank()}
+            >
+              {seedingBank ? 'Seeding bank…' : 'Load 150 MCQs / topic'}
+            </Button>
+          </div>
+        </div>
+        {seedMessage ? (
+          <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mt-3">
+            {seedMessage}
+          </p>
+        ) : null}
+      </Card>
 
       {showManage ? (
         <Card className="p-4 mb-6 border-blue-100 bg-blue-50/40">

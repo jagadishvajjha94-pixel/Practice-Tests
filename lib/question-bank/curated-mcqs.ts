@@ -184,47 +184,18 @@ const BY_SLUG: Partial<Record<string, RawMcq[]>> = {
   ],
 };
 
-function expandTopicBank(name: string, base: RawMcq[], targetCount: number): FacultyExamQuestion[] {
-  const out: FacultyExamQuestion[] = base.map((q) => ({ ...q }));
-  let n = base.length;
-  while (out.length < targetCount) {
-    n += 1;
-    const p = 10 + ((n * 17) % 89);
-    const qv = 8 + ((n * 13) % 71);
-    const sum = p + qv;
-    const letter = (['A', 'B', 'C', 'D'] as const)[n % 4];
-    const wrong = [sum + 2, sum + 5, sum + 9];
-    const opts: Record<'A' | 'B' | 'C' | 'D', string> = {
-      A: String(wrong[0]),
-      B: String(wrong[1]),
-      C: String(wrong[2]),
-      D: String(sum),
-    };
-    opts[letter] = String(sum);
-    out.push({
-      question_text: `[${name} · #${n}] If p = ${p} and q = ${qv}, find p + q.`,
-      option_a: opts.A,
-      option_b: opts.B,
-      option_c: opts.C,
-      option_d: opts.D,
-      correct_answer: letter,
-      explanation: `${CURATED_BANK_MARKER} · ${name} item ${n}`,
-    });
-  }
-  return out;
-}
-
-export function getCuratedMcqsForSlug(slug: string, name: string, targetCount = 20): FacultyExamQuestion[] {
-  const base = BY_SLUG[slug] ?? [
-    {
-      question_text: `[${name}] Which statement aligns with standard ${name} syllabus?`,
-      option_a: 'Fundamental concept A',
-      option_b: 'Fundamental concept B',
-      option_c: 'Fundamental concept C',
-      option_d: 'Fundamental concept D',
-      correct_answer: 'A',
-      explanation: `${CURATED_BANK_MARKER} starter for ${slug}`,
-    },
-  ];
-  return expandTopicBank(name, base, targetCount);
+export function getCuratedBaseMcqsForSlug(slug: string, name: string): RawMcq[] {
+  return (
+    BY_SLUG[slug] ?? [
+      {
+        question_text: `Which core idea is central to ${name}?`,
+        option_a: 'Foundational principle A',
+        option_b: 'Foundational principle B',
+        option_c: 'Foundational principle C',
+        option_d: 'Foundational principle D',
+        correct_answer: 'A',
+        explanation: `${CURATED_BANK_MARKER} starter for ${slug}`,
+      },
+    ]
+  );
 }

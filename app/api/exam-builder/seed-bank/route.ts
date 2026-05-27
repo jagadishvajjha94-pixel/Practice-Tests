@@ -20,8 +20,8 @@ export async function POST(request: NextRequest) {
   }
 
   const questionsPerTopic = Math.min(
-    50,
-    Math.max(5, Number(body.questionsPerTopic) || 20),
+    200,
+    Math.max(10, Number(body.questionsPerTopic) || 150),
   );
 
   try {

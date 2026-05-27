@@ -132,7 +132,7 @@ export function QuestionBankUploadPanel({
       const res = await fetch('/api/exam-builder/seed-bank', {
         method: 'POST',
         headers: await authHeaders(),
-        body: JSON.stringify({ questionsPerTopic: 20, replaceExisting: true }),
+        body: JSON.stringify({ questionsPerTopic: 150, replaceExisting: true }),
       });
       const json = (await res.json()) as {
         ok?: boolean;

@@ -1,10 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
+import { allSyllabusTagDefs, CURATED_BANK_MARKER } from '@/lib/question-bank/curated-mcqs';
 import {
-  allSyllabusTagDefs,
-  CURATED_BANK_MARKER,
-  getCuratedMcqsForSlug,
-} from '@/lib/question-bank/curated-mcqs';
+  DEFAULT_SYLLABUS_QUESTIONS_PER_TOPIC,
+  generateSyllabusMcqsForSlug,
+  MAX_SYLLABUS_QUESTIONS_PER_TOPIC,
+} from '@/lib/question-bank/syllabus-mcq-generator';
 import { ensureQuestionBankPoolTestId } from '@/lib/question-bank/ensure-bank-test';
 import {
   applyQuestionBankSchemaMigrations,
@@ -102,7 +103,10 @@ export async function seedCuratedQuestionBank(
   admin: SupabaseClient,
   options?: { questionsPerTopic?: number; replaceExisting?: boolean },
 ): Promise<SeedCuratedBankResult> {
-  const questionsPerTopic = Math.min(50, Math.max(5, options?.questionsPerTopic ?? 20));
+  const questionsPerTopic = Math.min(
+    MAX_SYLLABUS_QUESTIONS_PER_TOPIC,
+    Math.max(10, options?.questionsPerTopic ?? DEFAULT_SYLLABUS_QUESTIONS_PER_TOPIC),
+  );
   const warnings: string[] = [];
   const perTopic: SeedCuratedBankResult['perTopic'] = [];
 
@@ -135,7 +139,7 @@ export async function seedCuratedQuestionBank(
     }
     tagsEnsured += 1;
 
-    const mcqs = getCuratedMcqsForSlug(def.slug, def.name, questionsPerTopic);
+    const mcqs = generateSyllabusMcqsForSlug(def.slug, def.name, questionsPerTopic);
     let topicInserted = 0;
 
     for (let i = 0; i < mcqs.length; i += INSERT_BATCH) {
