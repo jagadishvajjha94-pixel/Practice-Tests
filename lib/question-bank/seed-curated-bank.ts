@@ -67,20 +67,24 @@ export async function seedCuratedQuestionBank(
   const warnings: string[] = [];
   const perTopic: SeedCuratedBankResult['perTopic'] = [];
 
-  const tableErr = await ensureTables(admin);
-  if (tableErr) {
-    throw new Error(tableErr);
-  }
+  const { shape, warnings: schemaWarnings } = await ensureBankSchemaReady(admin);
+  warnings.push(...schemaWarnings);
 
-  const poolTestId = await ensureQuestionBankPoolTestId(admin);
-  if (poolTestId == null) {
+  const poolTestId = shape.has('test_id') ? await ensureQuestionBankPoolTestId(admin) : null;
+  if (shape.has('test_id') && poolTestId == null) {
     throw new Error(
       'Could not create Question Bank Pool test (questions.test_id is required on this database). Ensure test_categories/tests exist, or run migration 021_questions_test_id_nullable.sql in Supabase SQL editor.',
     );
   }
 
   if (options?.replaceExisting !== false) {
-    await admin.from('questions').delete().contains('tags', [CURATED_BANK_MARKER]);
+    if (shape.has('tags')) {
+      await admin.from('questions').delete().contains('tags', [CURATED_BANK_MARKER]);
+    } else {
+      warnings.push(
+        'Could not remove previous curated bank (tags column missing). Run migration 029 in Supabase, then re-seed.',
+      );
+    }
   }
 
   const defs = allSyllabusTagDefs();
