@@ -1,5 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 import { allSyllabusTagDefs, CURATED_BANK_MARKER } from '@/lib/question-bank/curated-mcqs';
 import {
   DEFAULT_SYLLABUS_QUESTIONS_PER_TOPIC,
@@ -7,11 +6,8 @@ import {
   MAX_SYLLABUS_QUESTIONS_PER_TOPIC,
 } from '@/lib/question-bank/syllabus-mcq-generator';
 import { ensureQuestionBankPoolTestId } from '@/lib/question-bank/ensure-bank-test';
-import {
-  applyQuestionBankSchemaMigrations,
-  questionBankSchemaMissingMessage,
-  waitForQuestionsTable,
-} from '@/lib/question-bank/apply-bank-schema';
+import { ensureBankSchemaReady } from '@/lib/question-bank/ensure-bank-schema-ready';
+import { mcqToQuestionRow } from '@/lib/question-bank/questions-insert-shape';
 
 export type SeedCuratedBankResult = {
   tagsEnsured: number;
@@ -22,22 +18,6 @@ export type SeedCuratedBankResult = {
 };
 
 const INSERT_BATCH = 40;
-
-async function ensureTables(admin: SupabaseClient): Promise<string | null> {
-  let err = await waitForQuestionsTable(admin, 1);
-  if (!err) return null;
-
-  if (err.includes('schema cache') || err.includes('does not exist')) {
-    const applied = await applyQuestionBankSchemaMigrations();
-    if (applied.ok) {
-      err = await waitForQuestionsTable(admin);
-      if (!err) return null;
-    }
-    return questionBankSchemaMissingMessage(applied);
-  }
-
-  return err;
-}
 
 async function upsertTag(
   admin: SupabaseClient,
@@ -74,29 +54,6 @@ async function upsertTag(
   return inserted
     ? { id: inserted.id as string, slug: inserted.slug as string, name: inserted.name as string }
     : null;
-}
-
-function rowFromMcq(
-  q: FacultyExamQuestion,
-  tagSlug: string,
-  tagId: string,
-  poolTestId: string | number | null,
-): Record<string, unknown> {
-  return {
-    question_text: q.question_text,
-    option_a: q.option_a,
-    option_b: q.option_b,
-    option_c: q.option_c,
-    option_d: q.option_d,
-    correct_answer: q.correct_answer,
-    explanation: q.explanation ?? `${CURATED_BANK_MARKER} · ${tagSlug}`,
-    type: 'MCQ',
-    question_type: 'MCQ',
-    difficulty: 'medium',
-    tags: [tagSlug, tagId, CURATED_BANK_MARKER],
-    marks: 1,
-    ...(poolTestId != null ? { test_id: poolTestId } : {}),
-  };
 }
 
 export async function seedCuratedQuestionBank(
@@ -145,7 +102,13 @@ export async function seedCuratedQuestionBank(
     for (let i = 0; i < mcqs.length; i += INSERT_BATCH) {
       const batch = mcqs
         .slice(i, i + INSERT_BATCH)
-        .map((q) => rowFromMcq(q, tag.slug, tag.id, poolTestId));
+        .map((q) =>
+          mcqToQuestionRow(q, shape, {
+            tagSlug: tag.slug,
+            tagId: tag.id,
+            poolTestId,
+          }),
+        );
       const { data, error } = await admin.from('questions').insert(batch).select('id');
       if (error) {
         warnings.push(`${def.slug}: insert failed — ${error.message}`);

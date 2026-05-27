@@ -15,6 +15,7 @@ const MIGRATION_FILES = [
   '026_users_profile_columns.sql',
   '027_ensure_rmset_papers.sql',
   '028_ensure_exam_schedules.sql',
+  '029_questions_bank_column_patch.sql',
 ];
 
 /** Full SQL to paste in Supabase SQL editor (020 + 021). */

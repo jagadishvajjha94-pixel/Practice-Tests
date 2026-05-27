@@ -8,6 +8,8 @@ import {
   parseMcqPlainText,
 } from '@/lib/question-bank/parse-upload-content';
 import { attachPoolTestIdToRows } from '@/lib/question-bank/ensure-bank-test';
+import { ensureBankSchemaReady } from '@/lib/question-bank/ensure-bank-schema-ready';
+import { mcqToQuestionRow } from '@/lib/question-bank/questions-insert-shape';
 
 export const runtime = 'nodejs';
 
@@ -113,23 +115,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
+  const { shape } = await ensureBankSchemaReady(admin);
+  const primary = resolved[0];
   const tagJsonbValues = [...new Set([...resolved.map((t) => t.id), ...resolved.map((t) => t.slug)])];
 
-  const rows = questions.map((q) => ({
-    question_text: q.question_text,
-    option_a: q.option_a,
-    option_b: q.option_b,
-    option_c: q.option_c,
-    option_d: q.option_d,
-    correct_answer: q.correct_answer,
-    explanation: q.explanation ?? null,
-    type: 'MCQ',
-    question_type: 'MCQ',
-    difficulty: 'medium',
-    tags: tagJsonbValues,
-    marks: 1,
-    ...(categoryId ? { category_id: categoryId } : {}),
-  }));
+  const rows = questions.map((q) => {
+    const base = mcqToQuestionRow(q, shape, {
+      tagSlug: primary?.slug ?? 'upload',
+      tagId: primary?.id ?? '',
+      categoryId: categoryId ?? undefined,
+    });
+    if (shape.has('tags')) {
+      base.tags = tagJsonbValues;
+    }
+    return base;
+  });
 
   const insertedIds: string[] = [];
   try {
