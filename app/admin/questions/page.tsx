@@ -18,6 +18,12 @@ import type {
   QuestionBankSectionKey,
 } from '@/lib/admin/question-bank-catalog';
 import { downloadQuestionBankPdf } from '@/lib/admin/export-question-bank-pdf';
+import { downloadQuestionBankWord } from '@/lib/admin/export-question-bank-word';
+import {
+  downloadAllTopicBanksZip,
+  downloadSingleTopicExport,
+  type BulkExportFormat,
+} from '@/lib/admin/bulk-export-question-bank';
 import {
   fetchFullQuestionBankExport,
   fetchTopicQuestionBankExport,
@@ -352,8 +358,8 @@ export default function QuestionsManagementPage() {
         <div>
           <h2 className="text-2xl font-bold text-[#0c2340]">Question bank</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Syllabus-wise MCQ bank for Exam builder and RMSET — ~150 unique questions per topic for
-            large cohorts. Select a topic below and download the full set as PDF.
+            Syllabus-wise MCQ bank — download every question per topic as PDF, Word (.doc), or CSV.
+            Use the ZIP buttons to get all topics at once.
           </p>
           {overview ? (
             <p className="text-sm text-gray-500 mt-2">
@@ -415,11 +421,11 @@ export default function QuestionsManagementPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-bold text-[#0c2340] uppercase tracking-wide">
-              Topic-wise PDF download
+              Topic-wise documents
             </h3>
             <p className="text-xs text-gray-600 mt-1">
-              Choose any syllabus topic — downloads every question in that topic with options, answer,
-              and explanation.
+              One file per topic with all questions, options, correct answers, and explanations. Or
+              download every topic in a single ZIP (PDF, Word, or CSV).
             </p>
             <label className="block mt-3 text-xs font-medium text-gray-700" htmlFor="pdf-topic-select">
               Topic
@@ -567,22 +573,57 @@ export default function QuestionsManagementPage() {
                 {selectedSection === section.key ? (
                   <ul className="mt-1 space-y-0.5 pl-1">
                     {filteredTopics.map((topic) => (
-                      <li key={topic.slug}>
-                        <button
-                          type="button"
-                          onClick={() => selectTopic(section.key, topic.slug)}
+                      <li key={topic.slug} className="group">
+                        <div
                           className={cn(
-                            'w-full text-left px-2 py-1.5 rounded text-xs sm:text-sm truncate',
+                            'flex items-center gap-1 rounded',
                             selectedTopicSlug === topic.slug
-                              ? 'bg-blue-100 text-blue-900 font-medium'
-                              : 'text-gray-700 hover:bg-gray-50',
+                              ? 'bg-blue-100'
+                              : 'hover:bg-gray-50',
                           )}
                         >
-                          {topic.name}
-                          <Badge tone="neutral" className="ml-1 text-[10px]">
-                            {topic.question_count}
-                          </Badge>
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => selectTopic(section.key, topic.slug)}
+                            className={cn(
+                              'flex-1 min-w-0 text-left px-2 py-1.5 text-xs sm:text-sm truncate',
+                              selectedTopicSlug === topic.slug
+                                ? 'text-blue-900 font-medium'
+                                : 'text-gray-700',
+                            )}
+                          >
+                            {topic.name}
+                            <Badge tone="neutral" className="ml-1 text-[10px]">
+                              {topic.question_count}
+                            </Badge>
+                          </button>
+                          {topic.question_count > 0 ? (
+                            <span className="flex shrink-0 gap-0.5 pr-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                              <button
+                                type="button"
+                                title="Download PDF"
+                                disabled={pdfDownloading !== null}
+                                className="text-[10px] px-1.5 py-0.5 rounded border border-gray-300 bg-white hover:bg-gray-100"
+                                onClick={(e) =>
+                                  void downloadTopicFile(topic.slug, topic.name, 'pdf', e)
+                                }
+                              >
+                                PDF
+                              </button>
+                              <button
+                                type="button"
+                                title="Download Word"
+                                disabled={pdfDownloading !== null}
+                                className="text-[10px] px-1.5 py-0.5 rounded border border-gray-300 bg-white hover:bg-gray-100"
+                                onClick={(e) =>
+                                  void downloadTopicFile(topic.slug, topic.name, 'doc', e)
+                                }
+                              >
+                                DOC
+                              </button>
+                            </span>
+                          ) : null}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -604,10 +645,42 @@ export default function QuestionsManagementPage() {
                   <h3 className="text-lg font-semibold text-[#0c2340]">{topicPayload.topic.name}</h3>
                   <p className="text-xs text-gray-500 font-mono">{topicPayload.topic.slug}</p>
                 </div>
-                <p className="text-sm text-gray-600">
-                  Showing {topicOffset + 1}–{topicOffset + filteredQuestions.length} of{' '}
-                  {topicPayload.total}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm text-gray-600">
+                    Showing {topicOffset + 1}–{topicOffset + filteredQuestions.length} of{' '}
+                    {topicPayload.total}
+                  </p>
+                  {topicPayload.total > 0 ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pdfDownloading !== null}
+                        onClick={() => void downloadTopicPdfForSlug(topicPayload.topic.slug, topicPayload.topic.name)}
+                      >
+                        PDF ({topicPayload.total})
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pdfDownloading !== null}
+                        onClick={() => void downloadTopicDoc(topicPayload.topic.slug, topicPayload.topic.name)}
+                      >
+                        Word
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pdfDownloading !== null}
+                        onClick={() =>
+                          void downloadTopicFile(topicPayload.topic.slug, topicPayload.topic.name, 'csv')
+                        }
+                      >
+                        CSV
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
               </div>
 
               {filteredQuestions.length === 0 ? (

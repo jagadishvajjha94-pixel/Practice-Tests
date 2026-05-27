@@ -53,7 +53,7 @@ function writeLines(
   return y;
 }
 
-export function downloadQuestionBankPdf(options: QuestionBankPdfOptions): void {
+export function buildQuestionBankPdfDoc(options: QuestionBankPdfOptions): jsPDF {
   const { title, subtitle, rows } = options;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const margin = 40;
@@ -148,7 +148,15 @@ export function downloadQuestionBankPdf(options: QuestionBankPdfOptions): void {
     y += 6;
   }
 
-  const namePart = slugify(title) || 'question-bank';
+  return doc;
+}
+
+export function getQuestionBankPdfBlob(options: QuestionBankPdfOptions): Blob {
+  return buildQuestionBankPdfDoc(options).output('blob');
+}
+
+export function downloadQuestionBankPdf(options: QuestionBankPdfOptions): void {
+  const namePart = slugify(options.title) || 'question-bank';
   const datePart = new Date().toISOString().slice(0, 10);
-  doc.save(`${namePart}-${datePart}.pdf`);
+  buildQuestionBankPdfDoc(options).save(`${namePart}-${datePart}.pdf`);
 }
