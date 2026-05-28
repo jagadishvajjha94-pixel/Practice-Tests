@@ -28,7 +28,6 @@ import {
   validateRollNumber,
 } from '@/lib/college-auth';
 import { useStudentSignIn } from '@/components/auth/use-student-sign-in';
-import { isSupabasePublicEnvConfigured, SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { isSignupDisabled } from '@/lib/auth-features';
 import { StatusAlert } from '@/components/ui/status-alert';
 
@@ -78,11 +77,6 @@ function StudentLoginForm() {
     if (!year) errs.year = 'Select your year';
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
-
-    if (!isSupabasePublicEnvConfigured()) {
-      setError(SUPABASE_PUBLIC_ENV_MESSAGE);
-      return;
-    }
 
     if (remember) {
       localStorage.setItem(REMEMBER_KEY, rollNumber.trim());

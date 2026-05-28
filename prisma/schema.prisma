@@ -1,0 +1,316 @@
+// AWS / RDS schema — mirrors Supabase public tables + NextAuth fields.
+// Run: npx prisma generate && npx prisma migrate deploy
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// --- NextAuth (Auth.js) ---
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id") @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id") @db.Uuid
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// --- Core users (replaces auth.users + public.users) ---
+
+model User {
+  id                   String    @id @default(uuid()) @db.Uuid
+  email                String    @unique
+  passwordHash         String?   @map("password_hash")
+  rollNumber           String?   @unique @map("roll_number")
+  fullName             String?   @map("full_name")
+  college              String?
+  branch               String?
+  academicYear         String?   @map("academic_year")
+  cgpa                 Decimal?  @db.Decimal(3, 2)
+  phone                String?
+  subscriptionStatus   String?   @default("free") @map("subscription_status")
+  subscriptionEndDate DateTime? @map("subscription_end_date")
+  resumeText           String?   @map("resume_text")
+  resumeFileName       String?   @map("resume_file_name")
+  resumeStoragePath    String?   @map("resume_storage_path")
+  resumeUpdatedAt      DateTime? @map("resume_updated_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  accounts             Account[]
+  sessions             Session[]
+  adminUser            AdminUser?
+  testAttempts         TestAttempt[]
+  studentActiveSession StudentActiveSession?
+  dashboardStats       StudentDashboardStat[]
+
+  @@index([email])
+  @@index([rollNumber])
+  @@map("users")
+}
+
+model AdminUser {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @map("user_id") @db.Uuid
+  role        String   @default("admin")
+  permissions Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("admin_users")
+}
+
+model StudentActiveSession {
+  userId       String   @id @map("user_id") @db.Uuid
+  sessionId    String   @map("session_id")
+  lockedAt     DateTime @default(now()) @map("locked_at")
+  lastHeartbeat DateTime @default(now()) @map("last_heartbeat")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_active_sessions")
+}
+
+// --- Exam core ---
+
+model TestCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  icon        String?
+  order       Int?     @map("order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tests Test[]
+
+  @@map("test_categories")
+}
+
+model Test {
+  id                   String    @id @default(uuid()) @db.Uuid
+  categoryId           String?   @map("category_id") @db.Uuid
+  title                String?
+  name                 String?
+  description          String?
+  durationMinutes      Int?      @map("duration_minutes")
+  duration             Int?
+  totalQuestions       Int?      @map("total_questions")
+  passingScore         Int?      @map("passing_score")
+  difficulty           String?
+  difficultyLevel      String?   @map("difficulty_level")
+  isPaid               Boolean?  @default(false) @map("is_paid")
+  questionTimeLimitSec Int?      @map("question_time_limit_sec")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  category     TestCategory? @relation(fields: [categoryId], references: [id])
+  testAttempts TestAttempt[]
+
+  @@index([categoryId])
+  @@map("tests")
+}
+
+model Question {
+  id            String   @id @default(uuid()) @db.Uuid
+  testId        String?  @map("test_id") @db.Uuid
+  categoryId    String?  @map("category_id") @db.Uuid
+  questionText  String   @map("question_text")
+  questionType  String?  @default("MCQ") @map("question_type")
+  type          String?  @default("MCQ")
+  difficulty    String?  @default("medium")
+  optionA       String?  @map("option_a")
+  optionB       String?  @map("option_b")
+  optionC       String?  @map("option_c")
+  optionD       String?  @map("option_d")
+  options       Json?
+  correctAnswer String   @map("correct_answer")
+  explanation   String?
+  tags          Json?    @default("[]")
+  marks         Int?     @default(1)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([testId])
+  @@index([categoryId])
+  @@map("questions")
+}
+
+model QuestionTag {
+  id   String @id @default(uuid()) @db.Uuid
+  name String
+  slug String @unique
+
+  links QuestionTagLink[]
+
+  @@map("question_tags")
+}
+
+model QuestionTagLink {
+  questionId String @map("question_id") @db.Uuid
+  tagId      String @map("tag_id") @db.Uuid
+
+  tag QuestionTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, tagId])
+  @@index([tagId])
+  @@index([questionId])
+  @@map("question_tag_links")
+}
+
+model TestAttempt {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  testId          String?   @map("test_id") @db.Uuid
+  testTitle       String?   @map("test_title")
+  startedAt       DateTime? @default(now()) @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  score           Decimal?  @db.Decimal(5, 2)
+  percentageScore Decimal?  @map("percentage_score") @db.Decimal(5, 2)
+  totalScore      Decimal?  @map("total_score") @db.Decimal(10, 2)
+  answers         Json?
+  timeTaken       Int?      @map("time_taken")
+  status          String    @default("in_progress")
+  proctorFlags    Int?      @default(0) @map("proctor_flags")
+  proctorMetadata Json?     @map("proctor_metadata")
+  scheduleId      String?   @map("schedule_id") @db.Uuid
+  slotNumber      Int?      @map("slot_number")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  test Test? @relation(fields: [testId], references: [id])
+
+  @@index([userId, status])
+  @@index([testId, status])
+  @@index([userId, testId])
+  @@index([completedAt])
+  @@map("test_attempts")
+}
+
+model ExamSchedule {
+  id                String    @id @default(uuid()) @db.Uuid
+  testId            String?   @map("test_id") @db.Uuid
+  title             String?
+  status            String    @default("draft")
+  startsAt          DateTime? @map("starts_at")
+  endsAt            DateTime? @map("ends_at")
+  targetDepartments Json?     @default("[]") @map("target_departments")
+  targetYears       Json?     @default("[]") @map("target_years")
+  slotNumber        Int?      @map("slot_number")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, startsAt])
+  @@index([testId])
+  @@map("exam_schedules")
+}
+
+model ExamViolation {
+  id         String   @id @default(uuid()) @db.Uuid
+  attemptId  String   @map("attempt_id")
+  userId     String?  @map("user_id") @db.Uuid
+  type       String
+  severity   String?
+  metadata   Json?
+  screenshotKey String? @map("screenshot_key")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([attemptId])
+  @@index([userId])
+  @@map("exam_violations")
+}
+
+model StudentDashboardStat {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  statKey   String   @map("stat_key")
+  payload   Json?
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, statKey])
+  @@map("student_dashboard_stats")
+}
+
+model FacultyExamRequest {
+  id               String   @id @default(uuid()) @db.Uuid
+  facultyUserId    String?  @map("faculty_user_id") @db.Uuid
+  title            String
+  description      String?
+  topic            String?
+  department       String?
+  status           String   @default("pending")
+  publishedTestId  String?  @map("published_test_id")
+  questionsJson    Json?    @map("questions_json")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@map("faculty_exam_requests")
+}
+
+model ExamStudentRoster {
+  id         String   @id @default(uuid()) @db.Uuid
+  scheduleId String?  @map("schedule_id") @db.Uuid
+  rollNumber String   @map("roll_number")
+  fullName   String?  @map("full_name")
+  branch     String?
+  year       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([scheduleId, rollNumber])
+  @@map("exam_student_roster")
+}
+
+model ExamSlotRosterEntry {
+  id         String   @id @default(uuid()) @db.Uuid
+  scheduleId String   @map("schedule_id") @db.Uuid
+  rollNumber String   @map("roll_number")
+  password   String?
+  department String?
+  year       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([scheduleId])
+  @@map("exam_slot_roster_entries")
+}

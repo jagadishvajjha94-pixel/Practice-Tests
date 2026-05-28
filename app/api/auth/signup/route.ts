@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminSupabase } from '@/lib/admin-access';
-import {
-  getPublicSupabaseAnonKey,
-  getPublicSupabaseUrl,
-  SUPABASE_PUBLIC_ENV_MESSAGE,
-} from '@/lib/supabase-public-env';
+import { prisma } from '@/lib/prisma';
+import { hashPassword } from '@/lib/password';
 import { isSignupDisabled } from '@/lib/auth-features';
-import { ensureStudentProfileRow, studentFieldsFromMetadata } from '@/lib/student-profile-sync';
 import {
   isPublicSignupEmailAllowed,
   isSignupRoleAllowed,
   type CollegeSignupRole,
 } from '@/lib/college-signup';
+import { COLLEGE } from '@/lib/college-brand';
+import {
+  ensureStudentProfileRowPrisma,
+  resolveSignupEmail,
+  studentSignupFields,
+} from '@/lib/student-profile-sync-prisma';
 
 type SignupBody = {
   email?: string;
@@ -29,54 +30,6 @@ function safeNextPath(next: unknown): string {
   return trimmed;
 }
 
-function getServiceRoleKey(): string | undefined {
-  const raw = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!raw || raw.includes('YOUR_')) return undefined;
-  return raw;
-}
-
-async function findAdminUserByEmail(
-  supabaseUrl: string,
-  serviceRoleKey: string,
-  email: string
-): Promise<{ id?: string } | null> {
-  const res = await fetch(`${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(email)}`, {
-    method: 'GET',
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-    },
-  });
-  if (!res.ok) return null;
-  const payload = (await res.json().catch(() => ({}))) as { users?: Array<{ id?: string; email?: string }> };
-  if (!Array.isArray(payload.users)) return null;
-  return payload.users.find((u) => (u.email || '').toLowerCase() === email.toLowerCase()) ?? null;
-}
-
-async function confirmAndResetExistingUser(
-  supabaseUrl: string,
-  serviceRoleKey: string,
-  userId: string,
-  password: string,
-  fullName: string,
-  userMetadata: Record<string, string>
-): Promise<boolean> {
-  const res = await fetch(`${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
-    method: 'PUT',
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email_confirm: true,
-      password,
-      user_metadata: { full_name: fullName, ...userMetadata },
-    }),
-  });
-  return res.ok;
-}
-
 export async function POST(request: NextRequest) {
   if (isSignupDisabled()) {
     return NextResponse.json(
@@ -84,15 +37,8 @@ export async function POST(request: NextRequest) {
         error:
           'New registrations are closed right now. Please sign in with the account you were given.',
       },
-      { status: 403 }
+      { status: 403 },
     );
-  }
-
-  const supabaseUrl = getPublicSupabaseUrl();
-  const supabaseAnonKey = getPublicSupabaseAnonKey();
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.json({ error: SUPABASE_PUBLIC_ENV_MESSAGE }, { status: 500 });
   }
 
   let body: SignupBody;
@@ -102,15 +48,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
-  const email = body.email?.trim().toLowerCase();
+  const rawEmail = body.email?.trim().toLowerCase() ?? '';
   const password = body.password ?? '';
   const fullName = body.fullName?.trim();
   const role = body.role as CollegeSignupRole | undefined;
   const metadata = body.metadata ?? {};
 
-  if (!email || !password || !fullName) {
+  if (!rawEmail || !password || !fullName) {
     return NextResponse.json({ error: 'Email, password, and full name are required.' }, { status: 400 });
   }
+
+  const email = resolveSignupEmail(rawEmail, metadata);
 
   if (role && !isSignupRoleAllowed(role)) {
     return NextResponse.json(
@@ -130,143 +78,83 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 });
   }
 
-  const userMetadata: Record<string, string> = {
-    full_name: fullName,
-    ...(role ? { role } : {}),
-    ...metadata,
-  };
-
   const next = safeNextPath(body.next);
-  const emailRedirectTo = `${request.nextUrl.origin}/auth/callback?next=${encodeURIComponent(next)}`;
-  const serviceRoleKey = getServiceRoleKey();
+  void next;
 
   try {
-    // Preferred path: create a confirmed user via server-side admin API (no email confirmation needed).
-    if (serviceRoleKey) {
-      const adminRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
-        method: 'POST',
-        headers: {
-          apikey: serviceRoleKey,
-          Authorization: `Bearer ${serviceRoleKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: userMetadata,
-        }),
-      });
+    const passwordHash = await hashPassword(password);
+    const profileFields = studentSignupFields(metadata, email, fullName);
+    const rollNumber = profileFields.roll_number?.replace(/\s+/g, '') || null;
 
-      const adminPayload = (await adminRes.json().catch(() => ({}))) as Record<string, unknown>;
-      if (!adminRes.ok) {
-        const message =
-          (typeof adminPayload.msg === 'string' && adminPayload.msg) ||
-          (typeof adminPayload.error_description === 'string' && adminPayload.error_description) ||
-          (typeof adminPayload.error === 'string' && adminPayload.error) ||
-          'Sign up failed.';
-        const normalized = message.toLowerCase();
-        if (normalized.includes('already') || normalized.includes('registered') || normalized.includes('exists')) {
-          const existing = await findAdminUserByEmail(supabaseUrl, serviceRoleKey, email);
-          if (existing?.id) {
-            const recovered = await confirmAndResetExistingUser(
-              supabaseUrl,
-              serviceRoleKey,
-              existing.id,
-              password,
-              fullName,
-              userMetadata,
-            );
-            if (recovered) {
-              if (role === 'student') {
-                const admin = getAdminSupabase();
-                if (admin) {
-                  await ensureStudentProfileRow(
-                    admin,
-                    existing.id,
-                    studentFieldsFromMetadata(userMetadata, email),
-                  );
-                }
-              }
-              return NextResponse.json({
-                ok: true,
-                user_id: existing.id,
-                email_confirmed: true,
-                recovered_existing: true,
-              });
-            }
-          }
-          return NextResponse.json(
-            { error: 'This email is already registered. Please sign in instead.' },
-            { status: 409 }
-          );
-        }
-        if (normalized.includes('rate limit')) {
-          return NextResponse.json({ error: 'Signup traffic is high right now. Please try again shortly.' }, { status: 429 });
-        }
-        return NextResponse.json({ error: message }, { status: adminRes.status });
-      }
-
-      const createdUser = adminPayload.user as { id?: string } | undefined;
-      const userId = createdUser?.id ?? null;
-
-      if (userId && role === 'student') {
-        const admin = getAdminSupabase();
-        if (admin) {
-          await ensureStudentProfileRow(
-            admin,
-            userId,
-            studentFieldsFromMetadata(userMetadata, email),
-          );
-        }
-      }
-
-      return NextResponse.json({ ok: true, user_id: userId, email_confirmed: true });
-    }
-
-    // Fallback path if service role key is unavailable: regular Supabase signup (may require confirmation).
-    const authRes = await fetch(`${supabaseUrl}/auth/v1/signup`, {
-      method: 'POST',
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        'Content-Type': 'application/json',
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email },
+          ...(rollNumber ? [{ rollNumber }] : []),
+        ],
       },
-      body: JSON.stringify({
-        email,
-        password,
-        data: userMetadata,
-        options: { emailRedirectTo },
-      }),
+      include: { adminUser: true },
     });
 
-    const payload = (await authRes.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!authRes.ok) {
-      const message =
-        (typeof payload.msg === 'string' && payload.msg) ||
-        (typeof payload.error_description === 'string' && payload.error_description) ||
-        (typeof payload.error === 'string' && payload.error) ||
-        'Sign up failed.';
-      const normalized = message.toLowerCase();
-      if (normalized.includes('email rate limit') || normalized.includes('rate limit')) {
-        return NextResponse.json(
-          {
-            error: 'Signup traffic is high right now. Please try again shortly.',
-          },
-          { status: 429 }
-        );
-      }
-      return NextResponse.json({ error: message }, { status: authRes.status });
+    if (existing?.adminUser) {
+      return NextResponse.json(
+        { error: 'Admin accounts cannot be created online. Contact the examination cell.' },
+        { status: 403 },
+      );
     }
 
-    return NextResponse.json({ ok: true, email_confirmed: false });
-  } catch {
-    return NextResponse.json(
-      {
-        error: 'Unable to reach Supabase auth service from server.',
+    if (existing) {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          passwordHash,
+          fullName: profileFields.full_name ?? fullName,
+          branch: profileFields.branch ?? undefined,
+          academicYear: profileFields.academic_year ?? undefined,
+          rollNumber: rollNumber ?? undefined,
+          email,
+        },
+      });
+
+      if (role === 'student') {
+        await ensureStudentProfileRowPrisma(existing.id, profileFields);
+      }
+
+      return NextResponse.json({
+        ok: true,
+        user_id: existing.id,
+        email_confirmed: true,
+        recovered_existing: true,
+      });
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        fullName: profileFields.full_name ?? fullName,
+        branch: profileFields.branch,
+        academicYear: profileFields.academic_year,
+        rollNumber,
+        college: COLLEGE.shortName,
+        subscriptionStatus: 'free',
       },
-      { status: 502 }
-    );
+    });
+
+    if (role === 'student') {
+      await ensureStudentProfileRowPrisma(user.id, profileFields);
+    }
+
+    return NextResponse.json({ ok: true, user_id: user.id, email_confirmed: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Sign up failed.';
+    const normalized = message.toLowerCase();
+    if (normalized.includes('unique') || normalized.includes('duplicate')) {
+      return NextResponse.json(
+        { error: 'This email is already registered. Please sign in instead.' },
+        { status: 409 },
+      );
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

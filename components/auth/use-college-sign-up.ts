@@ -2,9 +2,6 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { COLLEGE } from '@/lib/college-brand';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import type { CollegeSignupRole } from '@/lib/college-signup';
 
 type SignUpOptions = {
@@ -33,9 +30,6 @@ export function useCollegeSignUp() {
       setError(null);
       setLoading(true);
       try {
-        const supabase = createSupabaseBrowserClient();
-        if (!supabase) throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
-
         const signupRes = await fetch('/api/auth/signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -56,24 +50,6 @@ export function useCollegeSignUp() {
 
         if (!signupRes.ok) {
           throw new Error(signupJson.error || 'Registration failed. Please try again.');
-        }
-
-        const userId = signupJson.user_id ?? null;
-        if (userId && role === 'student') {
-          await supabase.from('users').upsert(
-            {
-              id: userId,
-              email,
-              full_name: fullName,
-              branch: metadata.department ?? undefined,
-              academic_year: metadata.year ?? undefined,
-              user_role: 'student',
-              college: COLLEGE.shortName,
-              subscription_status: 'free',
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' },
-          );
         }
 
         if (role === 'student') {

@@ -1,26 +1,16 @@
 import { NextResponse } from 'next/server';
-import { checkIsAdmin } from '@/lib/admin-verify';
-import { getServiceSupabase } from '@/lib/server-auth';
-import { getSupabaseServerClient } from '@/lib/supabase-server';
+import { auth } from '@/auth';
+import { resolveAppUserById } from '@/lib/roles-prisma';
 
 export async function POST() {
-  const supabase = await getSupabaseServerClient();
-  if (!supabase) {
-    return NextResponse.json({ error: 'Supabase is not configured.' }, { status: 500 });
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const session = await auth();
+  const user = session?.user;
   if (!user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const service = getServiceSupabase();
-  const isAdmin = await checkIsAdmin(service, user.id, user.email);
-
-  if (!isAdmin) {
+  const resolved = await resolveAppUserById(user.id);
+  if (!resolved || resolved.role !== 'admin') {
     return NextResponse.json(
       {
         isAdmin: false,

@@ -11,10 +11,6 @@ import {
   validateAdminUsername,
   validatePassword,
 } from '@/lib/college-auth';
-import {
-  isSupabasePublicEnvConfigured,
-  SUPABASE_PUBLIC_ENV_MESSAGE,
-} from '@/lib/supabase-public-env';
 import { StatusAlert } from '@/components/ui/status-alert';
 import { joinApiErrorParts } from '@/lib/api-error-message';
 import { DEFAULT_ADMIN_EMAIL } from '@/lib/admin-defaults';
@@ -58,11 +54,6 @@ function AdminLoginForm() {
     if (passErr) errs.password = passErr;
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
-
-    if (!isSupabasePublicEnvConfigured()) {
-      setError(SUPABASE_PUBLIC_ENV_MESSAGE);
-      return;
-    }
 
     setLoading(true);
     try {

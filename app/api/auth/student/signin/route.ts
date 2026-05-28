@@ -1,26 +1,17 @@
-import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
+import { signIn } from '@/auth';
 import { studentAuthEmail } from '@/lib/college-auth';
 import { normalizeRoll } from '@/lib/exam-schedule-slots';
-import { getServiceSupabase } from '@/lib/server-auth';
-import { ensureStudentSessionLockTableIfPossible } from '@/lib/ensure-student-session-lock';
 import {
-  claimStudentSession,
-  sessionIdFromAccessToken,
   STUDENT_ALREADY_LOGGED_IN_MESSAGE,
 } from '@/lib/student-session-lock';
 import {
-  getPublicSupabaseAnonKey,
-  getPublicSupabaseUrl,
-  isSupabasePublicEnvConfigured,
-  SUPABASE_PUBLIC_ENV_MESSAGE,
-} from '@/lib/supabase-public-env';
+  claimStudentSessionPrisma,
+  nextAuthSessionId,
+} from '@/lib/student-session-lock-prisma';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
-  if (!isSupabasePublicEnvConfigured()) {
-    return NextResponse.json({ error: SUPABASE_PUBLIC_ENV_MESSAGE }, { status: 500 });
-  }
-
   let body: {
     rollNumber?: string;
     password?: string;
@@ -42,61 +33,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Roll number and password are required' }, { status: 400 });
   }
 
-  const email = studentAuthEmail(rollNumber);
-  const supabaseUrl = getPublicSupabaseUrl()!;
-  const supabaseAnonKey = getPublicSupabaseAnonKey()!;
-
-  let cookieResponse = NextResponse.next({ request });
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        cookieResponse = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => {
-          cookieResponse.cookies.set(name, value, options);
-        });
-      },
-    },
+  const result = await signIn('student', {
+    rollNumber,
+    password,
+    redirect: false,
   });
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-  if (error || !data.user || !data.session) {
+  if (result?.error) {
     return NextResponse.json(
       {
-        error: /invalid login credentials/i.test(error?.message ?? '')
-          ? 'Invalid roll number or password.'
-          : (error?.message ?? 'Invalid roll number or password.'),
+        error: 'Invalid roll number or password.',
       },
       { status: 401 },
     );
   }
 
-  const admin = getServiceSupabase();
-  if (!admin) {
-    await supabase.auth.signOut();
-    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
+  const email = studentAuthEmail(rollNumber);
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [{ rollNumber: rollNumber.replace(/\s+/g, '') }, { email }],
+    },
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: 'Account not found.' }, { status: 401 });
   }
 
-  const sessionId = sessionIdFromAccessToken(data.session.access_token);
-  if (!sessionId) {
-    await supabase.auth.signOut();
-    return NextResponse.json({ error: 'Unable to start session.' }, { status: 500 });
-  }
-
-  let claim = await claimStudentSession(admin, rollNumber, data.user.id, sessionId);
-  if (!claim.ok && /unable to register login session/i.test(claim.message)) {
-    const ensured = await ensureStudentSessionLockTableIfPossible();
-    if (ensured) {
-      claim = await claimStudentSession(admin, rollNumber, data.user.id, sessionId);
-    }
-  }
+  const sessionId = nextAuthSessionId(user.id);
+  const claim = await claimStudentSessionPrisma(rollNumber, user.id, sessionId);
   if (!claim.ok) {
-    await supabase.auth.signOut();
     return NextResponse.json(
       {
         error: claim.message || STUDENT_ALREADY_LOGGED_IN_MESSAGE,
@@ -106,39 +71,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const metadata: Record<string, string> = {
-    role: 'student',
-    roll_number: rollNumber,
-    full_name: rollNumber,
-  };
-  if (department) metadata.department = department;
-  if (year) metadata.year = year;
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      fullName: rollNumber,
+      branch: department || undefined,
+      academicYear: year || undefined,
+    },
+  });
 
-  await supabase.auth.updateUser({ data: metadata });
-  await admin
-    .from('users')
-    .upsert(
-      {
-        id: data.user.id,
-        email: data.user.email ?? email,
-        full_name: rollNumber,
-        branch: department || undefined,
-        academic_year: year || undefined,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'id' },
-    )
-    .then(() => undefined);
-
-  const jsonResponse = NextResponse.json({
+  return NextResponse.json({
     success: true,
-    email: data.user.email,
-    userId: data.user.id,
+    email: user.email,
+    userId: user.id,
   });
-
-  cookieResponse.cookies.getAll().forEach((cookie) => {
-    jsonResponse.cookies.set(cookie);
-  });
-
-  return jsonResponse;
 }

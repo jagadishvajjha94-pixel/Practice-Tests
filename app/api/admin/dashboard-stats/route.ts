@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
-import { loadAdminStudents, loadAllAttemptsRollup } from '@/lib/admin/attempts-rollup';
-import { listLiveExamSchedules } from '@/lib/admin/live-dashboard-data';
+import { requireAuth } from '@/lib/server-auth';
+import {
+  loadAdminStudentsPrisma,
+  loadAllAttemptsRollupPrisma,
+} from '@/lib/admin/attempts-rollup-prisma';
+import { listLiveExamSchedulesPrisma } from '@/lib/admin/live-dashboard-prisma';
 import { averageScorePercent } from '@/lib/format-score';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,50 +14,26 @@ export async function GET() {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
-  if (!admin) {
-    return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
-  }
-
-  const [students, { attempts, testsById }, categoriesRes, liveSchedules] = await Promise.all([
-    loadAdminStudents(admin),
-    loadAllAttemptsRollup(admin),
-    admin.from('test_categories').select('id, name, slug'),
-    listLiveExamSchedules(admin),
+  const [students, { attempts }, categories, liveSchedules] = await Promise.all([
+    loadAdminStudentsPrisma(),
+    loadAllAttemptsRollupPrisma(),
+    prisma.testCategory.findMany({ select: { id: true, name: true, slug: true } }),
+    listLiveExamSchedulesPrisma(),
   ]);
 
-  const categories = categoriesRes.error
-    ? []
-    : (categoriesRes.data ?? []).map((c) => ({
-        id: String(c.id),
-        name: String(c.name),
-        slug: String(c.slug),
-      }));
+  const tests = await prisma.test.findMany({
+    select: { id: true, title: true, name: true, categoryId: true },
+    take: 2000,
+  });
 
-  const tests = Array.from(testsById.entries()).map(([id, name]) => ({
-    id,
-    name,
-    category_id: '',
+  const testList = tests.map((t) => ({
+    id: t.id,
+    name: String(t.title ?? t.name ?? `Test ${t.id}`),
+    category_id: String(t.categoryId ?? ''),
   }));
 
-  const { data: testsWithCat } = await admin.from('tests').select('id, title, name, category_id');
-  for (const row of testsWithCat ?? []) {
-    const id = String(row.id);
-    const existing = tests.find((t) => t.id === id);
-    if (existing) {
-      existing.category_id = String(row.category_id ?? '');
-      existing.name = String(row.title ?? row.name ?? existing.name);
-    } else {
-      tests.push({
-        id,
-        name: String(row.title ?? row.name ?? `Test ${id}`),
-        category_id: String(row.category_id ?? ''),
-      });
-    }
-  }
-
   const categoryByTestId = new Map<string, string>();
-  for (const t of tests) {
+  for (const t of testList) {
     const cat = categories.find((c) => c.id === t.category_id);
     categoryByTestId.set(t.id, cat?.slug ?? '');
   }
@@ -130,8 +110,8 @@ export async function GET() {
       time_taken: a.time_taken,
       student: studentById.get(a.user_id) ?? null,
     })),
-    tests,
-    categories,
+    tests: testList,
+    categories: categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug })),
     liveSchedules,
   });
 }

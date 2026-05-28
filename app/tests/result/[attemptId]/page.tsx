@@ -17,10 +17,10 @@ export default function TestResultPage() {
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Button type="button" onClick={() => window.close()}>
             Close window
-          </Button>
+            </Button>
           <Button asChild variant="outline">
             <Link href="/exams">Back to examinations</Link>
-          </Button>
+            </Button>
         </div>
       </div>
     </div>

@@ -13,8 +13,7 @@ import {
   type ExamViolationType,
 } from '@/lib/exam-v2/proctoring';
 import { useCameraProctoring } from '@/hooks/use-camera-proctoring';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 type Options = {
   testId: string;
@@ -55,12 +54,9 @@ export function useExamProctoring({
     if (!batch.length) return;
 
     try {
-      const supabase = getSupabaseBrowserClient();
-      const authHeaders = supabase ? await getSupabaseAuthHeaders(supabase) : {};
-      await fetch('/api/v2/proctor/ingest', {
+      await fetchWithAuth('/api/v2/proctor/ingest', {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           testId,
           sessionId,

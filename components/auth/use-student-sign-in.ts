@@ -3,10 +3,6 @@
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatApiErrorField } from '@/lib/api-error-message';
-import {
-  isSupabasePublicEnvConfigured,
-  SUPABASE_PUBLIC_ENV_MESSAGE,
-} from '@/lib/supabase-public-env';
 
 type StudentSignInOptions = {
   rollNumber: string;
@@ -32,10 +28,6 @@ export function useStudentSignIn() {
       setError(null);
       setLoading(true);
       try {
-        if (!isSupabasePublicEnvConfigured()) {
-          throw new Error(SUPABASE_PUBLIC_ENV_MESSAGE);
-        }
-
         const res = await fetch('/api/auth/student/signin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

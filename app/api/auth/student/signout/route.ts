@@ -1,33 +1,13 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
-import { rollNumberFromUser } from '@/lib/admin/roll-number';
-import { releaseStudentSession, sessionIdFromAccessToken } from '@/lib/student-session-lock';
-import { getSupabaseServerClient } from '@/lib/supabase-server';
+import { signOut } from '@/auth';
+import { requireAuth } from '@/lib/server-auth';
+import { releaseStudentSessionPrisma } from '@/lib/student-session-lock-prisma';
 
 export async function POST() {
   const auth = await requireAuth(['student']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
-  const supabase = await getSupabaseServerClient();
-  if (!admin || !supabase) {
-    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
-  }
-
-  const {
-    data: { session, user },
-  } = await supabase.auth.getSession();
-
-  const rollNumber = rollNumberFromUser(user?.email ?? auth.ctx.user.email ?? '', user?.user_metadata);
-  const sessionId = session?.access_token
-    ? sessionIdFromAccessToken(session.access_token)
-    : null;
-
-  if (rollNumber && rollNumber !== '—') {
-    await releaseStudentSession(admin, rollNumber, sessionId);
-  }
-
-  await supabase.auth.signOut();
-
+  await releaseStudentSessionPrisma(auth.ctx.user.id);
+  await signOut({ redirect: false });
   return NextResponse.json({ success: true });
 }

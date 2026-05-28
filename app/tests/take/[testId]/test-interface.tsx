@@ -12,13 +12,11 @@ import { useTest } from './test-context';
 import QuestionDisplay from './question-display';
 import QuestionNavigation from './question-navigation';
 import TestTimer from './test-timer';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { answersMatchMcq, isCodingQuestion } from '@/lib/practice-mappers';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import { getClientUser } from '@/lib/client-auth';
+import { isCodingQuestion } from '@/lib/practice-mappers';
 import { formatScorePercentLabel, roundScorePercent } from '@/lib/format-score';
-import { formatSupabaseError } from '@/lib/utils';
 import { isSchemaMissingError } from '@/lib/fallback-question-bank';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { TestAnswer } from './test-context';
 import { useExamAutosave } from '@/hooks/use-exam-autosave';
 import { useExamProctoring } from '@/hooks/use-exam-proctoring';
 import { ExamProctorPanel } from '@/components/proctor/exam-proctor-panel';
@@ -36,12 +34,9 @@ import {
 } from '@/lib/local-test-attempts';
 import {
   cacheApiAttempts,
-  ensureStudentUserRow,
   isAttemptPersistenceError,
-  persistTestAttempt,
   type DashboardAttemptView,
 } from '@/lib/test-attempts';
-import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
 import {
   buildFeedEntry,
   pushDashboardFeedEntry,
@@ -51,44 +46,6 @@ import {
   dashboardDisplayNameForTest,
   isDepartmentExamTest,
 } from '@/lib/programming-dashboard';
-/** When `test_attempts` has no JSON `answers`, some DBs keep rows in `question_answers` or `test_answers`. */
-async function persistOptionalPerQuestionRows(
-  supabase: SupabaseClient,
-  attemptId: string | number,
-  questions: Question[],
-  answers: Record<string, TestAnswer>
-) {
-  if (!questions.length) return;
-
-  const rows = questions.map((q) => {
-    const raw = answers[q.id]?.userAnswer;
-    const ua =
-      raw === null || raw === undefined ? null : typeof raw === 'string' ? raw : String(raw);
-    return {
-      attempt_id: attemptId,
-      question_id: q.id,
-      user_answer: ua,
-      is_correct: answersMatchMcq(raw, q.correct_answer),
-      marked_for_review: Boolean(answers[q.id]?.isMarkedForReview),
-    };
-  });
-
-  const { error: qaErr } = await supabase.from('question_answers').insert(rows);
-  if (!qaErr) return;
-
-  const rowsTa = questions.map((q) => {
-    const raw = answers[q.id]?.userAnswer;
-    const ua =
-      raw === null || raw === undefined ? null : typeof raw === 'string' ? raw : String(raw);
-    return {
-      attempt_id: attemptId,
-      question_id: q.id,
-      user_answer: ua,
-      is_correct: answersMatchMcq(raw, q.correct_answer),
-    };
-  });
-  await supabase.from('test_answers').insert(rowsTa);
-}
 
 interface TestInterfaceProps {
   test: Test;
@@ -184,6 +141,7 @@ export default function TestInterface({
 
   useExamAutosave({
     testId: test.id,
+    attemptId: liveAttemptIdRef.current,
     enabled: fullAccess,
     answers,
     currentQuestionIndex,
@@ -202,11 +160,7 @@ export default function TestInterface({
 
     const timer = setTimeout(() => {
       void (async () => {
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) return;
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const user = await getClientUser();
         if (!user) return;
 
         let scorePercent = 0;
@@ -220,11 +174,9 @@ export default function TestInterface({
             maxScore > 0 ? roundScorePercent((netScore / maxScore) * 100) : 0;
         }
 
-        const headers = await getSupabaseAuthHeaders(supabase);
-        const res = await fetch('/api/student/test-attempts/progress', {
+        const res = await fetchWithAuth('/api/student/test-attempts/progress', {
           method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json', ...headers },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             testId: test.id,
             testName: dashboardDisplayNameForTest(test),
@@ -398,12 +350,7 @@ export default function TestInterface({
         scorePercent = maxScore > 0 ? roundScorePercent((netScore / maxScore) * 100) : 0;
       }
 
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        saveLocalAttemptAndNavigate(scorePercent, LOCAL_ATTEMPT_GUEST_USER_ID);
-        return;
-      }
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getClientUser();
 
       if (!user) {
         if (test.id.startsWith('fallback-')) {
@@ -472,14 +419,9 @@ export default function TestInterface({
       let attemptId = localAttemptId;
 
       try {
-        const authHeaders = await getSupabaseAuthHeaders(supabase);
-        const apiRes = await fetch('/api/student/test-attempts', {
+        const apiRes = await fetchWithAuth('/api/student/test-attempts', {
           method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...authHeaders,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             testId: test.id,
             testName: dashboardTestName,
@@ -527,32 +469,7 @@ export default function TestInterface({
           }
         }
       } catch {
-        // API unavailable — fall back to direct Supabase insert below
-      }
-
-      if (attemptId === localAttemptId) {
-        await ensureStudentUserRow(supabase, user);
-        try {
-          const saved = await persistTestAttempt(supabase, {
-            userId: user.id,
-            testId: test.id,
-            testName: dashboardTestName,
-            scorePercent,
-            rawNetScore,
-            answers: answersPayload,
-            elapsedSec,
-            startedAtIso: nowIso,
-            completedAtIso: nowIso,
-            proctorSessionId: proctorSummary?.sessionId,
-            proctorViolations: proctorSummary?.violationCount ?? 0,
-            proctorAutoSubmit: proctorSummary?.autoSubmitted ?? false,
-          });
-          attemptId = saved.id;
-        } catch (clientPersistError) {
-          if (!isAttemptPersistenceError(clientPersistError)) {
-            throw clientPersistError;
-          }
-        }
+        // API unavailable — keep local attempt id
       }
 
       if (attemptId !== localAttemptId) {
@@ -567,16 +484,10 @@ export default function TestInterface({
         removeDashboardFeedEntry(user.id, localAttemptId);
       }
 
-      if (!attemptId.startsWith('local-')) {
-        await persistOptionalPerQuestionRows(supabase, attemptId, questions, answers);
-      }
-
       if (!attemptId.startsWith('local-') && proctorSummary?.sessionId) {
-        const authHeaders = await getSupabaseAuthHeaders(supabase);
-        void fetch('/api/v2/proctor/ingest', {
+        void fetchWithAuth('/api/v2/proctor/ingest', {
           method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             testId: test.id,
             sessionId: proctorSummary.sessionId,
@@ -608,15 +519,12 @@ export default function TestInterface({
           fallbackPercent = maxScore > 0 ? roundScorePercent((netScore / maxScore) * 100) : 0;
         }
         let ownerId = LOCAL_ATTEMPT_GUEST_USER_ID;
-        const sb = getSupabaseBrowserClient();
-        if (sb) {
-          const { data: { user: fallbackUser } } = await sb.auth.getUser();
-          if (fallbackUser?.id) ownerId = fallbackUser.id;
-        }
+        const fallbackUser = await getClientUser();
+        if (fallbackUser?.id) ownerId = fallbackUser.id;
         saveLocalAttemptAndNavigate(fallbackPercent, ownerId);
         return;
       }
-      const message = formatSupabaseError(error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
       console.error('Error submitting test:', message, error);
       alert(`Failed to submit test. ${message}`);
     } finally {

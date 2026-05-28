@@ -1,89 +1,58 @@
-import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getPublicSupabaseAnonKey,
-  getPublicSupabaseUrl,
-  isSupabasePublicEnvConfigured,
-  SUPABASE_PUBLIC_ENV_MESSAGE,
-} from '@/lib/supabase-public-env';
-import { ensureAdminAccess } from '@/lib/admin-verify';
+import { signIn } from '@/auth';
+import { ensureAdminUser } from '@/lib/roles-prisma';
 import { DEFAULT_ADMIN_EMAIL } from '@/lib/admin-defaults';
-import { getServiceSupabase } from '@/lib/server-auth';
+import { adminAuthEmail } from '@/lib/college-auth';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
-  if (!isSupabasePublicEnvConfigured()) {
-    return NextResponse.json({ error: SUPABASE_PUBLIC_ENV_MESSAGE }, { status: 500 });
-  }
-
-  let body: { email?: string; password?: string };
+  let body: { email?: string; password?: string; username?: string };
   try {
-    body = (await request.json()) as { email?: string; password?: string };
+    body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const email = body.email?.trim().toLowerCase();
+  const emailInput = (body.email ?? body.username ?? '').trim().toLowerCase();
   const password = body.password ?? '';
 
-  if (!email || !password) {
+  if (!emailInput || !password) {
     return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
   }
 
-  const supabaseUrl = getPublicSupabaseUrl()!;
-  const supabaseAnonKey = getPublicSupabaseAnonKey()!;
-
-  let cookieResponse = NextResponse.next({ request });
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        cookieResponse = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => {
-          cookieResponse.cookies.set(name, value, options);
-        });
-      },
-    },
+  const result = await signIn('admin', {
+    username: emailInput,
+    password,
+    redirect: false,
   });
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-  if (error || !data.user) {
+  if (result?.error) {
     const hint =
-      email !== DEFAULT_ADMIN_EMAIL
+      emailInput !== DEFAULT_ADMIN_EMAIL
         ? ` Use the admin email issued by the examination cell (e.g. ${DEFAULT_ADMIN_EMAIL}).`
         : ' Contact the examination cell if you need access.';
-    const message =
-      typeof error?.message === 'string' && error.message.trim()
-        ? error.message.trim()
-        : 'Invalid email or password.';
     return NextResponse.json(
       {
-        error: message,
+        error: 'Invalid email or password.',
         hint,
-        attemptedEmail: email,
+        attemptedEmail: emailInput,
       },
-      { status: 401 },
+      { status: 401 }
     );
   }
 
-  const service = getServiceSupabase();
-  if (service) {
-    await ensureAdminAccess(service, data.user.id, data.user.email ?? email);
+  const user = await prisma.user.findUnique({
+    where: { email: adminAuthEmail(emailInput) },
+    select: { id: true, email: true },
+  });
+
+  if (user) {
+    await ensureAdminUser(user.id);
   }
 
-  const jsonResponse = NextResponse.json({
+  return NextResponse.json({
     success: true,
-    email: data.user.email,
-    userId: data.user.id,
+    email: user?.email ?? emailInput,
+    userId: user?.id,
   });
-
-  cookieResponse.cookies.getAll().forEach((cookie) => {
-    jsonResponse.cookies.set(cookie);
-  });
-
-  return jsonResponse;
 }

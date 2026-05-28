@@ -1,24 +1,26 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { requireAuth } from '@/lib/server-auth';
 import {
-  ensureStudentUserRow,
-  fetchAttemptsForUser,
-  findCompletedAttemptForTest,
-  findCompletedElevateXAttempt,
-  persistTestAttempt,
   fallbackTestForAttempt,
   normalizeAttemptRow,
   type PersistAttemptInput,
 } from '@/lib/test-attempts';
 import {
-  appendStudentDashboardStat,
-  buildStatEntry,
-  fetchStudentDashboardStats,
-} from '@/lib/student-dashboard-stats';
+  appendStudentDashboardStatPrisma,
+  buildStatEntry as buildStatEntryPrisma,
+  fetchStudentDashboardStatsPrisma,
+} from '@/lib/db/student-dashboard-stats-prisma';
+import {
+  ensureStudentUserRowPrisma,
+  fetchAttemptsForUserPrisma,
+  findCompletedAttemptForTestPrisma,
+  persistTestAttemptPrisma,
+  resolveStudentProfilePrisma,
+  linkProctorViolationsPrisma,
+} from '@/lib/db/test-attempts-prisma';
+import { assertStudentCanTakeTestPrisma } from '@/lib/db/exam-access-prisma';
 import type { TestAttempt } from '@/lib/types';
-import { assertStudentCanTakeTest } from '@/lib/exam-access';
 import { isElevateXTestId } from '@/lib/elevatex';
-import { resolveStudentTargeting } from '@/lib/student-profile-sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,29 +28,17 @@ export async function GET(request: Request) {
   const auth = await requireAuth(undefined, request);
   if ('response' in auth) return auth.response;
 
-  const service = getServiceSupabase();
-  if (!service) {
-    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
-  }
-
   const userId = auth.ctx.user.id;
-
-  let attempts = await fetchStudentDashboardStats(service, userId);
+  let attempts = await fetchStudentDashboardStatsPrisma(userId);
   if (!attempts.length) {
-    attempts = await fetchAttemptsForUser(service, userId);
+    attempts = await fetchAttemptsForUserPrisma(userId);
   }
-
   return NextResponse.json({ attempts });
 }
 
 export async function POST(request: Request) {
   const auth = await requireAuth(undefined, request);
   if ('response' in auth) return auth.response;
-
-  const service = getServiceSupabase();
-  if (!service) {
-    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
-  }
 
   let body: Record<string, unknown>;
   try {
@@ -94,30 +84,20 @@ export async function POST(request: Request) {
     proctorAutoSubmit: Boolean(body.proctorAutoSubmit),
   };
 
-  await ensureStudentUserRow(service, {
+  const testId = String(body.testId ?? '').trim();
+
+  await ensureStudentUserRowPrisma({
     id: userId,
     email: auth.ctx.user.email,
   });
 
-  const testId = String(body.testId ?? '').trim();
   if (testId) {
-    const { data: authUser } = await service.auth.admin.getUserById(userId);
-    const profile = await resolveStudentTargeting(
-      service,
-      userId,
-      (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
-      authUser?.user?.email ?? auth.ctx.user.email,
-    );
-    const access = await assertStudentCanTakeTest(
-      service,
-      {
-        id: userId,
-        email: authUser?.user?.email ?? auth.ctx.user.email,
-        user_metadata: (authUser?.user?.user_metadata ?? {}) as Record<string, unknown>,
-      },
-      testId,
-      profile,
-    );
+    const profile = await resolveStudentProfilePrisma(userId);
+    const access = await assertStudentCanTakeTestPrisma(userId, testId, {
+      branch: profile.branch,
+      academic_year: profile.academic_year,
+      roll_number: profile.roll_number,
+    });
     if (!access.allowed) {
       return NextResponse.json(
         { error: access.message, code: access.code, locked: true },
@@ -125,9 +105,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const prior = isElevateXTestId(testId)
-      ? await findCompletedElevateXAttempt(service, userId)
-      : await findCompletedAttemptForTest(service, userId, testId);
+    const prior = await findCompletedAttemptForTestPrisma(userId, testId);
     if (prior) {
       return NextResponse.json(
         {
@@ -142,7 +120,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const statEntry = buildStatEntry({
+  const statEntry = buildStatEntryPrisma({
     id: `pending-${Date.now()}`,
     userId,
     testId: input.testId,
@@ -155,20 +133,20 @@ export async function POST(request: Request) {
   });
 
   try {
-    const { id } = await persistTestAttempt(service, input);
+    const { id } = await persistTestAttemptPrisma(input);
     statEntry.id = id;
 
     if (input.proctorSessionId) {
-      await service
-        .from('exam_violations')
-        .update({ attempt_id: id, test_id: input.testId || null })
-        .eq('user_id', userId)
-        .filter('metadata->>sessionId', 'eq', input.proctorSessionId);
+      await linkProctorViolationsPrisma(
+        userId,
+        id,
+        input.testId || null,
+        input.proctorSessionId,
+      );
     }
 
-    await appendStudentDashboardStat(service, userId, statEntry);
-
-    const attempts = await fetchStudentDashboardStats(service, userId);
+    await appendStudentDashboardStatPrisma(userId, statEntry);
+    const attempts = await fetchStudentDashboardStatsPrisma(userId);
     const saved = attempts.find((row) => String(row.id) === String(id));
     const attempt: TestAttempt & { test: { name: string } } = saved ?? {
       ...normalizeAttemptRow({
@@ -204,44 +182,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ id, attempt, attempts });
   } catch (error) {
     try {
-      await appendStudentDashboardStat(service, userId, statEntry);
-      const attempts = await fetchStudentDashboardStats(service, userId);
+      await appendStudentDashboardStatPrisma(userId, statEntry);
+      const attempts = await fetchStudentDashboardStatsPrisma(userId);
       return NextResponse.json({
         id: statEntry.id,
-        attempt: {
-          ...normalizeAttemptRow({
-            id: statEntry.id,
-            user_id: userId,
-            test_id: statEntry.test_id,
-            score: statEntry.score,
-            status: 'completed',
-            created_at: statEntry.created_at,
-            completed_at: statEntry.completed_at,
-            started_at: statEntry.created_at,
-            time_taken: statEntry.time_taken,
-          }),
-          test: {
-            ...fallbackTestForAttempt({
-              id: statEntry.id,
-              user_id: userId,
-              test_id: statEntry.test_id,
-              started_at: statEntry.created_at,
-              completed_at: statEntry.completed_at,
-              score: statEntry.score,
-              answers: null,
-              time_taken: statEntry.time_taken,
-              status: 'completed',
-              created_at: statEntry.created_at,
-            }),
-            name: statEntry.test_name,
-          },
-        },
         attempts,
         warning: 'Saved to dashboard stats; test_attempts row may be missing.',
       });
-    } catch (statsError) {
+    } catch {
       const message = error instanceof Error ? error.message : 'Failed to save attempt';
-      console.error('[test-attempts POST]', message, error, statsError);
       return NextResponse.json({ error: message }, { status: 500 });
     }
   }

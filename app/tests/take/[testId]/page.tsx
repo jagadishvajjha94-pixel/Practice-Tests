@@ -1,13 +1,11 @@
 'use client';
 
-import type { Session } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { use, useEffect, useLayoutEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Test, Question } from '@/lib/types';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { loadTestBundleForTake } from '@/lib/load-test-for-take';
 import { TestProvider } from './test-context';
 import TestInterface from './test-interface';
@@ -36,8 +34,9 @@ import { RmsetExamIntro } from '@/components/rmset/rmset-exam-intro';
 import { isRmsetTestCategorySlug } from '@/lib/rmset/student-exam-intro';
 import { getAttemptIndexForUser } from '@/lib/local-test-attempts';
 import { testIdsMatch, type CompletedAttemptSummary } from '@/lib/test-attempts';
+import { getClientUser, isAwsClientMode } from '@/lib/client-auth';
 
-/** `pending` = waiting on Supabase session; avoid starting the test until resolved (prevents full-paper race). */
+/** `pending` = waiting on auth session; avoid starting the test until resolved. */
 type PracticeAccessState = 'pending' | 'guest' | 'full';
 export default function TakeTestPage({
   params,
@@ -50,7 +49,7 @@ export default function TakeTestPage({
   const appRole = useAppRole();
 
   useEffect(() => {
-    if (appRole === 'faculty' || appRole === 'admin') {
+    if (appRole === 'admin') {
       router.replace(defaultRedirectForRole(appRole));
     }
   }, [appRole, router]);
@@ -67,36 +66,15 @@ export default function TakeTestPage({
   const [accessLocked, setAccessLocked] = useState<string | null>(null);
 
   useLayoutEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) {
+    if (isAwsClientMode()) {
       setPracticeAccess('full');
     }
   }, []);
 
   useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) return undefined;
-
-    const applySession = (session: Session | null) => {
-      setPracticeAccess(session?.user ? 'full' : 'guest');
-    };
-
     const refreshAccess = async () => {
       try {
-        // Prefer local session first so right-after-login redirects show full paper immediately.
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData.session?.user) {
-          setPracticeAccess('full');
-          return;
-        }
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
-        if (error) {
-          setPracticeAccess('guest');
-          return;
-        }
+        const user = await getClientUser();
         setPracticeAccess(user ? 'full' : 'guest');
       } catch {
         setPracticeAccess('guest');
@@ -105,11 +83,6 @@ export default function TakeTestPage({
 
     void refreshAccess();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySession(session);
-    });
     const onWindowFocus = () => {
       void refreshAccess();
     };
@@ -120,7 +93,6 @@ export default function TakeTestPage({
     document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
-      subscription.unsubscribe();
       window.removeEventListener('focus', onWindowFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };
@@ -131,18 +103,7 @@ export default function TakeTestPage({
       setLoadError(null);
       setAccessLocked(null);
       try {
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) {
-          const fallbackTest = getFallbackTestById(testId);
-          const fallbackQuestions = getFallbackQuestionsByTestId(testId);
-          if (fallbackTest && fallbackQuestions.length > 0) {
-            setTest(fallbackTest);
-            setQuestions(fallbackQuestions);
-          }
-          return;
-        }
-
-        const { data: sessionData } = await supabase.auth.getSession();
+        const user = await getClientUser();
         let detectedPrior: CompletedAttemptSummary | null = null;
 
         const policyRes = await fetch(`/api/tests/${encodeURIComponent(testId)}/access-policy`);
@@ -151,7 +112,7 @@ export default function TakeTestPage({
             loginRequired?: boolean;
             liveExamTitle?: string | null;
           };
-          if (policy.loginRequired && !sessionData.session?.user) {
+          if (policy.loginRequired && !user) {
             setAccessLocked(
               `Sign in with your roll number to take “${policy.liveExamTitle ?? 'this live examination'}”.`,
             );
@@ -159,7 +120,7 @@ export default function TakeTestPage({
           }
         }
 
-        if (sessionData.session?.user) {
+        if (user) {
           const res = await fetch(`/api/student/tests/${encodeURIComponent(testId)}`, {
             credentials: 'include',
           });
@@ -203,10 +164,23 @@ export default function TakeTestPage({
           }
         }
 
-        const { test: loadedTest, questions: loadedQuestions } = await loadTestBundleForTake(
-          supabase,
-          testId,
-        );
+        if (isAwsClientMode()) {
+          const fallbackTest = getFallbackTestById(testId);
+          const fallbackQuestions = getFallbackQuestionsByTestId(testId);
+          if (fallbackTest && fallbackQuestions.length > 0) {
+            setTest(fallbackTest);
+            setQuestions(fallbackQuestions);
+          } else {
+            setLoadError('Sign in to load this exam.');
+          }
+          return;
+        }
+
+        const { getSupabaseBrowserClient } = await import('@/lib/supabase-browser');
+        const supabase = getSupabaseBrowserClient();
+        if (!supabase) return;
+
+        const { test: loadedTest, questions: loadedQuestions } = await loadTestBundleForTake(supabase, testId);
 
         if (!loadedTest) {
           return;
@@ -249,7 +223,7 @@ export default function TakeTestPage({
         const sections = await loadTestSections(supabase, testId);
         setExamSections(sections);
 
-        const userId = sessionData.session?.user?.id;
+        const userId = user?.id;
         if (userId && !detectedPrior) {
           const localHit = getAttemptIndexForUser(userId).find(
             (a) =>
@@ -259,7 +233,7 @@ export default function TakeTestPage({
           if (localHit) {
             detectedPrior = {
               id: localHit.id,
-              score: localHit.score,
+              score: localHit.score ?? 0,
               completed_at: localHit.completed_at,
             };
           }
@@ -371,9 +345,8 @@ export default function TakeTestPage({
         : { ...test, duration: test.duration, total_questions: test.total_questions };
 
   const beginProctoredExam = () => {
-    const supabase = getSupabaseBrowserClient();
-    void supabase?.auth.getUser().then(({ data }) => {
-      setProctorSessionId(createProctorSessionId(testId, data.user?.id ?? undefined));
+    void getClientUser().then((user) => {
+      setProctorSessionId(createProctorSessionId(testId, user?.id ?? undefined));
       setTestStarted(true);
     });
   };

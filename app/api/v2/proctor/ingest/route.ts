@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
+import { useAwsStack } from '@/lib/aws/stack';
 import {
   ensureExamViolationsTableIfPossible,
   isExamViolationsSchemaError,
 } from '@/lib/ensure-exam-violations';
 import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import {
+  insertProctorViolationsPrisma,
+  linkProctorViolationsPrisma,
+} from '@/lib/db/test-attempts-prisma';
 
 const PROCTOR_URL = (process.env.AI_PROCTOR_URL ?? 'http://127.0.0.1:8090').replace(/\/$/, '');
 const PROCTOR_TOKEN = process.env.INTERNAL_API_TOKEN ?? 'dev-internal-token-change-me';
@@ -18,7 +23,7 @@ function normalizeStoredTestId(testId: string | undefined | null): string | null
   return value || null;
 }
 
-async function insertViolationRows(
+async function insertViolationRowsSupabase(
   admin: NonNullable<ReturnType<typeof getServiceSupabase>>,
   rows: Array<{
     user_id: string;
@@ -55,17 +60,8 @@ export async function POST(request: Request) {
     linkAttempt?: boolean;
   };
 
-  const admin = getServiceSupabase();
   const userId = auth.ctx.user.id;
   const sessionId = body.sessionId ?? body.attemptId ?? body.testId ?? null;
-
-  if (body.linkAttempt && body.attemptId && sessionId && admin) {
-    await admin
-      .from('exam_violations')
-      .update({ attempt_id: body.attemptId, test_id: body.testId ?? null })
-      .eq('user_id', userId)
-      .filter('metadata->>sessionId', 'eq', sessionId);
-  }
 
   const items: IngestItem[] = body.batch?.length
     ? body.batch
@@ -78,7 +74,28 @@ export async function POST(request: Request) {
   }
 
   let stored = 0;
-  if (admin && items.length) {
+
+  if (body.linkAttempt && body.attemptId && sessionId) {
+    if (useAwsStack()) {
+      await linkProctorViolationsPrisma(
+        userId,
+        body.attemptId,
+        body.testId ?? null,
+        sessionId,
+      );
+    } else {
+      const admin = getServiceSupabase();
+      if (admin) {
+        await admin
+          .from('exam_violations')
+          .update({ attempt_id: body.attemptId, test_id: body.testId ?? null })
+          .eq('user_id', userId)
+          .filter('metadata->>sessionId', 'eq', sessionId);
+      }
+    }
+  }
+
+  if (items.length) {
     const testId = normalizeStoredTestId(body.testId);
     const attemptId = body.attemptId ? String(body.attemptId) : null;
     const rows = items.map((item) => ({
@@ -92,14 +109,31 @@ export async function POST(request: Request) {
         testId: body.testId ?? testId,
       },
     }));
-    const inserted = await insertViolationRows(admin, rows);
-    if (!inserted.ok) {
-      return NextResponse.json({ error: inserted.error ?? 'Insert failed', stored: 0 }, { status: 500 });
-    }
-    stored = rows.length;
-  }
 
-  if (items.length) {
+    if (useAwsStack()) {
+      stored = await insertProctorViolationsPrisma(
+        rows.map((r) => ({
+          userId: r.user_id,
+          testId: r.test_id,
+          attemptId: r.attempt_id,
+          violationType: r.violation_type,
+          metadata: r.metadata,
+        })),
+      );
+    } else {
+      const admin = getServiceSupabase();
+      if (admin) {
+        const inserted = await insertViolationRowsSupabase(admin, rows);
+        if (!inserted.ok) {
+          return NextResponse.json(
+            { error: inserted.error ?? 'Insert failed', stored: 0 },
+            { status: 500 },
+          );
+        }
+        stored = rows.length;
+      }
+    }
+
     void Promise.allSettled(
       items.map((item) =>
         fetch(`${PROCTOR_URL}/v1/signals`, {

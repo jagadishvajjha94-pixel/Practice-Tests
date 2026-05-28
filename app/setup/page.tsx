@@ -214,7 +214,7 @@ export default function SetupPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Database Setup</h1>
           <p className="text-gray-600">Initialize your PrepIndia database with sample data</p>
-        </div>
+            </div>
 
         {error ? (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">{error}</div>

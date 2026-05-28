@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
-import { seedCuratedQuestionBank } from '@/lib/question-bank/seed-curated-bank';
-import { supabaseSqlEditorUrl } from '@/lib/postgres-url';
+import { requireAuth } from '@/lib/server-auth';
+import { seedCuratedQuestionBankPrisma } from '@/lib/question-bank/seed-curated-bank-prisma';
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(['admin'], request);
   if ('response' in auth) return auth.response;
-
-  const admin = getServiceSupabase();
-  if (!admin) {
-    return NextResponse.json({ error: 'Server configuration missing (SUPABASE_SERVICE_ROLE_KEY)' }, { status: 500 });
-  }
 
   let body: Record<string, unknown> = {};
   try {
@@ -25,27 +19,17 @@ export async function POST(request: NextRequest) {
   );
 
   try {
-    const result = await seedCuratedQuestionBank(admin, {
+    const result = await seedCuratedQuestionBankPrisma({
       questionsPerTopic,
       replaceExisting: body.replaceExisting !== false,
     });
-
     return NextResponse.json({
       ok: true,
-      message: `Loaded ${result.questionsInserted} topic-wise MCQs across ${result.tagsEnsured} syllabus tags. Use Draw from bank.`,
+      message: `Loaded ${result.questionsInserted} topic-wise MCQs across ${result.tagsEnsured} syllabus tags.`,
       ...result,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Could not seed question bank';
-    return NextResponse.json(
-      {
-        error: message,
-        sqlEditorUrl: supabaseSqlEditorUrl(),
-        hint: message.includes('public.questions')
-          ? 'Click Copy bootstrap SQL in the question bank panel, run it in Supabase SQL editor, wait 30s, retry.'
-          : undefined,
-      },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

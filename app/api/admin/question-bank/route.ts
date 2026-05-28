@@ -1,21 +1,22 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { requireAuth } from '@/lib/server-auth';
 import {
   buildQuestionBankCsv,
-  loadFullQuestionBankForExport,
-  loadQuestionBankOverview,
-  loadQuestionsForTopic,
   QUESTION_BANK_SECTION_LABELS,
   sectionKeyForTopicSlug,
   type QuestionBankExportRow,
   type QuestionBankRow,
 } from '@/lib/admin/question-bank-catalog';
+import {
+  loadFullQuestionBankForExportPrisma,
+  loadQuestionBankOverviewPrisma,
+  loadQuestionsForTopicPrisma,
+} from '@/lib/admin/question-bank-catalog-prisma';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 async function loadTopicExportRows(
-  admin: NonNullable<ReturnType<typeof getServiceSupabase>>,
   topicSlug: string,
 ): Promise<{ rows: QuestionBankExportRow[]; topicName: string; sectionName: string }> {
   const allRows: QuestionBankRow[] = [];
@@ -25,7 +26,7 @@ async function loadTopicExportRows(
   let total = 0;
 
   for (;;) {
-    const batch = await loadQuestionsForTopic(admin, topicSlug, {
+    const batch = await loadQuestionsForTopicPrisma(topicSlug, {
       offset: pageOffset,
       limit: pageSize,
     });
@@ -57,11 +58,6 @@ export async function GET(request: Request) {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
-  if (!admin) {
-    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
-  }
-
   const { searchParams } = new URL(request.url);
   const topicSlug = searchParams.get('topicSlug')?.trim() ?? '';
   const exportFormat = searchParams.get('export')?.trim() ?? '';
@@ -71,7 +67,7 @@ export async function GET(request: Request) {
 
   try {
     if ((exportFormat === 'csv' || exportFormat === 'json') && (!topicSlug || exportAll)) {
-      const rows = await loadFullQuestionBankForExport(admin);
+      const rows = await loadFullQuestionBankForExportPrisma();
       if (exportFormat === 'json') {
         return NextResponse.json({ rows, total: rows.length });
       }
@@ -86,12 +82,12 @@ export async function GET(request: Request) {
     }
 
     if (!topicSlug) {
-      const overview = await loadQuestionBankOverview(admin);
+      const overview = await loadQuestionBankOverviewPrisma();
       return NextResponse.json(overview);
     }
 
     if (exportFormat === 'csv' || exportFormat === 'json') {
-      const { rows, topicName } = await loadTopicExportRows(admin, topicSlug);
+      const { rows, topicName } = await loadTopicExportRows(topicSlug);
       if (exportFormat === 'json') {
         return NextResponse.json({ rows, total: rows.length, topic: topicName });
       }
@@ -105,7 +101,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const payload = await loadQuestionsForTopic(admin, topicSlug, { offset, limit });
+    const payload = await loadQuestionsForTopicPrisma(topicSlug, { offset, limit });
     if (!payload.topic) {
       return NextResponse.json({ error: 'Topic not found' }, { status: 404 });
     }
