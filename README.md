@@ -2,6 +2,12 @@
 
 PrepIndia is a comprehensive platform for students to prepare for job placements with aptitude tests, interview practice, and resources.
 
+## Deploy to AWS RDS + Vercel (student trial)
+
+**Step-by-step from scratch (no Supabase, tables auto-created):**  
+See **[docs/DEPLOY_RDS_FROM_SCRATCH.md](docs/DEPLOY_RDS_FROM_SCRATCH.md)**  
+Config: [`vercel.json`](vercel.json), env template [`.env.vercel-rds.example`](.env.vercel-rds.example), checklist [`deploy/vercel/`](deploy/vercel/)
+
 ## 🚀 Quick Start
 
 ### 1. First Time Setup
@@ -183,23 +189,15 @@ This will:
 
 ## 🚀 Deployment
 
-### To Vercel
+### To Vercel + AWS RDS
 
-1. Push code to GitHub
+1. Push code to GitHub (includes `vercel.json` build settings)
 2. Connect repository to Vercel
-3. Set environment variables in Vercel dashboard
-4. Deploy
-5. Run setup endpoints on production URL
+3. Copy env from [`.env.vercel-rds.example`](.env.vercel-rds.example) or [`deploy/vercel/.env.production.example`](deploy/vercel/.env.production.example) into Vercel → Environment Variables
+4. Deploy (`pnpm run vercel-build` runs automatically)
+5. Open `/setup` and `/api/setup/rds` on your production URL
 
-### Environment Variables for Production
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=production_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=production_key
-SUPABASE_SERVICE_ROLE_KEY=production_service_key
-NEXT_PUBLIC_RAZORPAY_KEY_ID=production_razorpay_key
-POSTGRES_URL=production_db_url
-```
+See [docs/DEPLOY_RDS_FROM_SCRATCH.md](docs/DEPLOY_RDS_FROM_SCRATCH.md) for RDS creation and security group steps.
 
 ## 📚 Documentation
 

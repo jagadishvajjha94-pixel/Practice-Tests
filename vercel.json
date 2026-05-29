@@ -1,0 +1,48 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm run vercel-build",
+  "regions": ["bom1"],
+  "env": {
+    "USE_AWS_STACK": "true",
+    "USE_PRISMA_AUTH": "true",
+    "NEXT_PUBLIC_USE_AWS_STACK": "true",
+    "AUTO_RDS_SCHEMA": "true",
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "app/api/setup/rds/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/setup/seed-elevatex-sample/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/setup/reset-elevatex-sample/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/setup/reset-elevatex-attempts/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/test-reports/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/question-bank/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/cleanup-exams-keep-today/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/exam/attempts/[attemptId]/autosave/route.ts": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, must-revalidate" }
+      ]
+    }
+  ]
+}

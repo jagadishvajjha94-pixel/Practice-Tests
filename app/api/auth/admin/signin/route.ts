@@ -3,9 +3,12 @@ import { signIn } from '@/auth';
 import { ensureAdminUser } from '@/lib/roles-prisma';
 import { DEFAULT_ADMIN_EMAIL } from '@/lib/admin-defaults';
 import { adminAuthEmail } from '@/lib/college-auth';
+import { autoEnsureRdsSchema } from '@/lib/db/auto-ensure-rds';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
+  await autoEnsureRdsSchema();
+
   let body: { email?: string; password?: string; username?: string };
   try {
     body = (await request.json()) as typeof body;

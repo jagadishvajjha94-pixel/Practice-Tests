@@ -1,0 +1,82 @@
+{
+  "description": "Environment variables for Vercel + AWS RDS. Set in Vercel Dashboard → Settings → Environment Variables. Do not commit real secrets.",
+  "required": [
+    {
+      "name": "USE_AWS_STACK",
+      "value": "true",
+      "note": "Also set in vercel.json env defaults"
+    },
+    {
+      "name": "USE_PRISMA_AUTH",
+      "value": "true"
+    },
+    {
+      "name": "NEXT_PUBLIC_USE_AWS_STACK",
+      "value": "true"
+    },
+    {
+      "name": "AUTO_RDS_SCHEMA",
+      "value": "true",
+      "note": "Auto-create tables on first request"
+    },
+    {
+      "name": "DATABASE_URL",
+      "example": "postgresql://prepindia_admin:PASSWORD@host.rds.amazonaws.com:5432/prepindia?sslmode=require&connection_limit=1",
+      "secret": true
+    },
+    {
+      "name": "DIRECT_URL",
+      "example": "postgresql://prepindia_admin:PASSWORD@host.rds.amazonaws.com:5432/prepindia?sslmode=require",
+      "secret": true
+    },
+    {
+      "name": "AUTH_SECRET",
+      "example": "openssl rand -base64 32",
+      "secret": true
+    },
+    {
+      "name": "AUTH_URL",
+      "example": "https://your-project.vercel.app"
+    },
+    {
+      "name": "AUTH_TRUST_HOST",
+      "value": "true"
+    },
+    {
+      "name": "NEXT_PUBLIC_APP_URL",
+      "example": "https://your-project.vercel.app"
+    }
+  ],
+  "recommended": [
+    {
+      "name": "PREPINDIA_ADMIN_EMAIL",
+      "example": "admin@rce.ac.in"
+    },
+    {
+      "name": "PREPINDIA_ADMIN_PASSWORD",
+      "secret": true
+    },
+    {
+      "name": "NEXT_PUBLIC_SIGNUP_DISABLED",
+      "value": "true"
+    },
+    {
+      "name": "RDS_SETUP_SECRET",
+      "note": "Optional — protect /api/setup/rds after first run"
+    }
+  ],
+  "remove_if_present": [
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "POSTGRES_URL"
+  ],
+  "post_deploy_urls": [
+    "/api/health",
+    "/setup",
+    "/api/setup/rds",
+    "/auth/login/admin",
+    "/auth/login/student",
+    "/exams"
+  ]
+}

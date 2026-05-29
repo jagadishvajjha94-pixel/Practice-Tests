@@ -1,0 +1,16 @@
+# Exclude from Vercel upload (smaller deploy, faster builds)
+swarx-mvp/
+playwright-report/
+test-results/
+coverage/
+.git/
+*.md
+!README.md
+docs/
+load-tests/
+terminals/
+.cursor/
+agent-transcripts/
+.env
+.env.local
+.env.*.local

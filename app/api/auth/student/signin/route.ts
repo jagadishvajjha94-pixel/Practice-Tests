@@ -9,9 +9,12 @@ import {
   claimStudentSessionPrisma,
   nextAuthSessionId,
 } from '@/lib/student-session-lock-prisma';
+import { autoEnsureRdsSchema } from '@/lib/db/auto-ensure-rds';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
+  await autoEnsureRdsSchema();
+
   let body: {
     rollNumber?: string;
     password?: string;

@@ -1,5 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/auth';
+import { useAwsStack } from '@/lib/aws/stack';
 import {
   getPublicSupabaseAnonKey,
   getPublicSupabaseUrl,
@@ -51,8 +53,15 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ path: 
     return NextResponse.json({ error: 'Path not allowed on exam proxy' }, { status: 403 });
   }
 
-  const user = await getSupabaseUser(request);
-  if (!user) {
+  let userId: string | null = null;
+  if (useAwsStack()) {
+    const session = await auth();
+    userId = session?.user?.id ?? null;
+  } else {
+    const user = await getSupabaseUser(request);
+    userId = user?.id ?? null;
+  }
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -60,7 +69,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ path: 
   const contentType = request.headers.get('content-type') || 'application/json';
   let bodyText = await request.text();
   if (contentType.includes('application/json')) {
-    bodyText = mergeUserIdIntoJsonBody(bodyText, user.id);
+    bodyText = mergeUserIdIntoJsonBody(bodyText, userId);
   }
 
   const upstream = await fetch(targetUrl, {

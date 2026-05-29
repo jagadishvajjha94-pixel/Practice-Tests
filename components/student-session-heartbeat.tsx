@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { getClientUser, isAwsClientMode } from '@/lib/client-auth';
 import { getBrowserAuthUser, getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 /** Keeps the one-login-per-roll lock alive while the student is using the app (including during exams). */
@@ -15,18 +16,25 @@ export function StudentSessionHeartbeat() {
       return undefined;
     }
 
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) return undefined;
-
     let cancelled = false;
 
     const sync = async () => {
-      const user = await getBrowserAuthUser();
+      const user = isAwsClientMode() ? await getClientUser() : await getBrowserAuthUser();
       if (cancelled) return;
-      setActive(Boolean(user?.email?.includes('@student.')));
+      setActive(Boolean(user?.email?.includes('@student.') || user?.email?.includes('@')));
     };
 
     void sync();
+
+    if (isAwsClientMode()) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return undefined;
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {

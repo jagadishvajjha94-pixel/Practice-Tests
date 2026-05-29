@@ -1,6 +1,7 @@
 import Credentials from 'next-auth/providers/credentials';
 import type { Provider } from 'next-auth/providers';
 import { prisma } from '@/lib/prisma';
+import { autoEnsureRdsSchema } from '@/lib/db/auto-ensure-rds';
 import { verifyPassword } from '@/lib/password';
 import {
   adminAuthEmail,
@@ -21,6 +22,7 @@ export function buildAuthProviders(): Provider[] {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
+        await autoEnsureRdsSchema();
         const roll = String(credentials?.rollNumber ?? '').trim();
         const password = String(credentials?.password ?? '');
         const rollErr = validateRollNumber(roll);
@@ -55,6 +57,7 @@ export function buildAuthProviders(): Provider[] {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
+        await autoEnsureRdsSchema();
         const username = String(credentials?.username ?? '').trim();
         const password = String(credentials?.password ?? '');
         if (!username || validatePassword(password)) return null;

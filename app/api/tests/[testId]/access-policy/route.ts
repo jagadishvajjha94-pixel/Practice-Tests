@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServiceSupabase } from '@/lib/server-auth';
+import { useAwsStack } from '@/lib/aws/stack';
+import { getLiveExamAccessPolicyPrisma } from '@/lib/db/exam-access-policy-prisma';
 import { isScheduleWindowOpen, type ExamScheduleRow } from '@/lib/exam-schedule';
 import { testIdsMatch } from '@/lib/test-attempts';
 
@@ -9,6 +11,12 @@ type RouteContext = { params: Promise<{ testId: string }> };
 
 export async function GET(_request: Request, context: RouteContext) {
   const { testId } = await context.params;
+
+  if (useAwsStack()) {
+    const policy = await getLiveExamAccessPolicyPrisma(testId ?? '');
+    return NextResponse.json(policy);
+  }
+
   const admin = getServiceSupabase();
   if (!admin || !testId?.trim()) {
     return NextResponse.json({ loginRequired: false });

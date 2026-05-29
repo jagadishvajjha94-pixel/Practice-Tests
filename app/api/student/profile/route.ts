@@ -7,7 +7,10 @@
  * `001_users_resume.sql` has not yet been run in Supabase.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/auth';
+import { useAwsStack } from '@/lib/aws/stack';
 import { getAdminSupabase } from '@/lib/admin-access';
+import { getServiceSupabase } from '@/lib/server-auth';
 import { getSupabaseServerClient } from '@/lib/supabase-server';
 import type { UserProfile } from '@/lib/types';
 import type { SupabaseClient, User as AuthUser } from '@supabase/supabase-js';
@@ -48,7 +51,28 @@ function isTableMissingError(err: unknown): boolean {
 async function resolveAuthUser(
   request: NextRequest,
 ): Promise<{ user: AuthUser | null; admin: SupabaseClient | null }> {
-  const admin = getAdminSupabase();
+  const admin = (useAwsStack() ? getServiceSupabase() : getAdminSupabase()) as SupabaseClient | null;
+
+  if (useAwsStack()) {
+    const session = await auth();
+    if (session?.user?.id && admin) {
+      const { data } = await admin.auth.admin.getUserById(session.user.id);
+      const u = data?.user;
+      if (u) {
+        return {
+          user: {
+            id: u.id,
+            email: u.email,
+            user_metadata: u.user_metadata ?? {},
+            created_at: new Date().toISOString(),
+          } as AuthUser,
+          admin,
+        };
+      }
+    }
+    return { user: null, admin };
+  }
+
   const bearer = request.headers
     .get('authorization')
     ?.replace(/^Bearer\s+/i, '')
@@ -62,7 +86,7 @@ async function resolveAuthUser(
   const supabase = await getSupabaseServerClient();
   if (supabase) {
     const { data } = await supabase.auth.getUser();
-    if (data.user) return { user: data.user, admin };
+    if (data.user) return { user: data.user, admin: getAdminSupabase() };
   }
 
   return { user: null, admin };

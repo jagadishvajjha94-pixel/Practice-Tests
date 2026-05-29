@@ -180,10 +180,42 @@ export default function SetupPage() {
 
   const handleInitialize = async () => {
     setLoading(true);
-    setStatus('Initializing database...');
+    setStatus('Checking database mode...');
     setError(null);
 
     try {
+      const statusRes = await fetch('/api/setup/rds', { cache: 'no-store' });
+      const statusJson = (await statusRes.json()) as {
+        mode?: string;
+        error?: string;
+      };
+
+      if (statusJson.mode === 'aws') {
+        setStatus('Creating tables and columns on AWS RDS (Prisma schema sync)...');
+        const rdsRes = await fetch('/api/setup/rds', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ step: 'all' }),
+        });
+        const rdsJson = (await rdsRes.json()) as {
+          error?: string;
+          detail?: string;
+          message?: string;
+          results?: { admin?: { email?: string } };
+        };
+        if (!rdsRes.ok) {
+          throw new Error(rdsJson.detail ?? rdsJson.error ?? 'RDS setup failed');
+        }
+        const adminEmail = rdsJson.results?.admin?.email;
+        setStatus(
+          rdsJson.message ??
+            `RDS ready.${adminEmail ? ` Admin: ${adminEmail}` : ''} Use /auth/login/admin`,
+        );
+        setCompleted(true);
+        return;
+      }
+
+      setStatus('Initializing database (legacy Supabase path)...');
       const initResponse = await fetch('/api/setup/init-direct', { method: 'POST' });
       if (!initResponse.ok) {
         const errorData = await initResponse.json();
@@ -191,7 +223,6 @@ export default function SetupPage() {
       }
 
       setStatus('Seeding sample data...');
-
       const seedResponse = await fetch('/api/setup/seed-direct', { method: 'POST' });
       if (!seedResponse.ok) {
         const errorData = await seedResponse.json();
@@ -213,7 +244,10 @@ export default function SetupPage() {
       <Card className="w-full max-w-4xl p-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Database Setup</h1>
-          <p className="text-gray-600">Initialize your PrepIndia database with sample data</p>
+          <p className="text-gray-600">
+            AWS RDS: creates all tables/columns from Prisma, admin, and sample tests. Supabase: legacy
+            path below.
+          </p>
             </div>
 
         {error ? (

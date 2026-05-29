@@ -11,6 +11,7 @@ export type PrismaAuthContext = {
 };
 
 import { useAwsStack } from '@/lib/aws/stack';
+import { autoEnsureRdsSchema } from '@/lib/db/auto-ensure-rds';
 
 export function usePrismaAuth(): boolean {
   return useAwsStack();
@@ -43,6 +44,8 @@ export async function requirePrismaAuth(
   allowedRoles?: AppRole[],
   request?: Request,
 ): Promise<{ ctx: PrismaAuthContext } | { response: NextResponse }> {
+  await autoEnsureRdsSchema();
+
   const bearer = request?.headers.get('Authorization');
   const token = bearer?.startsWith('Bearer ') ? bearer.slice(7).trim() : null;
 

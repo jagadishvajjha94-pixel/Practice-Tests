@@ -1,19 +1,12 @@
 import { NextResponse } from 'next/server';
 import { executeCode } from '@/lib/coding/execute';
 import { parseCodingRunRequest } from '@/lib/coding/parse-run-request';
-import { createClient } from '@supabase/supabase-js';
+import { auth } from '@/auth';
+import { useAwsStack } from '@/lib/aws/stack';
+import { getServiceSupabase } from '@/lib/server-auth';
 import { getSupabaseServerClient } from '@/lib/supabase-server';
 
 export const runtime = 'nodejs';
-
-function getServiceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!url || !key || url.includes('YOUR_') || key.includes('YOUR_')) return null;
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
 
 export async function POST(request: Request) {
   try {
@@ -35,10 +28,13 @@ export async function POST(request: Request) {
     // Optional run log (never block execution on DB / schema errors)
     try {
       const service = getServiceSupabase();
-      const session = await getSupabaseServerClient();
-      const userId = session
-        ? (await session.auth.getUser()).data.user?.id
-        : undefined;
+      let userId: string | undefined;
+      if (useAwsStack()) {
+        userId = (await auth())?.user?.id;
+      } else {
+        const session = await getSupabaseServerClient();
+        userId = session ? (await session.auth.getUser()).data.user?.id : undefined;
+      }
       if (service && userId) {
         await service.from('coding_submissions').insert({
           user_id: userId,

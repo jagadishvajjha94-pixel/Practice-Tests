@@ -318,10 +318,10 @@ export async function insertProctorViolationsPrisma(
   await prisma.examViolation.createMany({
     data: rows.map((r) => ({
       userId: r.userId,
-      attemptId: r.attemptId ?? '',
-      type: r.violationType,
+      attemptId: r.attemptId,
+      testId: r.testId,
+      violationType: r.violationType,
       metadata: r.metadata as Prisma.InputJsonValue,
-      screenshotKey: null,
     })),
   });
   return rows.length;

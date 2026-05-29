@@ -72,6 +72,7 @@ model User {
   resumeFileName       String?   @map("resume_file_name")
   resumeStoragePath    String?   @map("resume_storage_path")
   resumeUpdatedAt      DateTime? @map("resume_updated_at")
+  userRole             String?   @default("student") @map("user_role")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
@@ -201,7 +202,7 @@ model QuestionTagLink {
 model TestAttempt {
   id              String    @id @default(uuid()) @db.Uuid
   userId          String    @map("user_id") @db.Uuid
-  testId          String?   @map("test_id") @db.Uuid
+  testId          String?   @map("test_id")
   testTitle       String?   @map("test_title")
   startedAt       DateTime? @default(now()) @map("started_at")
   completedAt     DateTime? @map("completed_at")
@@ -228,32 +229,37 @@ model TestAttempt {
 }
 
 model ExamSchedule {
-  id                String    @id @default(uuid()) @db.Uuid
-  testId            String?   @map("test_id") @db.Uuid
-  title             String?
-  status            String    @default("draft")
-  startsAt          DateTime? @map("starts_at")
-  endsAt            DateTime? @map("ends_at")
-  targetDepartments Json?     @default("[]") @map("target_departments")
-  targetYears       Json?     @default("[]") @map("target_years")
-  slotNumber        Int?      @map("slot_number")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  id                  String    @id @default(uuid()) @db.Uuid
+  testId              String?   @map("test_id")
+  title               String?
+  description         String?
+  notice              String?
+  facultyExamRequestId String?  @map("faculty_exam_request_id") @db.Uuid
+  status              String    @default("draft")
+  startsAt            DateTime? @map("starts_at")
+  endsAt              DateTime? @map("ends_at")
+  targetDepartments   Json?     @default("[]") @map("target_departments")
+  targetYears         Json?     @default("[]") @map("target_years")
+  slotNumber          Int?      @map("slot_number")
+  slotCapacity        Int?      @default(130) @map("slot_capacity")
+  createdBy           String?   @map("created_by") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   @@index([status, startsAt])
   @@index([testId])
+  @@index([facultyExamRequestId])
   @@map("exam_schedules")
 }
 
 model ExamViolation {
-  id         String   @id @default(uuid()) @db.Uuid
-  attemptId  String   @map("attempt_id")
-  userId     String?  @map("user_id") @db.Uuid
-  type       String
-  severity   String?
-  metadata   Json?
-  screenshotKey String? @map("screenshot_key")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String?  @map("user_id") @db.Uuid
+  attemptId     String?  @map("attempt_id")
+  testId        String?  @map("test_id")
+  violationType String   @map("violation_type")
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
 
   @@index([attemptId])
   @@index([userId])
@@ -274,18 +280,34 @@ model StudentDashboardStat {
 }
 
 model FacultyExamRequest {
-  id               String   @id @default(uuid()) @db.Uuid
-  facultyUserId    String?  @map("faculty_user_id") @db.Uuid
-  title            String
-  description      String?
-  topic            String?
-  department       String?
-  status           String   @default("pending")
-  publishedTestId  String?  @map("published_test_id")
-  questionsJson    Json?    @map("questions_json")
-  createdAt        DateTime @default(now()) @map("created_at")
+  id                  String   @id @default(uuid()) @db.Uuid
+  facultyUserId       String?  @map("faculty_user_id") @db.Uuid
+  department          String?
+  title               String
+  description         String?
+  topic               String?
+  targetYears         Json?    @default("[]") @map("target_years")
+  targetBranches      Json?    @default("[]") @map("target_branches")
+  durationMinutes     Int?     @default(30) @map("duration_minutes")
+  questionsJson       Json?    @map("questions_json")
+  status              String   @default("pending")
+  adminNote           String?  @map("admin_note")
+  reviewedBy          String?  @map("reviewed_by") @db.Uuid
+  reviewedAt          DateTime? @map("reviewed_at")
+  publishedTestId     String?  @map("published_test_id")
+  testType            String?  @map("test_type")
+  slotKey             String?  @map("slot_key")
+  syllabusTopicIds    Json?    @default("[]") @map("syllabus_topic_ids")
+  questionsPerTopic   Int?     @map("questions_per_topic")
+  usesSlotScheduling  Boolean  @default(false) @map("uses_slot_scheduling")
+  scheduleSlotsJson   Json?    @default("[]") @map("schedule_slots_json")
+  departmentGroupId   String?  @map("department_group_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @default(now()) @map("updated_at")
 
   @@index([status])
+  @@index([facultyUserId])
+  @@index([department])
   @@map("faculty_exam_requests")
 }
 
@@ -303,14 +325,150 @@ model ExamStudentRoster {
 }
 
 model ExamSlotRosterEntry {
-  id         String   @id @default(uuid()) @db.Uuid
-  scheduleId String   @map("schedule_id") @db.Uuid
-  rollNumber String   @map("roll_number")
-  password   String?
-  department String?
-  year       String?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id                   String   @id @default(uuid()) @db.Uuid
+  facultyExamRequestId String?  @map("faculty_exam_request_id") @db.Uuid
+  scheduleId           String?  @map("schedule_id") @db.Uuid
+  slotNumber           Int?     @map("slot_number")
+  rollNumber           String   @map("roll_number")
+  studentName          String?  @map("student_name")
+  email                String?
+  password             String?
+  department           String?
+  year                 String?
+  createdAt            DateTime @default(now()) @map("created_at")
 
+  @@index([facultyExamRequestId, slotNumber])
   @@index([scheduleId])
   @@map("exam_slot_roster_entries")
+}
+
+model EvaloraModuleSchedule {
+  id                String    @id @default(uuid()) @db.Uuid
+  moduleKey         String    @map("module_key")
+  title             String?
+  notice            String?
+  status            String    @default("scheduled")
+  startsAt          DateTime  @map("starts_at")
+  endsAt            DateTime? @map("ends_at")
+  targetDepartments Json?     @default("[]") @map("target_departments")
+  targetYears       Json?     @default("[]") @map("target_years")
+  createdBy         String?   @map("created_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @default(now()) @map("updated_at")
+
+  @@index([status, startsAt])
+  @@index([moduleKey])
+  @@map("evalora_module_schedules")
+}
+
+model ExamBuilderDraw {
+  id                  String   @id @default(uuid()) @db.Uuid
+  testType            String   @map("test_type")
+  slotKey             String   @map("slot_key")
+  topicIds            Json?    @default("[]") @map("topic_ids")
+  questionIds         Json?    @default("[]") @map("question_ids")
+  facultyExamRequestId String? @map("faculty_exam_request_id") @db.Uuid
+  testId              String?  @map("test_id")
+  createdBy           String?  @map("created_by") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([testType, slotKey])
+  @@map("exam_builder_draws")
+}
+
+model TestQuestion {
+  testId     String @map("test_id")
+  questionId String @map("question_id") @db.Uuid
+  sortOrder  Int?   @default(0) @map("sort_order")
+
+  @@id([testId, questionId])
+  @@index([questionId])
+  @@map("test_questions")
+}
+
+model TestSection {
+  id               String   @id @default(uuid()) @db.Uuid
+  testId           String   @map("test_id") @db.Uuid
+  name             String
+  durationMinutes  Int      @map("duration_minutes")
+  sortOrder        Int      @default(0) @map("sort_order")
+  cutoffScore      Int?     @map("cutoff_score")
+  negativeMarking  Decimal? @default(0) @map("negative_marking") @db.Decimal(4, 2)
+  shuffleQuestions Boolean  @default(false) @map("shuffle_questions")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([testId, sortOrder])
+  @@map("test_sections")
+}
+
+model DepartmentGroup {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  members DepartmentGroupMember[]
+
+  @@map("department_groups")
+}
+
+model DepartmentGroupMember {
+  groupId    String @map("group_id") @db.Uuid
+  department String
+
+  group DepartmentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, department])
+  @@index([department])
+  @@map("department_group_members")
+}
+
+model RmsetPaper {
+  id                String   @id @default(uuid()) @db.Uuid
+  title             String
+  description       String?
+  testId            String?  @map("test_id") @db.Uuid
+  topicIds          Json?    @default("[]") @map("topic_ids")
+  questionsPerTopic Int      @default(10) @map("questions_per_topic")
+  durationMinutes   Int      @default(60) @map("duration_minutes")
+  status            String   @default("draft")
+  createdBy         String?  @map("created_by") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @map("updated_at")
+
+  @@index([status])
+  @@map("rmset_papers")
+}
+
+model CodingSubmission {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  questionId   String?  @map("question_id") @db.Uuid
+  language     String
+  sourceCode   String   @map("source_code")
+  stdin        String?
+  stdout       String?
+  stderr       String?
+  status       String   @default("pending")
+  runtimeMs    Int?     @map("runtime_ms")
+  memoryKb     Int?     @map("memory_kb")
+  passedPublic Int?     @default(0) @map("passed_public")
+  passedHidden Int?     @default(0) @map("passed_hidden")
+  plagiarismHash String? @map("plagiarism_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("coding_submissions")
+}
+
+model FacultyProfile {
+  userId     String   @id @map("user_id") @db.Uuid
+  employeeId String?  @map("employee_id")
+  department String
+  fullName   String?  @map("full_name")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @map("updated_at")
+
+  @@index([department])
+  @@map("faculty_profiles")
 }
