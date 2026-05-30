@@ -22,7 +22,6 @@ export const STUDENT_ONLY_PREFIXES = [
   '/tests/competitive-exam/take',
   '/tests/result',
   '/tests/psychometric',
-  '/tests/swarx',
   '/ai/',
   '/practice',
   '/coding',

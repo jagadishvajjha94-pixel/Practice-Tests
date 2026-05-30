@@ -86,8 +86,8 @@ export default function GrammarTestsPage() {
       <div className="max-w-4xl mx-auto px-4 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900">English Grammar Test</h1>
-          <Link href="/tests/swarx">
-            <Button variant="outline">Back to SWARX</Button>
+          <Link href="/tests">
+            <Button variant="outline">Back to practice tests</Button>
           </Link>
         </div>
 

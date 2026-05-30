@@ -255,8 +255,7 @@ export default function AiInterviewPage() {
           </span>
           <h1 className="app-title-lg">AI Interview Studio</h1>
           <p className="app-subtitle">
-            Resume review and voice interview in one place — separate from SWARX communication
-            drills.
+            Resume review and voice interview in one place for placement readiness.
           </p>
         </div>
       </header>
@@ -478,10 +477,11 @@ export default function AiInterviewPage() {
         )}
 
         <p className="text-center text-xs text-muted-foreground">
-          SWARX covers grammar & communication drills only.{' '}
-          <Link href="/tests/swarx" className="text-primary hover:underline">
-            Open SWARX
+          Grammar and communication drills are available under{' '}
+          <Link href="/ai/grammar-tests" className="text-primary hover:underline">
+            English grammar tests
           </Link>
+          .
         </p>
       </div>
     </div>

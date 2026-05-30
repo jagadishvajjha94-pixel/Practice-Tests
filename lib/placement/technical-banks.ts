@@ -57,7 +57,7 @@ const CSE: CuratedMcq[] = [
   },
   {
     q: 'Which of the following is NOT a NoSQL database?',
-    options: ['MongoDB', 'Cassandra', 'Redis', 'PostgreSQL'],
+    options: ['Neo4j', 'Cassandra', 'Redis', 'PostgreSQL'],
     correct: 'D',
   },
   {

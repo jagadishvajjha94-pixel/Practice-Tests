@@ -9,7 +9,6 @@ export type AdminExamType =
   | 'competitive'
   | 'programming'
   | 'psychometric'
-  | 'swarx'
   | 'other';
 
 export const ADMIN_EXAM_TYPES: AdminExamType[] = [
@@ -20,7 +19,6 @@ export const ADMIN_EXAM_TYPES: AdminExamType[] = [
   'competitive',
   'programming',
   'psychometric',
-  'swarx',
   'other',
 ];
 
@@ -35,7 +33,6 @@ export const ADMIN_EXAM_TYPE_META: Record<
   competitive: { label: 'Competitive paper', description: 'All India competitive MCQ paper' },
   programming: { label: 'Programming', description: 'Timed coding assessments' },
   psychometric: { label: 'Psychometric', description: 'Visual and pattern psychometric paper' },
-  swarx: { label: 'SWARX', description: 'Communication and English assessments' },
   other: { label: 'Other / practice', description: 'Practice tests and uncategorized attempts' },
 };
 
@@ -58,7 +55,6 @@ export function classifyExamAttempt(input: {
 
   if (slug === 'rmset' || /\brmset\b/i.test(testName)) return 'rmset';
   if (slug === 'psychometric' || /\bpsychometric\b/i.test(testName)) return 'psychometric';
-  if (slug === 'swarx' || /\bswarx\b/i.test(testName)) return 'swarx';
 
   if (
     testName.startsWith('Department ·') ||

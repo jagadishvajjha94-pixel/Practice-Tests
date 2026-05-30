@@ -46,10 +46,7 @@ export const PRICING_PLANS = {
   },
 };
 
-export const TEST_CATEGORIES = [
-  { id: 'psychometric', name: 'Psychometric Tests', icon: '🧠' },
-  { id: 'swarx', name: 'SWARX Communication', icon: '🗣️' },
-];
+export const TEST_CATEGORIES = [{ id: 'psychometric', name: 'Psychometric Tests', icon: '🧠' }];
 
 /** Practice hub: ElevateX + RMSET + AI Interview. */
 export const PRACTICE_HUB_ITEMS = [

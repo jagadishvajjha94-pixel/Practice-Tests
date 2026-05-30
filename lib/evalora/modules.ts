@@ -2,7 +2,6 @@
 export type EvaloraModuleKey =
   | 'placement_full'
   | 'psychometric'
-  | 'swarx'
   | 'competitive'
   | 'programming'
   | 'department'
@@ -37,14 +36,6 @@ export const EVALORA_MODULES: EvaloraModuleDef[] = [
     href: '/tests/psychometric',
     badge: '200 Q · 30 min',
     features: ['Pattern recognition', 'Visual reasoning', 'Speed drills'],
-  },
-  {
-    key: 'swarx',
-    name: 'SWARX Communication',
-    description: 'Grammar, vocal practice, and situation-based English inside one portal.',
-    icon: '🗣️',
-    href: '/tests/swarx',
-    features: ['Vocal practice', 'Grammar test', 'Scenario English'],
   },
   {
     key: 'competitive',

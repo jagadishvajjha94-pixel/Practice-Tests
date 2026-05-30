@@ -10,7 +10,6 @@ export type AdminDashboardCardKey =
   | 'tests_last_7_days'
   | 'low_performers'
   | 'psychometric'
-  | 'swarx'
   | 'attendance_rate'
   | 'overall_average'
   | 'pass_rate'
@@ -51,7 +50,6 @@ export type AdminDashboardReportContext = {
     testsLast7Days: number;
     lowPerformers: number;
     psychometricSubmitted: number;
-    swarxSubmitted: number;
   };
   students: AdminDashboardStudent[];
   attempts: AdminDashboardAttempt[];
@@ -296,15 +294,6 @@ export function buildAdminDashboardCardReport(
         attemptRows(ctx, (_, slug) => slug === 'psychometric'),
       );
 
-    case 'swarx':
-      return basePayload(
-        'SWARX communication tests',
-        'English and communication assessments',
-        [`Submissions: ${ctx.stats.swarxSubmitted}`],
-        ATTEMPT_COLUMNS,
-        attemptRows(ctx, (_, slug) => slug === 'swarx'),
-      );
-
     case 'attendance_rate':
       return {
         title: 'Attendance overview',
@@ -389,7 +378,6 @@ export const ADMIN_CARD_LABELS: Record<AdminDashboardCardKey, string> = {
   tests_last_7_days: 'Tests (7 days)',
   low_performers: 'Need attention',
   psychometric: 'Psychometric',
-  swarx: 'SWARX',
   attendance_rate: 'Attendance rate',
   overall_average: 'Overall average score',
   pass_rate: 'Pass rate',

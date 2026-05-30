@@ -75,7 +75,6 @@ export function AdminDashboard() {
     testsLast7Days: 0,
     lowPerformers: 0,
     psychometricSubmitted: 0,
-    swarxSubmitted: 0,
   });
   const [categories, setCategories] = useState<Array<{ id: string; name: string; slug: string }>>([]);
   const [testsMap, setTestsMap] = useState<Map<string, { name: string; category_id: string }>>(new Map());
@@ -636,12 +635,6 @@ export function AdminDashboard() {
             value={stats.psychometricSubmitted}
             accent="indigo"
             onClick={() => openCard('psychometric')}
-          />
-          <StatCard
-            label="SWARX"
-            value={stats.swarxSubmitted}
-            accent="emerald"
-            onClick={() => openCard('swarx')}
           />
         </div>
 

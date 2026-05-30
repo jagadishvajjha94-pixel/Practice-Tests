@@ -41,7 +41,6 @@ export async function GET() {
   const studentById = new Map(students.map((s) => [s.id, s]));
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   let psychometricSubmitted = 0;
-  let swarxSubmitted = 0;
   const testsLast7Days = attempts.filter(
     (a) => new Date(a.created_at).getTime() >= sevenDaysAgo,
   ).length;
@@ -60,7 +59,6 @@ export async function GET() {
   for (const a of attempts) {
     const slug = (categoryByTestId.get(a.test_id ?? '') || '').toLowerCase();
     if (slug === 'psychometric') psychometricSubmitted += 1;
-    if (slug === 'swarx') swarxSubmitted += 1;
 
     const row = statsByUserId.get(a.user_id);
     if (!row) continue;
@@ -95,7 +93,6 @@ export async function GET() {
       testsLast7Days,
       lowPerformers: studentList.filter((s) => s.attempts > 0 && s.avgScore < 40).length,
       psychometricSubmitted,
-      swarxSubmitted,
     },
     students: studentList,
     attempts: attempts.map((a) => ({
