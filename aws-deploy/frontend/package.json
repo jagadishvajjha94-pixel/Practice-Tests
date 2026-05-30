@@ -1,0 +1,15 @@
+{
+  "name": "prepindia-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PrepIndia web UI for AWS EC2 (Next.js pages + components)",
+  "scripts": {
+    "postinstall": "prisma generate",
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

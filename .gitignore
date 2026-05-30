@@ -20,3 +20,6 @@ node_modules
 playwright-report/
 test-results/
 blob-report/
+
+# Generated AWS deploy copies (run pnpm prepare:aws)
+aws-deploy/dist/

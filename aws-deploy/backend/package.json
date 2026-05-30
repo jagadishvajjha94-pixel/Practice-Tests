@@ -1,0 +1,20 @@
+{
+  "name": "prepindia-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PrepIndia API server for AWS EC2 (Next.js app/api + Prisma + RDS)",
+  "scripts": {
+    "postinstall": "prisma generate",
+    "dev": "next dev -p 3001",
+    "build": "prisma generate && prisma db push --accept-data-loss && next build",
+    "start": "next start -p 3001",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:push": "prisma db push",
+    "bootstrap:admin": "node scripts/bootstrap-admin-aws.mjs",
+    "init:rds": "node scripts/init-rds-fresh.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

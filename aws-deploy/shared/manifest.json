@@ -1,0 +1,39 @@
+{
+  "description": "Files copied from repo root into each AWS deploy package",
+  "includeDirs": [
+    "app",
+    "components",
+    "hooks",
+    "lib",
+    "prisma",
+    "public",
+    "scripts",
+    "styles",
+    "types"
+  ],
+  "includeFiles": [
+    "auth.ts",
+    "proxy.ts",
+    "instrumentation.ts",
+    "next.config.mjs",
+    "tsconfig.json",
+    "next-env.d.ts",
+    "postcss.config.mjs",
+    "components.json",
+    "pnpm-lock.yaml",
+    ".env.aws.example"
+  ],
+  "excludeDirs": [
+    "node_modules",
+    ".next",
+    ".git",
+    "swarx-mvp",
+    "e2e",
+    "tests",
+    "docs",
+    "load-tests",
+    "playwright-report",
+    "test-results",
+    "aws-deploy/dist"
+  ]
+}
