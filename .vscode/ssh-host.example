@@ -1,0 +1,8 @@
+# Paste into C:\Users\RACE\.ssh\config (Cursor / VS Code Remote-SSH)
+#
+# Then: Command Palette → "Remote-SSH: Connect to Host" → rce-prepindia
+
+Host rce-prepindia
+  HostName 13.200.219.228
+  User ec2-user
+  IdentityFile C:/Users/RACE/Desktop/Practice-Tests-main/.ssh/RCE-practicetests-key.pem
