@@ -1,4 +1,4 @@
-/** Turn API `error` fields (string or Supabase-style object) into a user-visible message. */
+/** Turn API `error` fields (string or AWS RDS-style object) into a user-visible message. */
 export function formatApiErrorField(error: unknown): string | null {
   if (error == null) return null;
   if (typeof error === 'string') {

@@ -6,8 +6,6 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import {
   averageScorePercent,
   formatScorePercentLabel,
@@ -66,7 +64,7 @@ export function AdminDashboard() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
+  const [rdsEnvMissing, setDbEnvMissing] = useState(false);
   const [stats, setStats] = useState({
     totalRegisteredUsers: 0,
     totalStudentsAttended: 0,
@@ -99,17 +97,13 @@ export function AdminDashboard() {
   useEffect(() => {
     const checkAdminAccess = async () => {
       try {
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) {
-          setSupabaseEnvMissing(true);
-          setLoading(false);
+        const meRes = await fetch('/api/admin/me', { credentials: 'include' });
+        if (!meRes.ok) {
+          router.push('/auth/login');
           return;
         }
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
+        const me = (await meRes.json()) as { isAdmin?: boolean };
+        if (!me.isAdmin) {
           router.push('/auth/login');
           return;
         }
@@ -244,10 +238,10 @@ export function AdminDashboard() {
     );
   }
 
-  if (supabaseEnvMissing) {
+  if (rdsEnvMissing) {
     return (
       <div className="lux-loading-screen min-h-[60vh] px-4">
-        <p className="text-center max-w-lg text-slate-600">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
+        <p className="text-center max-w-lg text-slate-600">{'Configure AUTH_SECRET and DATABASE_URL'}</p>
       </div>
     );
   }

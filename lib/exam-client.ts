@@ -1,6 +1,6 @@
 /**
  * Browser-side client for the **official exam engine** (Nest exam-service via this app's
- * `/api/exam/*` proxy). Practice tests continue to use Supabase; this is for proctored flows only.
+ * `/api/exam/*` proxy). Practice tests continue to use AWS RDS; this is for proctored flows only.
  */
 const examApi = '/api/exam';
 

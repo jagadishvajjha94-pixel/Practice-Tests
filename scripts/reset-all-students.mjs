@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -37,7 +37,7 @@ function isProtectedAccount(email, metadata) {
 async function listAllAuthUsers(supabase) {
   const users = [];
   for (let page = 1; page <= 100; page += 1) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
     if (error) throw new Error(error.message);
     if (!data?.users?.length) break;
     for (const user of data.users) {
@@ -75,7 +75,7 @@ const tables = [
 ];
 
 for (const [table, col] of tables) {
-  const { count, error } = await supabase.from(table).delete({ count: 'exact' }).not(col, 'is', null);
+  const { count, error } = await db.from(table).delete({ count: 'exact' }).not(col, 'is', null);
   if (error) console.warn(`  ${table}: ${error.message}`);
   else console.log(`  Cleared ${table}: ${count ?? 0} row(s)`);
 }
@@ -88,20 +88,20 @@ const protectedIds = new Set(
 let authDeleted = 0;
 for (const user of authUsers) {
   if (protectedIds.has(user.id)) continue;
-  const { error } = await supabase.auth.admin.deleteUser(user.id);
+  const { error } = await db.auth.admin.deleteUser(user.id);
   if (error) console.warn(`  auth ${user.email}: ${error.message}`);
   else authDeleted += 1;
 }
 console.log(`  Deleted auth users: ${authDeleted}`);
 
-const { data: profiles } = await supabase.from('users').select('id, email, user_role');
+const { data: profiles } = await db.from('users').select('id, email, user_role');
 let profilesDeleted = 0;
 for (const row of profiles ?? []) {
   if (protectedIds.has(String(row.id))) continue;
   const email = String(row.email ?? '');
   const role = String(row.user_role ?? '').toLowerCase();
   if (email.includes('@admin.') || role === 'admin') continue;
-  const { error } = await supabase.from('users').delete().eq('id', row.id);
+  const { error } = await db.from('users').delete().eq('id', row.id);
   if (error) console.warn(`  profile ${email}: ${error.message}`);
   else profilesDeleted += 1;
 }

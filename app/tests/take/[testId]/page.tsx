@@ -176,11 +176,11 @@ export default function TakeTestPage({
           return;
         }
 
-        const { getSupabaseBrowserClient } = await import('@/lib/supabase-browser');
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) return;
+        const { getClientUser } = await import('@/lib/db-browser');
+        const db = null;
+        if (!db) return;
 
-        const { test: loadedTest, questions: loadedQuestions } = await loadTestBundleForTake(supabase, testId);
+        const { test: loadedTest, questions: loadedQuestions } = await loadTestBundleForTake(db, testId);
 
         if (!loadedTest) {
           return;
@@ -220,7 +220,7 @@ export default function TakeTestPage({
           );
         }
 
-        const sections = await loadTestSections(supabase, testId);
+        const sections = await loadTestSections(db, testId);
         setExamSections(sections);
 
         const userId = user?.id;

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import { fetchElevateXScorecardForAttempt } from '@/lib/placement/fetch-elevatex-scorecard';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +21,7 @@ export async function GET(
   }
 
   const { attemptId } = await params;
-  const service = getServiceSupabase();
+  const service = getDbService();
   if (!service) {
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
   }

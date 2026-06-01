@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import { parseAdminExamType } from '@/lib/admin/exam-type';
 import { loadTestReportsPayload } from '@/lib/admin/test-reports-data';
 
@@ -10,7 +11,7 @@ export async function GET(request: Request) {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
   }

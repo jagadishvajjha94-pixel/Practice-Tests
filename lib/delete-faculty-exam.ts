@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { isElevateXBuilderTestType } from '@/lib/exam-builder/elevatex-exam';
 import { ELEVATEX_MODULE_KEY, isElevateXTestId } from '@/lib/elevatex';
 
@@ -18,22 +18,22 @@ function protectTestId(testId: string | null | undefined): boolean {
 }
 
 async function deleteByIds(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   table: string,
   column: string,
   ids: string[],
 ): Promise<string | null> {
   if (ids.length === 0) return null;
-  const { error } = await supabase.from(table).delete().in(column, ids);
+  const { error } = await db.from(table).delete().in(column, ids);
   return error?.message ?? null;
 }
 
 /** Remove one faculty exam request and related schedules, test, attempts, questions. */
 export async function deleteFacultyExamRequest(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   requestId: string,
 ): Promise<DeleteFacultyExamResult | { error: string }> {
-  const { data: request, error: fetchErr } = await supabase
+  const { data: request, error: fetchErr } = await db
     .from('faculty_exam_requests')
     .select('id, title, published_test_id, test_type')
     .eq('id', requestId)
@@ -51,7 +51,7 @@ export async function deleteFacultyExamRequest(
     errors: [],
   };
 
-  const { data: schedules } = await supabase
+  const { data: schedules } = await db
     .from('exam_schedules')
     .select('id')
     .eq('faculty_exam_request_id', requestId);
@@ -61,19 +61,19 @@ export async function deleteFacultyExamRequest(
 
   if (scheduleIds.length) {
     const rosterErr = await deleteByIds(
-      supabase,
+      db,
       'exam_student_roster',
       'exam_schedule_id',
       scheduleIds,
     );
     if (rosterErr) result.errors.push(`exam_student_roster: ${rosterErr}`);
 
-    const schedErr = await deleteByIds(supabase, 'exam_schedules', 'id', scheduleIds);
+    const schedErr = await deleteByIds(db, 'exam_schedules', 'id', scheduleIds);
     if (schedErr) result.errors.push(`exam_schedules: ${schedErr}`);
   }
 
   const slotErr = await deleteByIds(
-    supabase,
+    db,
     'exam_slot_roster_entries',
     'faculty_exam_request_id',
     [requestId],
@@ -81,7 +81,7 @@ export async function deleteFacultyExamRequest(
   if (slotErr) result.errors.push(`exam_slot_roster_entries: ${slotErr}`);
 
   const drawErr = await deleteByIds(
-    supabase,
+    db,
     'exam_builder_draws',
     'faculty_exam_request_id',
     [requestId],
@@ -97,14 +97,14 @@ export async function deleteFacultyExamRequest(
     isElevateXTestId(publishedTestId);
 
   if (isElevateX) {
-    const evaloraErr = await deleteByIds(supabase, 'evalora_module_schedules', 'module_key', [
+    const evaloraErr = await deleteByIds(db, 'evalora_module_schedules', 'module_key', [
       ELEVATEX_MODULE_KEY,
     ]);
     if (evaloraErr) result.errors.push(`evalora_module_schedules: ${evaloraErr}`);
   }
 
   if (publishedTestId && isElevateX) {
-    const { data: attempts } = await supabase
+    const { data: attempts } = await db
       .from('test_attempts')
       .select('id')
       .eq('test_id', publishedTestId);
@@ -113,14 +113,14 @@ export async function deleteFacultyExamRequest(
     result.deletedAttemptIds = attemptIds;
 
     if (attemptIds.length) {
-      await deleteByIds(supabase, 'exam_violations', 'attempt_id', attemptIds);
-      const attemptErr = await deleteByIds(supabase, 'test_attempts', 'id', attemptIds);
+      await deleteByIds(db, 'exam_violations', 'attempt_id', attemptIds);
+      const attemptErr = await deleteByIds(db, 'test_attempts', 'id', attemptIds);
       if (attemptErr) result.errors.push(`test_attempts: ${attemptErr}`);
     }
   } else if (publishedTestId && !protectTestId(publishedTestId)) {
     result.deletedTestId = publishedTestId;
 
-    const { data: attempts } = await supabase
+    const { data: attempts } = await db
       .from('test_attempts')
       .select('id')
       .eq('test_id', publishedTestId);
@@ -129,20 +129,20 @@ export async function deleteFacultyExamRequest(
     result.deletedAttemptIds = attemptIds;
 
     if (attemptIds.length) {
-      await deleteByIds(supabase, 'exam_violations', 'attempt_id', attemptIds);
-      const attemptErr = await deleteByIds(supabase, 'test_attempts', 'id', attemptIds);
+      await deleteByIds(db, 'exam_violations', 'attempt_id', attemptIds);
+      const attemptErr = await deleteByIds(db, 'test_attempts', 'id', attemptIds);
       if (attemptErr) result.errors.push(`test_attempts: ${attemptErr}`);
     }
 
-    await deleteByIds(supabase, 'exam_builder_draws', 'test_id', [publishedTestId]);
-    await deleteByIds(supabase, 'test_questions', 'test_id', [publishedTestId]);
-    const qErr = await deleteByIds(supabase, 'questions', 'test_id', [publishedTestId]);
+    await deleteByIds(db, 'exam_builder_draws', 'test_id', [publishedTestId]);
+    await deleteByIds(db, 'test_questions', 'test_id', [publishedTestId]);
+    const qErr = await deleteByIds(db, 'questions', 'test_id', [publishedTestId]);
     if (qErr) result.errors.push(`questions: ${qErr}`);
-    const testErr = await deleteByIds(supabase, 'tests', 'id', [publishedTestId]);
+    const testErr = await deleteByIds(db, 'tests', 'id', [publishedTestId]);
     if (testErr) result.errors.push(`tests: ${testErr}`);
   }
 
-  const reqErr = await deleteByIds(supabase, 'faculty_exam_requests', 'id', [requestId]);
+  const reqErr = await deleteByIds(db, 'faculty_exam_requests', 'id', [requestId]);
   if (reqErr) result.errors.push(`faculty_exam_requests: ${reqErr}`);
 
   if (reqErr) return { error: reqErr };
@@ -152,10 +152,10 @@ export async function deleteFacultyExamRequest(
 
 /** Delete a single exam schedule window (roster + row). Keeps faculty request and published test. */
 export async function deleteExamScheduleById(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   scheduleId: string,
 ): Promise<{ ok: true } | { error: string }> {
-  const { data, error: fetchErr } = await supabase
+  const { data, error: fetchErr } = await db
     .from('exam_schedules')
     .select('id')
     .eq('id', scheduleId)
@@ -165,14 +165,14 @@ export async function deleteExamScheduleById(
   if (!data) return { error: 'Schedule not found' };
 
   const rosterErr = await deleteByIds(
-    supabase,
+    db,
     'exam_student_roster',
     'exam_schedule_id',
     [scheduleId],
   );
   if (rosterErr) return { error: rosterErr };
 
-  const { error } = await supabase.from('exam_schedules').delete().eq('id', scheduleId);
+  const { error } = await db.from('exam_schedules').delete().eq('id', scheduleId);
   if (error) return { error: error.message };
   return { ok: true };
 }

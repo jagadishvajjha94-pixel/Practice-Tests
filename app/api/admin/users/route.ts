@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import { studentFieldsFromMetadata } from '@/lib/student-profile-sync';
 
 export type AdminUserRow = {
@@ -16,7 +17,7 @@ export async function GET() {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }

@@ -2,7 +2,13 @@ import Credentials from 'next-auth/providers/credentials';
 import type { Provider } from 'next-auth/providers';
 import { prisma } from '@/lib/prisma';
 import { autoEnsureRdsSchema } from '@/lib/db/auto-ensure-rds';
+import { bootstrapRdsAdmin } from '@/lib/db/seed-rds-baseline';
 import { verifyPassword } from '@/lib/password';
+import {
+  getConfiguredAdminEmail,
+  getConfiguredAdminPassword,
+  isAllowlistedAdminEmail,
+} from '@/lib/admin-defaults';
 import {
   adminAuthEmail,
   studentAuthEmail,
@@ -11,6 +17,15 @@ import {
 } from '@/lib/college-auth';
 
 export type AppRole = 'admin' | 'student';
+
+async function tryBootstrapAdminFromEnv(email: string, password: string) {
+  if (process.env.NODE_ENV === 'production') return;
+  if (!isAllowlistedAdminEmail(email)) return;
+  if (password !== getConfiguredAdminPassword()) return;
+  if (email !== adminAuthEmail(getConfiguredAdminEmail())) return;
+
+  await bootstrapRdsAdmin();
+}
 
 export function buildAuthProviders(): Provider[] {
   return [
@@ -63,10 +78,18 @@ export function buildAuthProviders(): Provider[] {
         if (!username || validatePassword(password)) return null;
 
         const email = adminAuthEmail(username);
-        const user = await prisma.user.findUnique({
+        let user = await prisma.user.findUnique({
           where: { email },
           include: { adminUser: true },
         });
+
+        if (!user?.passwordHash || !user.adminUser) {
+          await tryBootstrapAdminFromEnv(email, password);
+          user = await prisma.user.findUnique({
+            where: { email },
+            include: { adminUser: true },
+          });
+        }
 
         if (!user?.passwordHash || !user.adminUser) return null;
         const ok = await verifyPassword(password, user.passwordHash);

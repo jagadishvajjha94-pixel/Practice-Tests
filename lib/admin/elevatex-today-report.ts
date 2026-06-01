@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { rollNumberFromUser } from '@/lib/admin/roll-number';
 import type { RollupAttempt, RollupStudent } from '@/lib/admin/attempts-rollup';
 import { isCompletedAttemptStatus } from '@/lib/attempt-status';
@@ -72,7 +72,7 @@ function matchesTodayElevateX(
 }
 
 async function loadTodayElevateXAttemptsFromTable(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   bounds: { start: string; end: string },
   dateKey: string,
 ): Promise<RollupAttempt[]> {
@@ -112,7 +112,7 @@ async function loadTodayElevateXAttemptsFromTable(
 }
 
 async function loadTodayElevateXFromDashboardStats(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   dateKey: string,
   seenIds: Set<string>,
 ): Promise<RollupAttempt[]> {
@@ -148,7 +148,7 @@ async function loadTodayElevateXFromDashboardStats(
 }
 
 async function loadStudentsForIds(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   userIds: string[],
 ): Promise<Map<string, RollupStudent>> {
   const map = new Map<string, RollupStudent>();
@@ -180,7 +180,7 @@ async function loadStudentsForIds(
 
 /** Fast ElevateX report for a single IST day — avoids full attempt rollup (504-safe). */
 export async function loadElevateXTodayReportFast(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   dateKey: string,
   reportDateLabel: string,
 ): Promise<TestReportsPayload> {

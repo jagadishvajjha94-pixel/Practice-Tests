@@ -9,14 +9,14 @@ This site can't be reached
 
 ## Root Cause
 
-Supabase is sending you an email with a confirmation link, but:
+AWS RDS is sending you an email with a confirmation link, but:
 1. The link might be pointing to the wrong URL, OR
 2. Email verification is enabled but you need to configure it properly
 
 ## Quick Fix (For Development)
 
 ### Step 1: Disable Email Confirmation
-1. Open your Supabase project: https://app.supabase.com
+1. Open your AWS RDS project: https://app.rds.com
 2. Go to **Authentication** (left sidebar)
 3. Click **Providers** 
 4. Find **Email** and click on it
@@ -40,8 +40,8 @@ Now users can:
 
 If you want email verification enabled in production:
 
-### Step 1: Configure URL in Supabase
-1. Open your Supabase project
+### Step 1: Configure URL in AWS RDS
+1. Open your AWS RDS project
 2. Go to **Authentication** → **URL Configuration**
 3. Add your production URL in the **Site URL** field
    - Example: `https://prepindia.com`
@@ -55,7 +55,7 @@ If you want email verification enabled in production:
 3. Click **Save**
 
 ### Step 3: Configure Email Service (Optional)
-By default, Supabase uses their email service. For better delivery:
+By default, AWS RDS uses their email service. For better delivery:
 1. Go to **Authentication** → **Providers** → **Email**
 2. Scroll to "SMTP Settings"
 3. Add your custom email service (Gmail, SendGrid, etc.)
@@ -81,12 +81,12 @@ The app now has these pages:
 
 **With Email Verification Disabled (Development)**
 ```
-User signs up → Supabase creates user → Dashboard
+User signs up → AWS RDS creates user → Dashboard
 ```
 
 **With Email Verification Enabled (Production)**
 ```
-User signs up → Supabase creates user → Email sent → User clicks link → Dashboard
+User signs up → AWS RDS creates user → Email sent → User clicks link → Dashboard
 ```
 
 ## What Happens Now
@@ -117,7 +117,7 @@ After your changes:
 ### Still Getting "Site Can't Be Reached"?
 
 **Solution 1: Check Email Verification Setting**
-- Open Supabase Dashboard
+- Open AWS RDS Dashboard
 - Go to Authentication → Providers → Email
 - Make sure "Confirm email" is toggled OFF for development
 - Click Save
@@ -151,13 +151,13 @@ After your changes:
 
 **To disable email verification (development):**
 ```
-Supabase → Authentication → Providers → Email → Turn OFF "Confirm email"
+AWS RDS → Authentication → Providers → Email → Turn OFF "Confirm email"
 ```
 
 **To enable email verification (production):**
 ```
-Supabase → Authentication → URL Configuration → Add your domain
-Supabase → Authentication → Providers → Email → Turn ON "Confirm email"
+AWS RDS → Authentication → URL Configuration → Add your domain
+AWS RDS → Authentication → Providers → Email → Turn ON "Confirm email"
 ```
 
 ## Files Modified
@@ -170,7 +170,7 @@ Supabase → Authentication → Providers → Email → Turn ON "Confirm email"
 ## Next Steps
 
 1. **Immediate** (5 min):
-   - Disable email verification in Supabase
+   - Disable email verification in AWS RDS
    - Try signing up again
    
 2. **After Testing** (Optional):
@@ -178,12 +178,12 @@ Supabase → Authentication → Providers → Email → Turn ON "Confirm email"
    - Test the full email flow
    
 3. **Before Deployment**:
-   - Make sure URL Configuration is set in Supabase
+   - Make sure URL Configuration is set in AWS RDS
    - Test email confirmations work end-to-end
 
 ## Questions?
 
 If you still have issues:
 1. Check the console (F12) for error messages
-2. Check your Supabase project logs
+2. Check your AWS RDS project logs
 3. Verify environment variables are correct

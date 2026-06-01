@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

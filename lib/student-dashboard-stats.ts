@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import type { Test, TestAttempt } from '@/lib/types';
 
 export type DashboardStatEntry = {
@@ -82,11 +82,11 @@ function parseAttemptsJson(raw: unknown): DashboardStatEntry[] {
 }
 
 export async function appendStudentDashboardStat(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userId: string,
   entry: DashboardStatEntry,
 ): Promise<void> {
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from('student_dashboard_stats')
     .select('attempts')
     .eq('user_id', userId)
@@ -95,7 +95,7 @@ export async function appendStudentDashboardStat(
   const list = parseAttemptsJson(existing?.attempts);
   const next = [entry, ...list.filter((row) => String(row.id) !== String(entry.id))].slice(0, 50);
 
-  const { error } = await supabase.from('student_dashboard_stats').upsert(
+  const { error } = await db.from('student_dashboard_stats').upsert(
     {
       user_id: userId,
       attempts: next,
@@ -114,10 +114,10 @@ export async function appendStudentDashboardStat(
 }
 
 export async function fetchDashboardStatEntries(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userId: string,
 ): Promise<DashboardStatEntry[]> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('student_dashboard_stats')
     .select('attempts')
     .eq('user_id', userId)
@@ -136,10 +136,10 @@ export async function fetchDashboardStatEntries(
 
 /** Find a dashboard stat row by placeholder or server attempt id (admin/faculty lookup). */
 export async function findDashboardStatEntryByAttemptId(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   attemptId: string,
 ): Promise<{ entry: DashboardStatEntry; userId: string } | null> {
-  const { data, error } = await supabase.from('student_dashboard_stats').select('user_id, attempts');
+  const { data, error } = await db.from('student_dashboard_stats').select('user_id, attempts');
 
   if (error) {
     const msg = String(error.message ?? '').toLowerCase();
@@ -161,10 +161,10 @@ export async function findDashboardStatEntryByAttemptId(
 }
 
 export async function fetchStudentDashboardStats(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userId: string,
 ): Promise<Array<TestAttempt & { test: Test }>> {
-  const entries = await fetchDashboardStatEntries(supabase, userId);
+  const entries = await fetchDashboardStatEntries(db, userId);
   return entries.map(statEntryToAttempt);
 }
 

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 import { resetElevateXSampleStudents } from '@/lib/elevatex-sample-seed';
 import { ELEVATEX_SAMPLE_COUNT } from '@/lib/elevatex-sample-credentials';
 
 export const maxDuration = 60;
 
 function getServiceRoleKey(): string | undefined {
-  const raw = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const raw = process.env.AUTH_SECRET?.trim();
   if (!raw || raw.includes('YOUR_')) return undefined;
   return raw;
 }
@@ -17,24 +17,24 @@ function getServiceRoleKey(): string | undefined {
  */
 export async function POST() {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+    const rdsUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
     const serviceRoleKey = getServiceRoleKey();
 
-    if (!supabaseUrl || !serviceRoleKey || !supabaseUrl.includes('.supabase.co')) {
+    if (!rdsUrl || !serviceRoleKey || !rdsUrl.includes('.db.co')) {
       return NextResponse.json(
         {
           error:
-            'Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (service role) for this deployment.',
+            'Set NEXT_PUBLIC_APP_URL and AUTH_SECRET (service role) for this deployment.',
         },
         { status: 500 },
       );
     }
 
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    const db = createClient(rdsUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const result = await resetElevateXSampleStudents(supabase);
+    const result = await resetElevateXSampleStudents(db);
 
     if (result.errors.length > 0 && result.deletedRolls.length === 0) {
       return NextResponse.json(

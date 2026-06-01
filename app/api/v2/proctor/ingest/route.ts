@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
+import { getDbService } from '@/lib/db/get-db-service';
 import { useAwsStack } from '@/lib/aws/stack';
 import {
   ensureExamViolationsTableIfPossible,
   isExamViolationsSchemaError,
 } from '@/lib/ensure-exam-violations';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import {
   insertProctorViolationsPrisma,
   linkProctorViolationsPrisma,
@@ -23,8 +24,8 @@ function normalizeStoredTestId(testId: string | undefined | null): string | null
   return value || null;
 }
 
-async function insertViolationRowsSupabase(
-  admin: NonNullable<ReturnType<typeof getServiceSupabase>>,
+async function insertViolationRowsDb(
+  admin: NonNullable<ReturnType<typeof getDbService>>,
   rows: Array<{
     user_id: string;
     test_id: string | null;
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
         sessionId,
       );
     } else {
-      const admin = getServiceSupabase();
+      const admin = getDbService();
       if (admin) {
         await admin
           .from('exam_violations')
@@ -121,9 +122,9 @@ export async function POST(request: Request) {
         })),
       );
     } else {
-      const admin = getServiceSupabase();
+      const admin = getDbService();
       if (admin) {
-        const inserted = await insertViolationRowsSupabase(admin, rows);
+        const inserted = await insertViolationRowsDb(admin, rows);
         if (!inserted.ok) {
           return NextResponse.json(
             { error: inserted.error ?? 'Insert failed', stored: 0 },

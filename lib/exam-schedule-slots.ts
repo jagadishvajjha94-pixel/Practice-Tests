@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { rollNumberFromUser } from '@/lib/admin/roll-number';
 import {
   isScheduleWindowOpen,
@@ -321,7 +321,7 @@ export function parseRosterCsv(text: string): ExamSlotRosterEntry[] {
 }
 
 export async function persistSlotRoster(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   requestId: string,
   slots: ExamScheduleSlotInput[],
 ): Promise<void> {
@@ -330,7 +330,7 @@ export async function persistSlotRoster(
 }
 
 export async function persistSlotRosterForSlot(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   requestId: string,
   slot: ExamScheduleSlotInput,
 ): Promise<void> {
@@ -343,7 +343,7 @@ export async function persistSlotRosterForSlot(
 }
 
 async function insertSlotRosterRows(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   requestId: string,
   slots: ExamScheduleSlotInput[],
 ): Promise<void> {
@@ -385,7 +385,7 @@ async function insertSlotRosterRows(
 }
 
 export async function createScheduleForSlot(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: {
     requestId: string;
     testId: string;
@@ -411,7 +411,7 @@ export async function createScheduleForSlot(
 }
 
 export async function rebuildSlotsFromRosterEntries(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   requestId: string,
   scheduleMeta?: ExamScheduleSlotInput[],
 ): Promise<ExamScheduleSlotInput[]> {
@@ -462,7 +462,7 @@ export type CreatedSlotSchedule = {
 };
 
 export async function syncExamStudentRosters(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   schedules: CreatedSlotSchedule[],
   slots: ExamScheduleSlotInput[],
 ): Promise<void> {
@@ -498,7 +498,7 @@ export async function syncExamStudentRosters(
 }
 
 export async function loadSlotsForRequest(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   requestId: string,
 ): Promise<{ uses_slot_scheduling: boolean; slots: ExamScheduleSlotInput[] }> {
   const { data, error } = await admin
@@ -517,7 +517,7 @@ export async function loadSlotsForRequest(
 }
 
 export async function findStudentSlotAssignment(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   requestId: string,
   rollNumber: string,
 ): Promise<{ slot_number: number; student_name: string | null } | null> {
@@ -557,7 +557,7 @@ export type SlotAccessDetail = {
 };
 
 export async function checkStudentSlotExamAccess(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: {
     schedules: ExamScheduleRow[];
     facultyExamRequestId: string;
@@ -673,7 +673,7 @@ export async function checkStudentSlotExamAccess(
 }
 
 export async function createSchedulesFromSlots(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: {
     requestId: string;
     testId: string;
@@ -803,7 +803,7 @@ export function nextSequentialSlotToGoLive(related: ExamScheduleRow[]): number |
 
 /** Go live one slot; ends any other live slot on the same exam first. */
 export async function goLiveExamScheduleSlotSequential(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   scheduleId: string,
 ): Promise<ExamScheduleRow> {
   const { data: existing, error: fetchErr } = await admin
@@ -875,7 +875,7 @@ export async function goLiveExamScheduleSlotSequential(
 
 /** On publish, at most one slot — must be slot 1. */
 export async function goLiveExamSchedulesForSlots(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   requestId: string,
   slotNumbers: number[],
 ): Promise<{ updated: number }> {
@@ -1051,7 +1051,7 @@ export function resolveStudentSlotPortalNotice(input: {
 }
 
 export async function buildStudentSlotExamPortalNotices(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: {
     schedules: ExamScheduleRow[];
     department: string;

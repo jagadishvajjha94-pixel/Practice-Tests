@@ -1,6 +1,7 @@
-import type { PostgrestError } from '@supabase/supabase-js';
+import type { PostgrestError } from '@/lib/db/get-db-service';
+import { getDbService } from '@/lib/db/get-db-service';
 import postgres from 'postgres';
-import { getAdminSupabase } from '@/lib/admin-access';
+import { getDbService } from '@/lib/admin-access';
 import { ELEVATEX_MODULE_KEY } from '@/lib/elevatex';
 import { resolvePostgresUrl } from '@/lib/postgres-url';
 
@@ -26,7 +27,7 @@ export function isLiveExamDbSchemaError(
   );
 }
 
-export async function probeLiveExamDb(admin = getAdminSupabase()): Promise<{
+export async function probeLiveExamDb(admin = getDbService()): Promise<{
   ready: boolean;
   missing: string[];
 }> {
@@ -281,7 +282,7 @@ export async function ensureLiveExamDbIfPossible(force = false): Promise<boolean
   if (!force && ensurePromise) return ensurePromise;
 
   ensurePromise = (async () => {
-    const admin = getAdminSupabase();
+    const admin = getDbService();
     if (!admin) return false;
 
     const probe = await probeLiveExamDb(admin);

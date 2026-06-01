@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { rollNumberFromUser } from '@/lib/admin/roll-number';
 import { loadAdminStudents, loadAllAttemptsRollup, type RollupAttempt } from '@/lib/admin/attempts-rollup';
 import { isCompletedAttemptStatus, isInProgressStatus } from '@/lib/attempt-status';
@@ -47,7 +47,7 @@ export type LiveWritingEntry = LiveBoardEntry & {
 };
 
 export async function buildAllLiveExamBoards(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   schedules: ExamScheduleRow[],
   preloadedAttempts?: RollupAttempt[],
 ): Promise<LiveExamBoard[]> {
@@ -57,7 +57,7 @@ export async function buildAllLiveExamBoards(
 }
 
 export async function buildAllLiveWritingActivity(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   schedules: ExamScheduleRow[],
   preloadedAttempts?: RollupAttempt[],
 ): Promise<LiveWritingEntry[]> {
@@ -224,7 +224,7 @@ function rowToRollupAttempt(
 }
 
 async function loadAttemptsForSchedule(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   schedule: ExamScheduleRow,
   titleKeys: string[],
 ): Promise<RollupAttempt[]> {
@@ -309,7 +309,7 @@ async function loadAttemptsForSchedule(
 }
 
 async function loadActiveSessionWriters(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   schedules: ExamScheduleRow[],
   excludeUserIds: Set<string>,
   studentById?: Map<string, { roll_number: string; full_name: string | null; email: string }>,
@@ -452,7 +452,7 @@ function isLiveForDashboard(
   return resolved.display === 'live' && resolved.windowOpen && isScheduleLiveNow(schedule, now);
 }
 
-export async function listLiveExamSchedules(admin: SupabaseClient): Promise<ExamScheduleRow[]> {
+export async function listLiveExamSchedules(admin: DbServiceClient): Promise<ExamScheduleRow[]> {
   const now = Date.now();
   const live: ExamScheduleRow[] = [];
 
@@ -505,7 +505,7 @@ function isRecentlyEndedSchedule(
 }
 
 export async function listRecentlyEndedExamSchedules(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   lookbackMs = DEFAULT_ENDED_LOOKBACK_MS,
 ): Promise<ExamScheduleRow[]> {
   const now = Date.now();
@@ -540,7 +540,7 @@ export async function listRecentlyEndedExamSchedules(
 }
 
 export async function buildLiveExamBoard(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   schedule: ExamScheduleRow,
   _preloadedAttempts?: RollupAttempt[],
 ): Promise<LiveExamBoard> {

@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
+import { getDbService } from '@/lib/db/get-db-service';
 import { resolveStudentTargeting } from '@/lib/student-profile-sync';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 
 /** Backfill public.users from auth metadata (fixes legacy registrations). */
 export async function POST() {
   const auth = await requireAuth(['student']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }

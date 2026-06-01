@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { departmentsMatch } from '@/lib/department-match';
 import type { EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
 
@@ -26,7 +26,7 @@ function scheduleMatchesStudent(
 }
 
 export async function getLiveRmsetSchedule(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   department: string,
   year: string,
 ): Promise<EvaloraModuleScheduleRow | null> {

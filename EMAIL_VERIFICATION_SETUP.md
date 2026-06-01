@@ -5,7 +5,7 @@
 When a user signs up:
 1. User enters email and password
 2. Clicks "Sign Up" button
-3. Supabase sends a confirmation email
+3. AWS RDS sends a confirmation email
 4. User clicks the link in the email
 5. Link redirects to `/auth/callback` on your site
 6. Email is verified and user is logged in
@@ -15,9 +15,9 @@ When a user signs up:
 
 If you want to skip email verification during development:
 
-### Option 1: Disable Email Confirmation in Supabase (Recommended for Dev)
+### Option 1: Disable Email Confirmation in AWS RDS (Recommended for Dev)
 
-1. Go to your Supabase project dashboard
+1. Go to your AWS RDS project dashboard
 2. Navigate to **Authentication → Providers → Email**
 3. Turn OFF "Confirm email"
 4. Save changes
@@ -30,11 +30,11 @@ The app now automatically creates a user profile when they sign up, even before 
 
 ## For Production (Email Verification Enabled)
 
-1. Keep email confirmation enabled in Supabase
-2. Configure your redirect URL in Supabase:
+1. Keep email confirmation enabled in AWS RDS
+2. Configure your redirect URL in AWS RDS:
    - Go to **Authentication → URL Configuration**
    - Add your domain: `https://yourdomainhere.com`
-   - Supabase will use this to create confirmation links
+   - AWS RDS will use this to create confirmation links
 
 3. Make sure your deployment uses the correct URL in environment variables
 
@@ -49,13 +49,13 @@ This happens when:
 
 **Solution:**
 - The app now has `/auth/callback` to handle confirmations
-- If you still see this error, check that your Supabase URL configuration includes your domain
+- If you still see this error, check that your AWS RDS URL configuration includes your domain
 
 ### Email Not Received
 
 This could happen because:
 1. Email is in spam folder
-2. Supabase email service is rate-limited
+2. AWS RDS email service is rate-limited
 3. Email configuration not set up
 
 **Solution:**
@@ -84,13 +84,13 @@ The app has:
 
 1. **For Development:**
    ```
-   Supabase Dashboard → Authentication → Providers → Email
+   AWS RDS Dashboard → Authentication → Providers → Email
    Turn OFF "Confirm email"
    ```
 
 2. **For Production:**
    ```
-   Supabase Dashboard → Authentication → URL Configuration
+   AWS RDS Dashboard → Authentication → URL Configuration
    Add your production domain (https://yourdomain.com)
    ```
 

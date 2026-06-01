@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -84,7 +84,7 @@ async function main() {
     }
     studentsFound += 1;
 
-    await supabase.from('student_active_sessions').delete().eq('roll_number', normalizeRoll(roll));
+    await db.from('student_active_sessions').delete().eq('roll_number', normalizeRoll(roll));
 
     const { data: attempts } = await supabase
       .from('test_attempts')
@@ -97,8 +97,8 @@ async function main() {
 
     if (ids.length === 0) continue;
 
-    await supabase.from('exam_violations').delete().in('attempt_id', ids);
-    const { data: deleted } = await supabase.from('test_attempts').delete().in('id', ids).select('id');
+    await db.from('exam_violations').delete().in('attempt_id', ids);
+    const { data: deleted } = await db.from('test_attempts').delete().in('id', ids).select('id');
     attemptsDeleted += deleted?.length ?? 0;
     console.log(`${roll}: removed ${deleted?.length ?? 0} ElevateX attempt(s)`);
   }

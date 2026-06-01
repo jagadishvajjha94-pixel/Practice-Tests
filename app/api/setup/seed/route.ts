@@ -1,25 +1,25 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const isSupabaseConfigured =
-  !!supabaseUrl &&
+const rdsUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+const serviceRoleKey = process.env.AUTH_SECRET || '';
+const isDatabaseConfigured =
+  !!rdsUrl &&
   !!serviceRoleKey &&
-  supabaseUrl.includes('.supabase.co') &&
-  !supabaseUrl.includes('YOUR_') &&
+  rdsUrl.includes('.db.co') &&
+  !rdsUrl.includes('YOUR_') &&
   !serviceRoleKey.includes('YOUR_');
 
 export async function POST() {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isDatabaseConfigured) {
       return NextResponse.json(
-        { error: 'Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local' },
+        { error: 'Set NEXT_PUBLIC_APP_URL and AUTH_SECRET in .env.local' },
         { status: 500 }
       );
     }
 
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    const db = createClient(rdsUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
@@ -37,12 +37,12 @@ export async function POST() {
       { name: 'Mock Interview Prep', slug: 'mock-interviews', description: 'Communication and structured interview drills', icon: '🎤' },
     ];
 
-    const { error: categoryError } = await supabase
+    const { error: categoryError } = await db
       .from('test_categories')
       .upsert(categories, { onConflict: 'slug' });
     if (categoryError) console.warn('Category upsert warning:', categoryError);
 
-    const { data: allCategories, error: allCategoriesError } = await supabase
+    const { data: allCategories, error: allCategoriesError } = await db
       .from('test_categories')
       .select('id, slug');
     if (allCategoriesError) throw allCategoriesError;
@@ -70,7 +70,7 @@ export async function POST() {
       const categoryId = categoryMap[seedTest.slug];
       if (!categoryId) continue;
 
-      const { data: existingTest } = await supabase
+      const { data: existingTest } = await db
         .from('tests')
         .select('id, title')
         .eq('category_id', categoryId)
@@ -79,7 +79,7 @@ export async function POST() {
 
       let testId = existingTest?.id as string | undefined;
       if (!testId) {
-        const { data: created, error: createTestError } = await supabase
+        const { data: created, error: createTestError } = await db
           .from('tests')
           .insert({
             category_id: categoryId,
@@ -96,7 +96,7 @@ export async function POST() {
         testsSeeded += 1;
       }
 
-      const { count } = await supabase
+      const { count } = await db
         .from('questions')
         .select('id', { count: 'exact', head: true })
         .eq('test_id', testId);
@@ -114,7 +114,7 @@ export async function POST() {
           explanation: 'Sample seeded explanation',
           marks: 1,
         }));
-        const { data: insertedQuestions, error: questionError } = await supabase
+        const { data: insertedQuestions, error: questionError } = await db
           .from('questions')
           .insert(rows)
           .select('id');
@@ -127,7 +127,7 @@ export async function POST() {
             question_id: q.id,
             order: idx + 1,
           }));
-          const { error: linkError } = await supabase
+          const { error: linkError } = await db
             .from('test_questions')
             .upsert(links, { onConflict: 'test_id,question_id' });
           if (linkError) console.warn('Question link warning:', linkError);
@@ -136,7 +136,7 @@ export async function POST() {
     }
 
     // Insert sample blog posts
-    const { error: blogError } = await supabase
+    const { error: blogError } = await db
       .from('blog_posts')
       .upsert([
         {

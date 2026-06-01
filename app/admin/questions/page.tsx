@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
 import { fetchAdminCategories } from '@/lib/fetch-admin-categories';
 import type { CategoryOption } from '@/lib/ai-generator-config';
 import { cn } from '@/lib/utils';
@@ -45,7 +43,7 @@ export default function QuestionsManagementPage() {
   const [topicPayload, setTopicPayload] = useState<TopicPayload | null>(null);
   const [topicOffset, setTopicOffset] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
+  const [rdsEnvMissing, setDbEnvMissing] = useState(false);
 
   const [showManage, setShowManage] = useState(false);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -121,11 +119,6 @@ export default function QuestionsManagementPage() {
   useEffect(() => {
     const init = async () => {
       try {
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) {
-          setSupabaseEnvMissing(true);
-          return;
-        }
         const { categories: categoryList, warning } = await fetchAdminCategories();
         setCategories(categoryList);
         if (warning) setCategoryWarning(warning);
@@ -269,11 +262,6 @@ export default function QuestionsManagementPage() {
     if (!file) return;
     setUploading(true);
     try {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        alert(SUPABASE_PUBLIC_ENV_MESSAGE);
-        return;
-      }
       const text = await file.text();
       const lines = text.split('\n').filter((line) => line.trim());
       const headers = lines[0].split(',').map((h) => h.trim());
@@ -298,8 +286,15 @@ export default function QuestionsManagementPage() {
         }
       }
       if (newQuestions.length > 0) {
-        const { error } = await supabase.from('questions').insert(newQuestions);
-        if (error) throw error;
+        const res = await fetchWithAuth('/api/admin/questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ questions: newQuestions }),
+        });
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(json.error ?? 'Import failed');
+        }
         alert(`${newQuestions.length} questions imported`);
         await loadOverview();
         if (selectedTopicSlug) await loadTopic(selectedTopicSlug, topicOffset);
@@ -314,19 +309,15 @@ export default function QuestionsManagementPage() {
   const handleAddQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) return;
-      const { error } = await supabase.from('questions').insert({
-        question_text: formData.question_text,
-        category_id: formData.category_id,
-        difficulty: formData.difficulty,
-        type: formData.type,
-        options: formData.type === 'MCQ' ? formData.options.split('|').map((o) => o.trim()) : null,
-        correct_answer: formData.correct_answer,
-        explanation: formData.explanation,
-        tags: selectedTopicSlug && selectedTopicSlug !== 'uncategorized' ? [selectedTopicSlug] : null,
+      const res = await fetchWithAuth('/api/admin/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       });
-      if (error) throw error;
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(json.error ?? 'Could not add question');
+      }
       setShowAddForm(false);
       await loadOverview();
       if (selectedTopicSlug) await loadTopic(selectedTopicSlug, 0);
@@ -344,10 +335,10 @@ export default function QuestionsManagementPage() {
     );
   }
 
-  if (supabaseEnvMissing) {
+  if (rdsEnvMissing) {
     return (
       <div className="flex items-center justify-center min-h-[40vh] px-4">
-        <p className="text-gray-600 text-center max-w-lg">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
+        <p className="text-gray-600 text-center max-w-lg">{'Configure AUTH_SECRET and DATABASE_URL'}</p>
       </div>
     );
   }

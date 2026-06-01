@@ -1,67 +1,42 @@
-import { supabase } from './supabase';
-
+/**
+ * Client-side auth helpers — AWS RDS + NextAuth only.
+ */
 export async function signUp(email: string, password: string, fullName: string) {
-  // Sign up with Supabase Auth
-  const { data, error: signUpError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name: fullName,
-      },
-    },
+  const res = await fetch('/api/auth/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email, password, fullName }),
   });
-
-  if (signUpError) throw signUpError;
-
-  if (!data.user) throw new Error('User creation failed');
-
-  // Create user profile
-  const { error: profileError } = await supabase.from('users').insert({
-    id: data.user.id,
-    email,
-    full_name: fullName,
-    subscription_status: 'free',
-  });
-
-  if (profileError) throw profileError;
-
-  return data.user;
+  const json = (await res.json().catch(() => ({}))) as { error?: string; user?: { id: string } };
+  if (!res.ok) throw new Error(json.error ?? 'Sign up failed');
+  if (!json.user?.id) throw new Error('User creation failed');
+  return json.user;
 }
 
 export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
+  const res = await fetch('/api/auth/student/signin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email, password }),
   });
-
-  if (error) throw error;
-  return data.user;
+  const json = (await res.json().catch(() => ({}))) as { error?: string; user?: { id: string } };
+  if (!res.ok) throw new Error(json.error ?? 'Sign in failed');
+  return json.user;
 }
 
-export async function sendPasswordResetEmail(email: string) {
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth/reset-password`,
-  });
-
-  if (error) throw error;
+export async function sendPasswordResetEmail(_email: string) {
+  throw new Error('Password reset is managed by the placement cell. Contact admin.');
 }
 
-export async function resetPassword(newPassword: string) {
-  const { error } = await supabase.auth.updateUser({
-    password: newPassword,
-  });
-
-  if (error) throw error;
+export async function resetPassword(_newPassword: string) {
+  throw new Error('Password reset is managed by the placement cell. Contact admin.');
 }
 
 export async function isAdmin(userId: string) {
-  const { data, error } = await supabase
-    .from('admin_users')
-    .select('id')
-    .eq('user_id', userId)
-    .single();
-
-  if (error && error.code !== 'PGRST116') throw error;
-  return !!data;
+  const res = await fetch('/api/admin/me', { credentials: 'include', cache: 'no-store' });
+  if (!res.ok) return false;
+  const json = (await res.json()) as { isAdmin?: boolean; userId?: string };
+  return !!json.isAdmin && json.userId === userId;
 }

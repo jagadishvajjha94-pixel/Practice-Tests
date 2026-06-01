@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import type { Test, TestAttempt } from '@/lib/types';
 import { adaptTestRow } from '@/lib/practice-mappers';
 import { getDashboardFeedAttempts } from '@/lib/dashboard-feed';
@@ -7,7 +7,7 @@ import {
   fetchStudentDashboardStats,
   type DashboardStatEntry,
 } from '@/lib/student-dashboard-stats';
-import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
+import { fetchWithSession } from '@/lib/client-auth';
 import { isElevateXAttemptTitle, isElevateXTestId } from '@/lib/elevatex';
 import { roundScorePercent } from '@/lib/format-score';
 
@@ -93,11 +93,11 @@ export function isAttemptRowCompleted(row: AttemptRow): boolean {
 
 /** Returns a prior completed submission for this test, if any. */
 export async function findCompletedAttemptForTest(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userId: string,
   testId: string,
 ): Promise<CompletedAttemptSummary | null> {
-  const rows = await queryAttempts(supabase, userId);
+  const rows = await queryAttempts(db, userId);
   for (const row of rows) {
     if (!testIdsMatch(row.test_id, testId)) continue;
     if (!isAttemptRowCompleted(row)) continue;
@@ -109,7 +109,7 @@ export async function findCompletedAttemptForTest(
     };
   }
 
-  const stats = await fetchStudentDashboardStats(supabase, userId);
+  const stats = await fetchStudentDashboardStats(db, userId);
   for (const entry of stats) {
     if (!testIdsMatch(entry.test_id, testId)) continue;
     if (entry.status !== 'completed' && !entry.completed_at) continue;
@@ -133,10 +133,10 @@ function rowMatchesElevateX(row: {
 
 /** Any prior completed ElevateX paper for this student (canonical or legacy test ids). */
 export async function findCompletedElevateXAttempt(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userId: string,
 ): Promise<CompletedAttemptSummary | null> {
-  const rows = await queryAttempts(supabase, userId);
+  const rows = await queryAttempts(db, userId);
   for (const row of rows) {
     if (!rowMatchesElevateX(row)) continue;
     if (!isAttemptRowCompleted(row)) continue;
@@ -148,7 +148,7 @@ export async function findCompletedElevateXAttempt(
     };
   }
 
-  const stats = await fetchStudentDashboardStats(supabase, userId);
+  const stats = await fetchStudentDashboardStats(db, userId);
   let placeholderFallback: CompletedAttemptSummary | null = null;
   for (const entry of stats) {
     if (!rowMatchesElevateX(entry)) continue;
@@ -202,13 +202,13 @@ export function fallbackTestForAttempt(attempt: TestAttempt): Test {
 }
 
 export async function ensureStudentUserRow(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> },
 ): Promise<void> {
-  const { data: existing } = await supabase.from('users').select('id').eq('id', user.id).maybeSingle();
+  const { data: existing } = await db.from('users').select('id').eq('id', user.id).maybeSingle();
   if (existing?.id) return;
 
-  await supabase.from('users').insert({
+  await db.from('users').insert({
     id: user.id,
     email: user.email ?? '',
     full_name: String(user.user_metadata?.full_name ?? ''),
@@ -259,7 +259,7 @@ const ATTEMPT_BY_ID_SELECT_VARIANTS = [
 
 /** Load one attempt row; retries without optional columns missing on older DBs. */
 export async function fetchTestAttemptById(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   attemptId: string,
 ): Promise<{ row: AttemptRow | null; error: { message: string } | null }> {
   if (isPlaceholderAttemptId(attemptId)) {
@@ -267,7 +267,7 @@ export async function fetchTestAttemptById(
   }
 
   for (const cols of ATTEMPT_BY_ID_SELECT_VARIANTS) {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('test_attempts')
       .select(cols)
       .eq('id', attemptId)
@@ -291,20 +291,20 @@ const ATTEMPT_LIST_BASE_COLS =
 
 /** List attempts for users; omits test_title when that column is not on test_attempts. */
 export async function fetchTestAttemptsForUsers(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userIds: string[],
 ): Promise<AttemptRow[]> {
   if (userIds.length === 0) return [];
 
   const withTitle = `${ATTEMPT_LIST_BASE_COLS}, test_title`;
-  let res = await supabase
+  let res = await db
     .from('test_attempts')
     .select(withTitle)
     .in('user_id', userIds)
     .order('created_at', { ascending: false });
 
   if (res.error && isMissingColumnError(res.error, 'test_title')) {
-    res = await supabase
+    res = await db
       .from('test_attempts')
       .select(ATTEMPT_LIST_BASE_COLS)
       .in('user_id', userIds)
@@ -347,11 +347,11 @@ function shouldOmitTestId(testId: string): boolean {
 }
 
 async function resolveTestIdForInsert(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   testId: string,
 ): Promise<string | null> {
   if (shouldOmitTestId(testId)) {
-    const { data } = await supabase.from('tests').select('id').limit(1).maybeSingle();
+    const { data } = await db.from('tests').select('id').limit(1).maybeSingle();
     if (data?.id != null) return String(data.id);
     return null;
   }
@@ -359,10 +359,10 @@ async function resolveTestIdForInsert(
 }
 
 export async function persistTestAttempt(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   input: PersistAttemptInput,
 ): Promise<{ id: string }> {
-  const resolvedTestId = await resolveTestIdForInsert(supabase, input.testId);
+  const resolvedTestId = await resolveTestIdForInsert(db, input.testId);
 
   const baseCommon = {
     user_id: input.userId,
@@ -426,7 +426,7 @@ export async function persistTestAttempt(
   let lastError: unknown = null;
 
   for (const payload of payloads) {
-    const { data, error } = await supabase.from('test_attempts').insert(payload).select('id').single();
+    const { data, error } = await db.from('test_attempts').insert(payload).select('id').single();
     if (!error && data?.id != null) {
       attemptId = String(data.id);
       break;
@@ -458,7 +458,7 @@ export async function persistTestAttempt(
   }
 
   try {
-    await supabase
+    await db
       .from('test_attempts')
       .update({ user_id: input.userId, status: 'completed' })
       .eq('id', attemptId);
@@ -477,7 +477,7 @@ export async function persistTestAttempt(
   ];
 
   for (const patch of updates) {
-    const { error } = await supabase.from('test_attempts').update(patch).eq('id', attemptId);
+    const { error } = await db.from('test_attempts').update(patch).eq('id', attemptId);
     if (!error) break;
     if (
       !isMissingColumnError(error, 'score') &&
@@ -507,16 +507,16 @@ function rowToDashboardAttempt(row: AttemptRow, testOverride?: Test): DashboardA
 }
 
 async function queryAttempts(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userId: string,
 ): Promise<AttemptRow[]> {
-  const plain = await supabase.from('test_attempts').select('*').eq('user_id', userId).limit(50);
+  const plain = await db.from('test_attempts').select('*').eq('user_id', userId).limit(50);
   if (!plain.error && plain.data?.length) {
     return plain.data as AttemptRow[];
   }
 
   const attempts = async (orderCol: string) =>
-    supabase
+    db
       .from('test_attempts')
       .select('*')
       .eq('user_id', userId)
@@ -534,16 +534,16 @@ async function queryAttempts(
 }
 
 export async function fetchAttemptsForUser(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userId: string,
 ): Promise<DashboardAttemptView[]> {
-  const rows = await queryAttempts(supabase, userId);
+  const rows = await queryAttempts(db, userId);
   if (!rows.length) return [];
 
   const testIds = [...new Set(rows.map((r) => String(r.test_id ?? '')).filter(Boolean))];
   const byId = new Map<string, Test>();
   if (testIds.length) {
-    const { data: tests } = await supabase.from('tests').select('*').in('id', testIds);
+    const { data: tests } = await db.from('tests').select('*').in('id', testIds);
     for (const t of tests ?? []) {
       byId.set(String((t as { id: unknown }).id), adaptTestRow(t as Record<string, unknown>));
     }
@@ -593,7 +593,7 @@ export function cacheApiAttempts(userId: string, attempts: DashboardAttemptView[
 }
 
 export async function fetchStudentDashboardAttempts(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userId: string,
 ): Promise<DashboardAttemptView[]> {
   const client = mergeAttempts(getClientDashboardAttempts(userId), readCachedApiAttempts(userId));
@@ -601,13 +601,13 @@ export async function fetchStudentDashboardAttempts(
   let serverAttempts: DashboardAttemptView[] = [];
 
   try {
-    serverAttempts = await fetchStudentDashboardStats(supabase, userId);
+    serverAttempts = await fetchStudentDashboardStats(db, userId);
   } catch {
     // table may not exist yet
   }
 
   try {
-    const authHeaders = await getSupabaseAuthHeaders(supabase);
+    const authHeaders = await fetchWithSession;
     const res = await fetch('/api/student/test-attempts', {
       credentials: 'include',
       cache: 'no-store',
@@ -625,7 +625,7 @@ export async function fetchStudentDashboardAttempts(
   }
 
   if (!serverAttempts.length) {
-    serverAttempts = await fetchAttemptsForUser(supabase, userId);
+    serverAttempts = await fetchAttemptsForUser(db, userId);
   }
 
   return mergeAttempts(client, serverAttempts).slice(0, 15);

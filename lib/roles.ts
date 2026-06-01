@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { isAllowlistedAdminEmail } from '@/lib/admin-defaults';
 import { DEPARTMENTS, ACADEMIC_YEARS, type Department, type AcademicYear } from '@/lib/college-brand';
 
@@ -57,7 +57,7 @@ type AuthUserLike = {
 };
 
 export async function resolveAppUserFromAuthUser(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   user: AuthUserLike,
 ): Promise<ResolvedUser | null> {
   if (!user?.id) return null;
@@ -65,7 +65,7 @@ export async function resolveAppUserFromAuthUser(
   const email = user.email ?? '';
   const meta = user.user_metadata ?? {};
 
-  const { data: adminRow, error: adminError } = await supabase
+  const { data: adminRow, error: adminError } = await db
     .from('admin_users')
     .select('id')
     .eq('user_id', user.id)
@@ -110,7 +110,7 @@ export async function resolveAppUserFromAuthUser(
     };
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from('users')
     .select('branch, academic_year, full_name')
     .eq('id', user.id)
@@ -125,12 +125,12 @@ export async function resolveAppUserFromAuthUser(
   };
 }
 
-export async function resolveAppUser(supabase: SupabaseClient): Promise<ResolvedUser | null> {
+export async function resolveAppUser(db: DbServiceClient): Promise<ResolvedUser | null> {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (!user?.id) return null;
-  return resolveAppUserFromAuthUser(supabase, user);
+  return resolveAppUserFromAuthUser(db, user);
 }
 
 export function isValidDepartment(value: string): value is Department {

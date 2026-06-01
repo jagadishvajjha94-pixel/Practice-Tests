@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import {
   isScheduleWindowOpen,
   scheduleMatchesStudent,
@@ -18,7 +18,7 @@ export type ExamAccessResult =
     };
 
 async function schedulesForTest(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   testId: string,
 ): Promise<ExamScheduleRow[]> {
   const { data, error } = await admin.from('exam_schedules').select('*');
@@ -30,7 +30,7 @@ async function schedulesForTest(
 
 /** Decide if a logged-in student may take this test (schedule window + targeting + slot roster). */
 export async function checkStudentExamAccess(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: {
     testId: string;
     department: string;
@@ -115,7 +115,7 @@ export async function checkStudentExamAccess(
 }
 
 export async function assertStudentCanTakeTest(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   user: {
     id: string;
     email?: string | null;

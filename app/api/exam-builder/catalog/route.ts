@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import {
   EXAM_BUILDER_SLOTS,
   EXAM_BUILDER_TEST_TYPES,
@@ -11,7 +12,7 @@ export async function GET() {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ testTypes: EXAM_BUILDER_TEST_TYPES, slots: EXAM_BUILDER_SLOTS, topics: [] });
   }

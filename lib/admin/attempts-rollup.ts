@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { rollNumberFromUser } from '@/lib/admin/roll-number';
 import { resolveStoredPercent, testIdsMatch, type AttemptRow } from '@/lib/test-attempts';
 import type { DashboardStatEntry } from '@/lib/student-dashboard-stats';
@@ -116,7 +116,7 @@ function dedupeAttempts(rows: RollupAttempt[]): RollupAttempt[] {
   );
 }
 
-export async function loadAdminStudents(admin: SupabaseClient): Promise<RollupStudent[]> {
+export async function loadAdminStudents(admin: DbServiceClient): Promise<RollupStudent[]> {
   const byId = new Map<string, RollupStudent & { metadata?: Record<string, unknown> }>();
 
   const { data: dbUsers } = await admin
@@ -193,7 +193,7 @@ export async function loadAdminStudents(admin: SupabaseClient): Promise<RollupSt
     }));
 }
 
-export async function loadAllAttemptsRollup(admin: SupabaseClient): Promise<{
+export async function loadAllAttemptsRollup(admin: DbServiceClient): Promise<{
   attempts: RollupAttempt[];
   testsById: Map<string, string>;
 }> {

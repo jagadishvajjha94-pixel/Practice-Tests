@@ -133,12 +133,12 @@ pnpm lint
 
 Create `.env.local` with:
 ```
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_URL=your_rds_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_key
 ```
 
-Get these from your Supabase dashboard.
+Get these from your AWS RDS dashboard.
 
 ## Troubleshooting
 
@@ -158,7 +158,7 @@ Try signing in again, or visit `/setup` page
 
 ## What Happens When You Sign Up?
 
-1. Your account is created in Supabase
+1. Your account is created in AWS RDS
 2. Your profile is added to database
 3. Subscription set to "free"
 4. You see your dashboard

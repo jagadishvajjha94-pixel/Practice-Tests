@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { isAllowlistedAdminEmail } from '@/lib/admin-defaults';
 
 function isMissingAdminTableError(message: string): boolean {
@@ -11,7 +11,7 @@ function isMissingAdminTableError(message: string): boolean {
 
 /** Grant admin when DB table is unavailable but email is allowlisted (dev / migration recovery). */
 export async function ensureAdminAccess(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   userId: string,
   email: string | undefined,
 ): Promise<{ isAdmin: boolean; via: 'table' | 'allowlist' | 'none' }> {
@@ -49,7 +49,7 @@ export async function ensureAdminAccess(
 }
 
 export async function checkIsAdmin(
-  admin: SupabaseClient | null,
+  admin: DbServiceClient | null,
   userId: string,
   email: string | undefined,
 ): Promise<boolean> {

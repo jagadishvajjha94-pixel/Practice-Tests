@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 import { augmentExamQuestionsWithCoding } from '@/lib/exam-builder/programming-syllabus';
 import { resolveSyllabusTopicsForBuilder } from '@/lib/exam-builder/draw-questions';
@@ -53,7 +53,7 @@ export type CreateExamRequestResult = {
 };
 
 export async function createFacultyExamRequestRecord(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: CreateExamRequestInput,
 ): Promise<CreateExamRequestResult> {
   const isElevateX = isElevateXBuilderTestType(input.testType);
@@ -172,7 +172,7 @@ export async function createFacultyExamRequestRecord(
     error = retry.error;
     if (!error) {
       console.warn(
-        'faculty_exam_requests.department_group_id missing — saved without group. Run migration 023_faculty_department_group_id.sql in Supabase.',
+        'faculty_exam_requests.department_group_id missing — saved without group. Run migration 023_faculty_department_group_id.sql in AWS RDS.',
       );
     }
   }
@@ -192,14 +192,14 @@ export async function createFacultyExamRequestRecord(
     error = retry.error;
     if (!error) {
       console.warn(
-        'Slot scheduling columns missing — run migration 029_exam_slot_scheduling.sql in Supabase.',
+        'Slot scheduling columns missing — run migration 029_exam_slot_scheduling.sql in AWS RDS.',
       );
     }
   }
 
   if (error || !row?.id) {
     const hint = error?.message?.includes('department_group_id')
-      ? `${error?.message ?? 'Could not save exam request'} — Run migration 023_faculty_department_group_id.sql in Supabase SQL editor, wait 30s, retry.`
+      ? `${error?.message ?? 'Could not save exam request'} — Run migration 023_faculty_department_group_id.sql in AWS RDS SQL editor, wait 30s, retry.`
       : (error?.message ?? 'Could not save exam request');
     throw new Error(hint);
   }

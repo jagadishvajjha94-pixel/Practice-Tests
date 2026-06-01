@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 import { ELEVATEX_SAMPLE_PASSWORD } from '@/lib/elevatex-sample-credentials';
 import { writeElevateXCredentialsPublicCsv } from '@/lib/elevatex-credentials-export';
 import { seedElevateXSample } from '@/lib/elevatex-sample-seed';
@@ -9,38 +9,38 @@ import path from 'node:path';
 export const maxDuration = 60;
 
 function getServiceRoleKey(): string | undefined {
-  const raw = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const raw = process.env.AUTH_SECRET?.trim();
   if (!raw || raw.includes('YOUR_')) return undefined;
   return raw;
 }
 
 /**
  * Creates 42 ElevateX Slot 1 test students (EXS1001–EXS1042), removes legacy EX26001–15,
- * and go-lives ElevateX for 10:00 AM IST today on this Supabase project.
+ * and go-lives ElevateX for 10:00 AM IST today on this AWS RDS project.
  */
 export async function POST() {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+    const rdsUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
     const serviceRoleKey = getServiceRoleKey();
 
-    if (!supabaseUrl || !serviceRoleKey || !supabaseUrl.includes('.supabase.co')) {
+    if (!rdsUrl || !serviceRoleKey || !rdsUrl.includes('.db.co')) {
       return NextResponse.json(
         {
           error:
-            'Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (service role) for this deployment.',
+            'Set NEXT_PUBLIC_APP_URL and AUTH_SECRET (service role) for this deployment.',
         },
         { status: 500 },
       );
     }
 
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    const db = createClient(rdsUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
     const password =
       process.env.ELEVATEX_SAMPLE_PASSWORD?.trim() || ELEVATEX_SAMPLE_PASSWORD;
 
-    const result = await seedElevateXSample(supabase, supabaseUrl, password);
+    const result = await seedElevateXSample(db, rdsUrl, password);
 
     if ('error' in result) {
       return NextResponse.json(
@@ -56,7 +56,7 @@ export async function POST() {
       message:
         'ElevateX Slot 1 test students are ready (EXS1001–EXS1042). Legacy EX26001–15 removed.',
       password: result.password,
-      supabaseProject: result.supabaseProject,
+      rdsProject: result.rdsProject,
       scheduleId: result.scheduleId,
       scheduleWarning: result.scheduleWarning,
       scheduleLabel: result.scheduleLabel,

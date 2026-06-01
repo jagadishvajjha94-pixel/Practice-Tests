@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import { resolveSyllabusTopicsForBuilder } from '@/lib/exam-builder/draw-questions';
 import { MCQ_UPLOAD_FORMAT_HINT } from '@/lib/exam-builder/parse-exam-text';
 import {
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth(['admin'], request);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
       const { rows: withTestId, poolTestId } = await attachPoolTestIdToRows(admin, batch);
       if (poolTestId == null && batch.length > 0) {
         throw new Error(
-          'questions.test_id is required but Question Bank Pool test could not be created. Run migration 021_questions_test_id_nullable.sql in Supabase.',
+          'questions.test_id is required but Question Bank Pool test could not be created. Run migration 021_questions_test_id_nullable.sql in AWS RDS.',
         );
       }
       const { data, error } = await admin.from('questions').insert(withTestId).select('id');

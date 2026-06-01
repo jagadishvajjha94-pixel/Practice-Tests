@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import {
   augmentExamQuestionsWithCoding,
   examShouldIncludeCodingQuestions,
@@ -69,7 +69,7 @@ export function facultyQuestionsToUiQuestions(
 }
 
 async function resolveSyllabusSlugs(
-  client: SupabaseClient,
+  client: DbServiceClient,
   topicIds: unknown,
 ): Promise<string[]> {
   if (!Array.isArray(topicIds) || !topicIds.length) return [];
@@ -102,7 +102,7 @@ function facultyQuestionsForTake(
 
 /** Load a test row (legacy schemas: bigint id, title vs name, optional category embed). */
 export async function loadTestRowForTake(
-  client: SupabaseClient,
+  client: DbServiceClient,
   testId: string,
 ): Promise<Test | null> {
   const selects = [
@@ -167,7 +167,7 @@ export async function loadTestRowForTake(
 
 /** Load MCQs for a test (test_questions join, questions.test_id, or faculty JSON fallback). */
 export async function loadQuestionsForTake(
-  client: SupabaseClient,
+  client: DbServiceClient,
   testId: string,
 ): Promise<Question[]> {
   for (const id of testIdVariants(testId)) {
@@ -250,7 +250,7 @@ export async function loadQuestionsForTake(
 }
 
 export async function loadTestBundleForTake(
-  client: SupabaseClient,
+  client: DbServiceClient,
   testId: string,
 ): Promise<{ test: Test | null; questions: Question[] }> {
   const test = await loadTestRowForTake(client, testId);

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/server-auth';
 import { generateWithAi } from '@/lib/ai/providers/registry';
 import type { AiGenerateRequest, AiTaskType } from '@/lib/ai/providers/types';
-import { getSupabaseServerClient } from '@/lib/supabase-server';
 
 const ALLOWED_TASKS: AiTaskType[] = [
   'mcq_generate',
@@ -16,17 +16,8 @@ const ALLOWED_TASKS: AiTaskType[] = [
 
 export async function POST(request: Request) {
   try {
-    const supabase = await getSupabaseServerClient();
-    if (!supabase) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 503 });
-    }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(['student', 'admin', 'faculty'], request);
+    if ('response' in auth) return auth.response;
 
     const body = (await request.json()) as AiGenerateRequest;
     if (!body?.task || !ALLOWED_TASKS.includes(body.task)) {
@@ -39,8 +30,8 @@ export async function POST(request: Request) {
     const result = await generateWithAi(body);
 
     try {
-      await supabase.from('ai_reports').insert({
-        user_id: user.id,
+      await auth.ctx.db.from('ai_reports').insert({
+        user_id: auth.ctx.user.id,
         report_type: body.task,
         provider: result.provider,
         model: result.model,
@@ -48,7 +39,7 @@ export async function POST(request: Request) {
         output_json: { text: result.text },
       });
     } catch {
-      /* table may not exist until migration 002 */
+      /* table may not exist until migration */
     }
 
     return NextResponse.json({ success: true, result });

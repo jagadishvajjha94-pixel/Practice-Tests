@@ -1,4 +1,4 @@
-// AWS / RDS schema — mirrors Supabase public tables + NextAuth fields.
+// AWS RDS schema — Prisma source of truth for PostgreSQL.
 // Run: npx prisma generate && npx prisma migrate deploy
 
 generator client {
@@ -471,4 +471,22 @@ model FacultyProfile {
 
   @@index([department])
   @@map("faculty_profiles")
+}
+
+model BlogPost {
+  id            String    @id @default(uuid()) @db.Uuid
+  title         String
+  slug          String    @unique
+  content       String    @db.Text
+  excerpt       String?   @db.Text
+  author        String?
+  category      String?
+  featuredImage String?   @map("featured_image")
+  tags          String[]  @default([])
+  publishedAt   DateTime? @map("published_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@index([publishedAt])
+  @@map("blog_posts")
 }

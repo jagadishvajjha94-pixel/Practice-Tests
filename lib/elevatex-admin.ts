@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { ELEVATEX_EXAM_NAME, ELEVATEX_MODULE_KEY, ELEVATEX_TEST_ID } from '@/lib/elevatex';
 import { ELEVATEX_BUILDER_TEST_TYPE_ID } from '@/lib/exam-builder/elevatex-exam';
 import { createFacultyExamRequestRecord } from '@/lib/exam-builder/create-exam-request';
@@ -46,7 +46,7 @@ export type ElevateXAdminState = {
   scheduleSlots: ExamScheduleSlotInput[];
 };
 
-export async function fetchElevateXAdminState(admin: SupabaseClient): Promise<ElevateXAdminState> {
+export async function fetchElevateXAdminState(admin: DbServiceClient): Promise<ElevateXAdminState> {
   const { data: request } = await admin
     .from('faculty_exam_requests')
     .select('id, title, published_test_id, schedule_slots_json, uses_slot_scheduling, status')
@@ -105,7 +105,7 @@ export async function fetchElevateXAdminState(admin: SupabaseClient): Promise<El
 
 /** Show ElevateX as LIVE on /placement when a slot is live. */
 export async function syncElevateXEvaloraModuleFromSchedule(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   schedule: Pick<ExamScheduleRow, 'starts_at' | 'ends_at' | 'notice'>,
   adminUserId: string,
 ): Promise<void> {
@@ -134,7 +134,7 @@ export async function syncElevateXEvaloraModuleFromSchedule(
 }
 
 export async function publishElevateXFromAdmin(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: {
     creatorUserId: string;
     title: string;
@@ -203,7 +203,7 @@ export async function publishElevateXFromAdmin(
 }
 
 export async function saveElevateXSlot(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: {
     requestId: string;
     slot: ExamScheduleSlotInput;
@@ -318,7 +318,7 @@ export async function saveElevateXSlot(
 }
 
 export async function goLiveElevateXSlot(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   scheduleId: string,
   adminUserId: string,
 ): Promise<void> {
@@ -328,9 +328,9 @@ export async function goLiveElevateXSlot(
   }
 }
 
-/** Re-create / reset Supabase logins from the published ElevateX roster (fixes CSV login issues). */
+/** Re-create / reset AWS RDS logins from the published ElevateX roster (fixes CSV login issues). */
 export async function reprovisionElevateXRoster(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   requestId: string,
 ): Promise<RosterProvisionResult & { message: string }> {
   const { data: request, error } = await admin

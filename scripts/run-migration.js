@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 import fs from 'fs';
 import path from 'path';
 
@@ -32,7 +32,7 @@ async function runMigration() {
           sql: statement + ';'
         }).catch(async () => {
           // If rpc doesn't work, try using the admin API
-          return await supabase.from('_migrations').insert({ sql: statement });
+          return await db.from('_migrations').insert({ sql: statement });
         });
         
         if (error) {

@@ -23,7 +23,7 @@ export async function fetchAdminCategories(): Promise<{
       warning:
         json.error ??
         json.warning ??
-        'Using built-in categories. Run supabase/migrations/006_test_categories_and_exam_core.sql in Supabase SQL Editor.',
+        'Using built-in categories. Run prisma db push or scripts/01-initial-schema.sql on RDS
     };
   } catch {
     return {

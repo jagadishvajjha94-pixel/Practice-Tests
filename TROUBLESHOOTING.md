@@ -81,7 +81,7 @@ If any are empty, you need to set them in your Vercel/hosting dashboard.
 
 For local development, create `.env.local` file:
 ```
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_URL=your_rds_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 POSTGRES_URL=your_postgres_url
@@ -167,20 +167,20 @@ Database initialization error: ...
 
 ## Database Connection Issues
 
-### Can't Connect to Supabase
+### Can't Connect to AWS RDS
 
 **Check these:**
-1. Is Supabase project active? (Check Supabase dashboard)
-2. Are environment variables correct? (Copy from Supabase dashboard)
+1. Is AWS RDS project active? (Check AWS RDS dashboard)
+2. Are environment variables correct? (Copy from AWS RDS dashboard)
 3. Is your internet connection working?
-4. Try accessing Supabase dashboard directly
+4. Try accessing AWS RDS dashboard directly
 
 ### Slow Database Queries
 
 **Solutions:**
 1. Indexes are automatically created - should be fast
 2. Clear browser cache (Ctrl+Shift+Del)
-3. Check Supabase dashboard for slow queries
+3. Check AWS RDS dashboard for slow queries
 4. Ensure you're not hitting rate limits (free tier has limits)
 
 ## Feature-Specific Issues
@@ -223,7 +223,7 @@ Database initialization error: ...
 
 **Solutions:**
 1. May be normal on first load
-2. Check Supabase dashboard for slow queries
+2. Check AWS RDS dashboard for slow queries
 3. Ensure indexes were created properly
 4. Try a different test category
 
@@ -233,8 +233,8 @@ Database initialization error: ...
 
 **Common Causes:**
 1. Environment variables not set on hosting platform
-2. Different Supabase project credentials
-3. CORS issues - check Supabase CORS settings
+2. Different AWS RDS project credentials
+3. CORS issues - check AWS RDS CORS settings
 4. Database not initialized on production
 
 **Solution:**
@@ -248,7 +248,7 @@ Database initialization error: ...
 If you still can't resolve the issue:
 
 1. **Check Console Errors:** Look for log messages and error details in the browser or server console
-2. **Check Supabase Dashboard:** Look for database errors or slow queries
+2. **Check AWS RDS Dashboard:** Look for database errors or slow queries
 3. **Verify Environment Variables:** Ensure all are set correctly
 4. **Try Setup Again:** Visit `/setup` and reinitialize
 5. **Check Documentation:** Review SETUP_GUIDE.md
@@ -273,13 +273,13 @@ If you still can't resolve the issue:
 
 ### "CORS error"
 - Usually a configuration issue
-- Check Supabase CORS settings
+- Check AWS RDS CORS settings
 
 ## Quick Reset
 
 If everything is broken, you can reset:
 
-1. Delete all tables in Supabase dashboard (careful!)
+1. Delete all tables in AWS RDS dashboard (careful!)
 2. Visit `/api/setup/initialize` to create tables again
 3. Visit `/api/setup/seed` to add sample data
 4. Sign up a new account

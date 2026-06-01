@@ -21,7 +21,7 @@ async function isFirstRun(): Promise<boolean> {
 export async function GET() {
   if (!useAwsStack()) {
     return NextResponse.json({
-      mode: 'supabase',
+      mode: 'db',
       message: 'Set USE_AWS_STACK=true to use RDS auto-setup.',
     });
   }

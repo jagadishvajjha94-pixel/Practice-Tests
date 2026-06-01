@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import {
   isElevateXAttemptMeta,
   parseElevateXScorecardFromAnswers,
@@ -36,12 +36,12 @@ function scorecardFromStatEntry(entry: {
 }
 
 export async function fetchElevateXScorecardForAttempt(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   attemptId: string,
   options?: { userId?: string },
 ): Promise<ElevateXScorecardLookupResult> {
   if (!isPlaceholderAttemptId(attemptId)) {
-    const { row, error } = await fetchTestAttemptById(supabase, attemptId);
+    const { row, error } = await fetchTestAttemptById(db, attemptId);
     if (error) {
       return { error: error.message, status: 500 };
     }
@@ -64,14 +64,14 @@ export async function fetchElevateXScorecardForAttempt(
 
   const userId = options?.userId?.trim();
   if (userId) {
-    const entries = await fetchDashboardStatEntries(supabase, userId);
+    const entries = await fetchDashboardStatEntries(db, userId);
     const entry = entries.find((row) => String(row.id) === attemptId);
     if (entry) {
       const fromStats = scorecardFromStatEntry(entry);
       if (fromStats) return fromStats;
     }
   } else {
-    const located = await findDashboardStatEntryByAttemptId(supabase, attemptId);
+    const located = await findDashboardStatEntryByAttemptId(db, attemptId);
     if (located) {
       const fromStats = scorecardFromStatEntry(located.entry);
       if (fromStats) {

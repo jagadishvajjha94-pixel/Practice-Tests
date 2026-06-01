@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ensureStudentSessionLockTable } from '@/lib/ensure-student-session-lock';
-import { postgresUrlSetupHint, supabaseSqlEditorUrl } from '@/lib/postgres-url';
+import { postgresUrlSetupHint, rdsSqlEditorUrl } from '@/lib/postgres-url';
 
 /** Creates student_active_sessions table for one-login-per-roll enforcement. */
 export async function POST() {
@@ -11,8 +11,8 @@ export async function POST() {
       {
         error: result.error ?? 'Failed to ensure student_active_sessions',
         hint: postgresUrlSetupHint(),
-        sqlFile: 'supabase/migrations/030_student_active_sessions.sql',
-        sqlEditorUrl: supabaseSqlEditorUrl(),
+        sqlFile: 'db/migrations/030_student_active_sessions.sql',
+        sqlEditorUrl: rdsSqlEditorUrl(),
       },
       { status: result.error?.includes('not configured') ? 400 : 500 },
     );

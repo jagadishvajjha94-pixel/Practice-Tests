@@ -1,33 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-function getSupabaseAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey || url.includes('YOUR_') || serviceKey.includes('YOUR_')) {
-    return null;
-  }
-  return createClient(url, serviceKey);
-}
+import { getDbService } from '@/lib/db/get-db-service';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdminClient();
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase is not configured (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)' },
-        { status: 500 }
-      );
-    }
-
+    const db = getDbService();
     const { searchParams } = new URL(request.url);
     const categoryId = searchParams.get('categoryId');
 
-    let query = supabase.from('tests').select('*');
+    let query = db.from('tests').select('*');
 
     if (categoryId) {
-      // Get category by slug first
-      const { data: category } = await supabase
+      const { data: category } = await db
         .from('test_categories')
         .select('id')
         .eq('slug', categoryId)
@@ -45,9 +28,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(tests);
   } catch (error) {
     console.error('Error fetching tests:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch tests' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch tests' }, { status: 500 });
   }
 }

@@ -9,9 +9,9 @@ Students → Vercel (Next.js + API routes) → AWS RDS PostgreSQL
 
 ---
 
-## Fresh RDS (no Supabase)?
+## Fresh RDS (no AWS RDS)?
 
-If this is a **new empty database**, you do **not** need Supabase migration. See **[RDS_FRESH_START.md](./RDS_FRESH_START.md)**.
+If this is a **new empty database**, you do **not** need AWS RDS migration. See **[RDS_FRESH_START.md](./RDS_FRESH_START.md)**.
 
 **Tables and columns are created automatically** on first request (`AUTO_RDS_SCHEMA=true`, default). You only need `/setup` once for admin + sample tests.
 
@@ -65,8 +65,8 @@ DIRECT_URL=postgresql://prepindia_admin:PASSWORD@....rds.amazonaws.com:5432/prep
 PREPINDIA_ADMIN_EMAIL=admin@rce.ac.in
 PREPINDIA_ADMIN_PASSWORD=YourSecureAdminPass
 
-# Only if copying existing Supabase data:
-# SUPABASE_DATABASE_URL=postgresql://postgres:...@db.xxx.supabase.co:5432/postgres
+# Only if copying existing AWS RDS data:
+# SUPABASE_DATABASE_URL=postgresql://postgres:...@db.xxx.rds.co:5432/postgres
 # MIGRATION_DEFAULT_PASSWORD=TempReset@2025
 ```
 
@@ -77,13 +77,13 @@ pnpm install
 node scripts/setup-rds-vercel-trial.mjs
 ```
 
-To **copy data from Supabase**:
+To **copy data from AWS RDS**:
 
 ```bash
 # Full migration (all tables: users, tests, questions, schedules, evalora, rmset, rosters, …)
-node scripts/setup-rds-vercel-trial.mjs --migrate-supabase
+node scripts/setup-rds-vercel-trial.mjs --migrate-rds
 # Or directly:
-node scripts/migrate-supabase-to-rds.mjs
+node scripts/migrate-rds-to-rds.mjs
 ```
 
 This will:
@@ -134,7 +134,7 @@ Add everything from [`.env.vercel-rds.example`](../.env.vercel-rds.example) for 
 | `NEXT_PUBLIC_APP_URL` | Same as `AUTH_URL` |
 | `NEXT_PUBLIC_SIGNUP_DISABLED` | `true` (recommended for trial) |
 
-**Remove or leave unset** (do not use Supabase on trial):
+**Remove or leave unset** (do not use AWS RDS on trial):
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -176,8 +176,8 @@ Then test in browser:
 
 Students must exist in RDS `users` with a **bcrypt password hash**.
 
-**Option A — migrated from Supabase**  
-Run `migrate-supabase-to-rds.mjs` with `MIGRATION_DEFAULT_PASSWORD`, then tell students to use that temp password once.
+**Option A — migrated from AWS RDS**  
+Run `migrate-rds-to-rds.mjs` with `MIGRATION_DEFAULT_PASSWORD`, then tell students to use that temp password once.
 
 **Option B — create manually (SQL)**  
 Use bcrypt hash from bootstrap script pattern, or add users via a small script.
@@ -195,7 +195,7 @@ If you use roll-number login, ensure `users.roll_number` and `password_hash` are
 | Student exam list (`/exams`) | ✅ |
 | Take test + submit + autosave | ✅ |
 | Admin dashboard stats (partial) | ✅ |
-| Exam builder / full admin user list | ⚠️ Still limited (Supabase APIs not migrated) |
+| Exam builder / full admin user list | ⚠️ Still limited (AWS RDS APIs not migrated) |
 | Proctor S3 uploads | Optional (set AWS keys) |
 | Evalora modules | ❌ Not in Prisma schema yet |
 
@@ -230,7 +230,7 @@ For trial, share **direct exam links** if the portal is empty:
 
 ```bash
 # Local RDS setup
-node scripts/setup-rds-vercel-trial.mjs --migrate-supabase
+node scripts/setup-rds-vercel-trial.mjs --migrate-rds
 
 # Re-bootstrap admin
 pnpm bootstrap:admin:aws

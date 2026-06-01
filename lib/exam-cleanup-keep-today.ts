@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { ELEVATEX_TEST_ID, isElevateXTestId } from '@/lib/elevatex';
 
 export type ExamCleanupSummary = {
@@ -55,24 +55,24 @@ function protectTestId(testId: string | null | undefined): boolean {
 }
 
 async function deleteByIds(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   table: string,
   column: string,
   ids: string[],
 ): Promise<string | null> {
   if (ids.length === 0) return null;
-  const { error } = await supabase.from(table).delete().in(column, ids);
+  const { error } = await db.from(table).delete().in(column, ids);
   return error?.message ?? null;
 }
 
 async function countDelete(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   table: string,
   column: string,
   ids: string[],
 ): Promise<number> {
   if (ids.length === 0) return 0;
-  const { count, error } = await supabase
+  const { count, error } = await db
     .from(table)
     .select('*', { count: 'exact', head: true })
     .in(column, ids);
@@ -85,7 +85,7 @@ async function countDelete(
  * Faculty requests are kept when created, reviewed, or updated today.
  */
 export async function cleanupExamsKeepToday(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   options?: { dryRun?: boolean; now?: Date },
 ): Promise<ExamCleanupSummary> {
   const dryRun = options?.dryRun ?? true;
@@ -107,7 +107,7 @@ export async function cleanupExamsKeepToday(
     errors: [],
   };
 
-  const { data: facultyRows, error: facultyErr } = await supabase
+  const { data: facultyRows, error: facultyErr } = await db
     .from('faculty_exam_requests')
     .select('id, published_test_id, created_at, reviewed_at, updated_at');
 
@@ -134,7 +134,7 @@ export async function cleanupExamsKeepToday(
   }
   summary.deletedFacultyRequestIds = deleteFacultyIds;
 
-  const { data: scheduleRows, error: schedErr } = await supabase
+  const { data: scheduleRows, error: schedErr } = await db
     .from('exam_schedules')
     .select('id, faculty_exam_request_id, test_id, created_at, updated_at');
 
@@ -158,24 +158,24 @@ export async function cleanupExamsKeepToday(
 
     if (!dryRun && deleteScheduleIds.length) {
       summary.deletedStudentRosterRows = await countDelete(
-        supabase,
+        db,
         'exam_student_roster',
         'exam_schedule_id',
         deleteScheduleIds,
       );
       const rosterErr = await deleteByIds(
-        supabase,
+        db,
         'exam_student_roster',
         'exam_schedule_id',
         deleteScheduleIds,
       );
       if (rosterErr) summary.errors.push(`exam_student_roster: ${rosterErr}`);
 
-      const schedDelErr = await deleteByIds(supabase, 'exam_schedules', 'id', deleteScheduleIds);
+      const schedDelErr = await deleteByIds(db, 'exam_schedules', 'id', deleteScheduleIds);
       if (schedDelErr) summary.errors.push(`exam_schedules delete: ${schedDelErr}`);
     } else if (dryRun && deleteScheduleIds.length) {
       summary.deletedStudentRosterRows = await countDelete(
-        supabase,
+        db,
         'exam_student_roster',
         'exam_schedule_id',
         deleteScheduleIds,
@@ -186,26 +186,26 @@ export async function cleanupExamsKeepToday(
   if (deleteFacultyIds.length) {
     if (dryRun) {
       summary.deletedSlotRosterRows = await countDelete(
-        supabase,
+        db,
         'exam_slot_roster_entries',
         'faculty_exam_request_id',
         deleteFacultyIds,
       );
       summary.deletedBuilderDrawRows = await countDelete(
-        supabase,
+        db,
         'exam_builder_draws',
         'faculty_exam_request_id',
         deleteFacultyIds,
       );
     } else {
       summary.deletedSlotRosterRows = await countDelete(
-        supabase,
+        db,
         'exam_slot_roster_entries',
         'faculty_exam_request_id',
         deleteFacultyIds,
       );
       const slotErr = await deleteByIds(
-        supabase,
+        db,
         'exam_slot_roster_entries',
         'faculty_exam_request_id',
         deleteFacultyIds,
@@ -213,13 +213,13 @@ export async function cleanupExamsKeepToday(
       if (slotErr) summary.errors.push(`exam_slot_roster_entries: ${slotErr}`);
 
       summary.deletedBuilderDrawRows = await countDelete(
-        supabase,
+        db,
         'exam_builder_draws',
         'faculty_exam_request_id',
         deleteFacultyIds,
       );
       const drawErr = await deleteByIds(
-        supabase,
+        db,
         'exam_builder_draws',
         'faculty_exam_request_id',
         deleteFacultyIds,
@@ -227,7 +227,7 @@ export async function cleanupExamsKeepToday(
       if (drawErr) summary.errors.push(`exam_builder_draws: ${drawErr}`);
 
       const facultyDelErr = await deleteByIds(
-        supabase,
+        db,
         'faculty_exam_requests',
         'id',
         deleteFacultyIds,
@@ -240,7 +240,7 @@ export async function cleanupExamsKeepToday(
   summary.deletedTestIds = testIdsToDelete;
 
   if (testIdsToDelete.length) {
-    const { data: attemptRows } = await supabase
+    const { data: attemptRows } = await db
       .from('test_attempts')
       .select('id, test_id')
       .in('test_id', testIdsToDelete);
@@ -250,28 +250,28 @@ export async function cleanupExamsKeepToday(
 
     if (!dryRun) {
       if (attemptIds.length) {
-        await deleteByIds(supabase, 'exam_violations', 'attempt_id', attemptIds);
+        await deleteByIds(db, 'exam_violations', 'attempt_id', attemptIds);
       }
-      const attemptErr = await deleteByIds(supabase, 'test_attempts', 'test_id', testIdsToDelete);
+      const attemptErr = await deleteByIds(db, 'test_attempts', 'test_id', testIdsToDelete);
       if (attemptErr) summary.errors.push(`test_attempts: ${attemptErr}`);
 
-      await deleteByIds(supabase, 'exam_builder_draws', 'test_id', testIdsToDelete);
-      await deleteByIds(supabase, 'test_questions', 'test_id', testIdsToDelete);
+      await deleteByIds(db, 'exam_builder_draws', 'test_id', testIdsToDelete);
+      await deleteByIds(db, 'test_questions', 'test_id', testIdsToDelete);
 
       summary.deletedQuestionRows = await countDelete(
-        supabase,
+        db,
         'questions',
         'test_id',
         testIdsToDelete,
       );
-      const qErr = await deleteByIds(supabase, 'questions', 'test_id', testIdsToDelete);
+      const qErr = await deleteByIds(db, 'questions', 'test_id', testIdsToDelete);
       if (qErr) summary.errors.push(`questions: ${qErr}`);
 
-      const testErr = await deleteByIds(supabase, 'tests', 'id', testIdsToDelete);
+      const testErr = await deleteByIds(db, 'tests', 'id', testIdsToDelete);
       if (testErr) summary.errors.push(`tests: ${testErr}`);
     } else {
       summary.deletedQuestionRows = await countDelete(
-        supabase,
+        db,
         'questions',
         'test_id',
         testIdsToDelete,
@@ -279,7 +279,7 @@ export async function cleanupExamsKeepToday(
     }
   }
 
-  const { data: evaloraRows, error: evaloraErr } = await supabase
+  const { data: evaloraRows, error: evaloraErr } = await db
     .from('evalora_module_schedules')
     .select('id, created_at, updated_at');
 
@@ -299,7 +299,7 @@ export async function cleanupExamsKeepToday(
     summary.deletedEvaloraScheduleIds = deleteEvaloraIds;
 
     if (!dryRun && deleteEvaloraIds.length) {
-      const err = await deleteByIds(supabase, 'evalora_module_schedules', 'id', deleteEvaloraIds);
+      const err = await deleteByIds(db, 'evalora_module_schedules', 'id', deleteEvaloraIds);
       if (err) summary.errors.push(`evalora_module_schedules delete: ${err}`);
     }
   }

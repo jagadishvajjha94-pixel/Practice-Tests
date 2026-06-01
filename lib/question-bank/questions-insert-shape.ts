@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 import { CURATED_BANK_MARKER } from '@/lib/question-bank/curated-mcqs';
 
@@ -23,7 +23,7 @@ const PROBE_COLUMNS = [
 export type QuestionsInsertShape = Set<(typeof PROBE_COLUMNS)[number]>;
 
 /** Which public.questions columns PostgREST exposes (schema cache). */
-export async function probeQuestionsInsertShape(admin: SupabaseClient): Promise<QuestionsInsertShape> {
+export async function probeQuestionsInsertShape(admin: DbServiceClient): Promise<QuestionsInsertShape> {
   const shape = new Set<(typeof PROBE_COLUMNS)[number]>();
   await Promise.all(
     PROBE_COLUMNS.map(async (col) => {

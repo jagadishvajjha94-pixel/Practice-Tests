@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
-import { supabaseSqlEditorUrl } from '@/lib/postgres-url';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
+import { rdsSqlEditorUrl } from '@/lib/postgres-url';
 import { isPostgresConfigured } from '@/lib/question-bank/apply-bank-schema';
 
 export async function GET() {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ ok: false, error: 'Server configuration missing' }, { status: 500 });
   }
@@ -41,12 +42,12 @@ export async function GET() {
     errors: [qErr?.message, tErr?.message].filter(Boolean),
     hint: tableMissing
       ? isPostgresConfigured()
-        ? 'Click "Setup question bank tables" below, or copy bootstrap SQL into Supabase SQL editor.'
-        : 'Click "Copy bootstrap SQL" → paste in Supabase SQL editor → Run → wait 30s → Load topic bank.'
+        ? 'Click "Setup question bank tables" below, or copy bootstrap SQL into AWS RDS SQL editor.'
+        : 'Click "Copy bootstrap SQL" → paste in AWS RDS SQL editor → Run → wait 30s → Load topic bank.'
       : curatedCount === 0
         ? 'Click "Load topic question bank" to populate MCQs, then Draw from bank.'
         : null,
-    sqlEditorUrl: tableMissing ? supabaseSqlEditorUrl() : null,
+    sqlEditorUrl: tableMissing ? rdsSqlEditorUrl() : null,
     postgresConfigured: isPostgresConfigured(),
   });
 }

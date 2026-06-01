@@ -7,12 +7,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { User, TestAttempt } from '@/lib/types';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { adaptQuestionRow, answersMatchMcq, extractJoinedQuestion } from '@/lib/practice-mappers';
 import { formatScorePercent, formatScorePercentLabel } from '@/lib/format-score';
-import { formatSupabaseError } from '@/lib/utils';
+import { formatDbError } from '@/lib/utils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ElevateXScorecardView } from '@/components/placement/elevatex-scorecard-view';
@@ -70,15 +68,14 @@ export default function UsersManagementPage() {
   const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
   const [scorecardLoading, setScorecardLoading] = useState(false);
   const [fetchedScorecard, setFetchedScorecard] = useState<PlacementScorecard | null>(null);
-  const [supabaseEnvMissing, setSupabaseEnvMissing] = useState(false);
+  const [rdsEnvMissing, setDbEnvMissing] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) {
-          setSupabaseEnvMissing(true);
-          setLoading(false);
+        const meRes = await fetch('/api/admin/me', { credentials: 'include' });
+        if (!meRes.ok) {
+          router.push('/auth/login');
           return;
         }
         setIsAdmin(true);
@@ -99,7 +96,7 @@ export default function UsersManagementPage() {
           console.error('Admin users API:', json.error ?? res.status);
         }
       } catch (error) {
-        console.error('Error:', formatSupabaseError(error), error);
+        console.error('Error:', formatDbError(error), error);
       } finally {
         setLoading(false);
       }
@@ -116,12 +113,12 @@ export default function UsersManagementPage() {
   const activeUsers = users.length;
 
   const getAttemptQuestions = async (
-    supabase: SupabaseClient,
+    db: DbServiceClient,
     attempt: AttemptRow
   ) => {
     const testId = String(attempt.test_id ?? '');
 
-    const { data: linked, error: linkedErr } = await supabase
+    const { data: linked, error: linkedErr } = await db
       .from('test_questions')
       .select('question:questions(*)')
       .eq('test_id', testId)
@@ -133,7 +130,7 @@ export default function UsersManagementPage() {
       .map(adaptQuestionRow);
 
     if (linkedErr || normalized.length === 0) {
-      const { data: direct, error: directErr } = await supabase
+      const { data: direct, error: directErr } = await db
         .from('questions')
         .select('*')
         .eq('test_id', testId)
@@ -181,7 +178,7 @@ export default function UsersManagementPage() {
       const elevatexFirst = report.attempts.find((a) => a.isElevateX);
       setSelectedAttemptId(elevatexFirst?.id ?? report.attempts[0]?.id ?? null);
     } catch (error) {
-      alert(`Failed to build report: ${formatSupabaseError(error)}`);
+      alert(`Failed to build report: ${formatDbError(error)}`);
     } finally {
       setReportLoadingUserId(null);
     }
@@ -349,10 +346,10 @@ export default function UsersManagementPage() {
     );
   }
 
-  if (supabaseEnvMissing) {
+  if (rdsEnvMissing) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <p className="text-gray-600 text-center max-w-lg">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
+        <p className="text-gray-600 text-center max-w-lg">{'Configure AUTH_SECRET and DATABASE_URL'}</p>
       </div>
     );
   }

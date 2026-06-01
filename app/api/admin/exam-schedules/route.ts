@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import type { ExamScheduleStatus } from '@/lib/exam-schedule';
 import {
   examSchedulesMigrationHint,
@@ -12,7 +13,7 @@ export async function GET() {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }
@@ -29,7 +30,7 @@ export async function GET() {
   if (schedulesError) {
     const msg = schedulesError.message ?? '';
     if (msg.includes('exam_schedules') && (msg.includes('does not exist') || msg.includes('schema cache'))) {
-      warnings.push('Run supabase/migrations/013_exam_schedules.sql in Supabase SQL editor.');
+      warnings.push('Run prisma db push or scripts/01-initial-schema.sql on RDS
     } else {
       return NextResponse.json({ error: msg }, { status: 500 });
     }
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }

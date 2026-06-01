@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { isExamViolationsSchemaError } from '@/lib/ensure-exam-violations';
 
 export type ProctorViolationRow = {
@@ -131,7 +131,7 @@ function mergeViolationRows(primary: ProctorViolationRow[], fallback: ProctorVio
 
 /** College-wide or filtered proctoring rows (exam_violations + attempt fallbacks). */
 export async function loadProctoringViolations(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   options?: { userIds?: string[] },
 ): Promise<{ violations: ProctorViolationRow[]; summary: ProctoringSummary }> {
   const userFilter = options?.userIds?.length ? options.userIds : null;

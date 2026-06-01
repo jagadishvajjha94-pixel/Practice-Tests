@@ -4,7 +4,7 @@ PrepIndia is a comprehensive platform for students to prepare for job placements
 
 ## Deploy to AWS RDS + Vercel (student trial)
 
-**Step-by-step from scratch (no Supabase, tables auto-created):**  
+**Step-by-step from scratch (no AWS RDS, tables auto-created):**  
 See **[docs/DEPLOY_RDS_FROM_SCRATCH.md](docs/DEPLOY_RDS_FROM_SCRATCH.md)**  
 Config: [`vercel.json`](vercel.json), env template [`.env.vercel-rds.example`](.env.vercel-rds.example), checklist [`deploy/vercel/`](deploy/vercel/)
 
@@ -49,7 +49,7 @@ This will:
 ## ✨ Features
 
 ### For Students
-- **User Authentication** - Secure sign up and login with Supabase Auth
+- **User Authentication** - Secure sign up and login with AWS RDS Auth
 - **Test Categories** - Multiple categories: Quantitative, Verbal, Logical, Coding, Current Affairs, Companies
 - **Practice Tests** - 50+ full-length tests with multiple questions each
 - **Real-time Timer** - Test duration countdown with auto-submission
@@ -89,7 +89,7 @@ This will:
 
 ## 🔐 Security Features
 
-- ✅ Supabase Authentication with email/password
+- ✅ AWS RDS Authentication with email/password
 - ✅ Row Level Security (RLS) policies on all tables
 - ✅ User data isolation - students can only see their own data
 - ✅ Protected API routes - require authentication
@@ -141,8 +141,8 @@ This will:
 ## 🛠️ Technology Stack
 
 - **Frontend:** Next.js 16, React 19, TypeScript
-- **Database:** PostgreSQL (via Supabase)
-- **Authentication:** Supabase Auth
+- **Database:** PostgreSQL (via AWS RDS)
+- **Authentication:** AWS RDS Auth
 - **Styling:** Tailwind CSS
 - **UI Components:** shadcn/ui
 - **Payments:** Razorpay (configured, not integrated yet)
@@ -153,7 +153,7 @@ This will:
 ### Prerequisites
 - Node.js 18+
 - pnpm package manager
-- Supabase account
+- AWS RDS account
 
 ### Setup Steps
 
@@ -227,7 +227,7 @@ See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for detailed help.
 ## 🎯 Features Status
 
 ### ✅ Completed
-- User authentication (Supabase)
+- User authentication (AWS RDS)
 - Test engine with timer
 - Question management
 - Test results and scoring
@@ -268,7 +268,7 @@ See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for detailed help.
    - Check `/api/health` to verify database setup
    - Use [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for issues
    - Review error messages in browser console
-   - Check Supabase dashboard for database issues
+   - Check AWS RDS dashboard for database issues
 
 ## 📞 Support
 
@@ -283,7 +283,7 @@ This project is open source and available under MIT License.
 
 ## 🙏 Acknowledgments
 
-- Built with Next.js and Supabase
+- Built with Next.js and AWS RDS
 - UI components from shadcn/ui
 - Styling with Tailwind CSS
 

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 
 export type ResetAllStudentsResult = {
   authUsersDeleted: number;
@@ -20,11 +20,11 @@ function isProtectedAccount(email: string, metadata: Record<string, unknown>): b
 }
 
 async function listAllAuthUsers(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
 ): Promise<Array<{ id: string; email: string; metadata: Record<string, unknown> }>> {
   const users: Array<{ id: string; email: string; metadata: Record<string, unknown> }> = [];
   for (let page = 1; page <= 100; page += 1) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
     if (error) throw new Error(error.message);
     if (!data?.users?.length) break;
     for (const user of data.users) {
@@ -41,7 +41,7 @@ async function listAllAuthUsers(
 
 /** Remove every student/faculty login and wipe attempt/roster data. Keeps admin accounts only. */
 export async function resetAllStudentsForExamDay(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
 ): Promise<ResetAllStudentsResult> {
   const errors: string[] = [];
   const result: ResetAllStudentsResult = {
@@ -56,42 +56,42 @@ export async function resetAllStudentsForExamDay(
     errors,
   };
 
-  const { count: violCount, error: violErr } = await supabase
+  const { count: violCount, error: violErr } = await db
     .from('exam_violations')
     .delete({ count: 'exact' })
     .not('id', 'is', null);
   if (violErr) errors.push(`exam_violations: ${violErr.message}`);
   else result.violationsDeleted = violCount ?? 0;
 
-  const { count: attemptCount, error: attemptErr } = await supabase
+  const { count: attemptCount, error: attemptErr } = await db
     .from('test_attempts')
     .delete({ count: 'exact' })
     .not('id', 'is', null);
   if (attemptErr) errors.push(`test_attempts: ${attemptErr.message}`);
   else result.attemptsDeleted = attemptCount ?? 0;
 
-  const { count: statsCount, error: statsErr } = await supabase
+  const { count: statsCount, error: statsErr } = await db
     .from('student_dashboard_stats')
     .delete({ count: 'exact' })
     .not('user_id', 'is', null);
   if (statsErr) errors.push(`student_dashboard_stats: ${statsErr.message}`);
   else result.dashboardStatsCleared = statsCount ?? 0;
 
-  const { count: sessionCount, error: sessionErr } = await supabase
+  const { count: sessionCount, error: sessionErr } = await db
     .from('student_active_sessions')
     .delete({ count: 'exact' })
     .neq('roll_number', '');
   if (sessionErr) errors.push(`student_active_sessions: ${sessionErr.message}`);
   else result.sessionsCleared = sessionCount ?? 0;
 
-  const { count: rosterCount, error: rosterErr } = await supabase
+  const { count: rosterCount, error: rosterErr } = await db
     .from('exam_student_roster')
     .delete({ count: 'exact' })
     .not('id', 'is', null);
   if (rosterErr) errors.push(`exam_student_roster: ${rosterErr.message}`);
   else result.rosterRowsCleared = rosterCount ?? 0;
 
-  const { count: slotRosterCount, error: slotRosterErr } = await supabase
+  const { count: slotRosterCount, error: slotRosterErr } = await db
     .from('exam_slot_roster_entries')
     .delete({ count: 'exact' })
     .not('id', 'is', null);
@@ -100,7 +100,7 @@ export async function resetAllStudentsForExamDay(
 
   let authUsers: Awaited<ReturnType<typeof listAllAuthUsers>>;
   try {
-    authUsers = await listAllAuthUsers(supabase);
+    authUsers = await listAllAuthUsers(db);
   } catch (err) {
     errors.push(err instanceof Error ? err.message : 'Failed to list auth users');
     return result;
@@ -115,7 +115,7 @@ export async function resetAllStudentsForExamDay(
 
   for (const user of authUsers) {
     if (protectedIds.has(user.id)) continue;
-    const { error: delErr } = await supabase.auth.admin.deleteUser(user.id);
+    const { error: delErr } = await db.auth.admin.deleteUser(user.id);
     if (delErr) {
       errors.push(`auth ${user.email || user.id}: ${delErr.message}`);
       continue;
@@ -123,7 +123,7 @@ export async function resetAllStudentsForExamDay(
     result.authUsersDeleted += 1;
   }
 
-  const { data: profileRows, error: profileListErr } = await supabase
+  const { data: profileRows, error: profileListErr } = await db
     .from('users')
     .select('id, email, user_role');
   if (profileListErr) {
@@ -137,7 +137,7 @@ export async function resetAllStudentsForExamDay(
     const email = String(row.email ?? '');
     const role = String(row.user_role ?? '').toLowerCase();
     if (email.includes('@admin.') || role === 'admin') continue;
-    const { error: profileDelErr } = await supabase.from('users').delete().eq('id', id);
+    const { error: profileDelErr } = await db.from('users').delete().eq('id', id);
     if (profileDelErr) {
       errors.push(`profile ${email || id}: ${profileDelErr.message}`);
       continue;

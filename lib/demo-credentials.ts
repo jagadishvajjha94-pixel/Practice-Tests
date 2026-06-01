@@ -1,6 +1,6 @@
 /**
  * Demo accounts for UAT — created via POST /api/setup/seed-demo-users
- * (requires SUPABASE_SERVICE_ROLE_KEY in .env.local).
+ * (requires AUTH_SECRET in .env.local).
  */
 export const DEMO_STUDENT_ACCOUNTS = [
   {

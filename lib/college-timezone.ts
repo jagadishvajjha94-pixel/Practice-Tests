@@ -2,7 +2,7 @@
 export const COLLEGE_TIMEZONE = 'Asia/Kolkata';
 export const IST_OFFSET = '+05:30';
 
-/** Combine YYYY-MM-DD + HH:mm as IST → UTC ISO string for Supabase. */
+/** Combine YYYY-MM-DD + HH:mm as IST → UTC ISO string for AWS RDS. */
 export function combineDateAndTimeIst(dateStr: string, timeStr: string): string {
   const date = dateStr.trim();
   let time = timeStr.trim();

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 
 export type DepartmentGroup = {
   id: string;
@@ -8,7 +8,7 @@ export type DepartmentGroup = {
 };
 
 export async function listDepartmentGroups(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
 ): Promise<DepartmentGroup[]> {
   const { data: groups } = await admin
     .from('department_groups')
@@ -38,7 +38,7 @@ export async function listDepartmentGroups(
 }
 
 export async function getGroupDepartments(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   groupId: string | null | undefined,
 ): Promise<string[]> {
   if (!groupId) return [];

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import {
   questionIdsForTag,
   type ResolvedSyllabusTopic,
@@ -133,7 +133,7 @@ export function sectionKeyForTopicSlug(slug: string): QuestionBankSectionKey {
 }
 
 /** One paginated scan of question_tag_links — O(links) not O(tags × questions). */
-async function loadTagLinkCounts(admin: SupabaseClient): Promise<Map<string, number>> {
+async function loadTagLinkCounts(admin: DbServiceClient): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   let offset = 0;
   const pageSize = 1000;
@@ -157,7 +157,7 @@ async function loadTagLinkCounts(admin: SupabaseClient): Promise<Map<string, num
   return counts;
 }
 
-async function loadAllTaggedQuestionIds(admin: SupabaseClient): Promise<Set<string>> {
+async function loadAllTaggedQuestionIds(admin: DbServiceClient): Promise<Set<string>> {
   const taggedIds = new Set<string>();
   let offset = 0;
   const pageSize = 1000;
@@ -180,7 +180,7 @@ async function loadAllTaggedQuestionIds(admin: SupabaseClient): Promise<Set<stri
 }
 
 async function countUncategorizedQuestions(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   taggedIds: Set<string>,
 ): Promise<number> {
   let offset = 0;
@@ -208,7 +208,7 @@ async function countUncategorizedQuestions(
   return uncategorized;
 }
 
-async function questionIdsLinkedToTag(admin: SupabaseClient, tagId: string): Promise<string[]> {
+async function questionIdsLinkedToTag(admin: DbServiceClient, tagId: string): Promise<string[]> {
   const ids: string[] = [];
   let offset = 0;
   const pageSize = 1000;
@@ -232,7 +232,7 @@ async function questionIdsLinkedToTag(admin: SupabaseClient, tagId: string): Pro
 }
 
 export async function loadQuestionBankOverview(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
 ): Promise<QuestionBankOverview> {
   const taggedIdsPromise = loadAllTaggedQuestionIds(admin);
   const [{ data: tagRows, error: tagErr }, linkCounts, taggedIds, tableCountRes, uncategorizedCount] =
@@ -342,7 +342,7 @@ function rowToBankQuestion(row: Record<string, unknown>): QuestionBankRow {
   };
 }
 
-async function loadUncategorizedQuestionIds(admin: SupabaseClient): Promise<string[]> {
+async function loadUncategorizedQuestionIds(admin: DbServiceClient): Promise<string[]> {
   const taggedIds = await loadAllTaggedQuestionIds(admin);
 
   const out: string[] = [];
@@ -369,7 +369,7 @@ async function loadUncategorizedQuestionIds(admin: SupabaseClient): Promise<stri
 }
 
 export async function loadQuestionsForTopic(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   topicSlug: string,
   options?: { offset?: number; limit?: number },
 ): Promise<{ topic: ResolvedSyllabusTopic | null; total: number; questions: QuestionBankRow[] }> {
@@ -425,7 +425,7 @@ export async function loadQuestionsForTopic(
 
 type TagMeta = { slug: string; name: string; section: QuestionBankSectionKey };
 
-async function loadQuestionTopicMap(admin: SupabaseClient): Promise<Map<string, TagMeta[]>> {
+async function loadQuestionTopicMap(admin: DbServiceClient): Promise<Map<string, TagMeta[]>> {
   const { data: tagRows, error: tagErr } = await admin
     .from('question_tags')
     .select('id, slug, name');
@@ -469,7 +469,7 @@ async function loadQuestionTopicMap(admin: SupabaseClient): Promise<Map<string, 
 
 /** Every question in the bank once, with section/topic labels for export. */
 export async function loadFullQuestionBankForExport(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
 ): Promise<QuestionBankExportRow[]> {
   const topicsByQuestion = await loadQuestionTopicMap(admin);
   const exportRows: QuestionBankExportRow[] = [];

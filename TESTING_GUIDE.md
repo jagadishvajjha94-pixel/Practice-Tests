@@ -2,10 +2,10 @@
 
 ## Quick Setup for Testing (No Email Confirmation)
 
-### Step 1: Disable Email Verification in Supabase
+### Step 1: Disable Email Verification in AWS RDS
 This allows users to sign up and login immediately without email confirmation.
 
-1. Go to https://app.supabase.com
+1. Go to https://app.rds.com
 2. Select your project
 3. Click **Authentication** → **Providers** → **Email**
 4. Toggle **OFF** the "Confirm email" option
@@ -170,7 +170,7 @@ Look for messages like:
 ## Troubleshooting During Testing
 
 ### If signup fails:
-- Check if Supabase is connected
+- Check if AWS RDS is connected
 - Verify environment variables are set
 - Check if database tables exist (visit /api/health)
 - Look at console errors in browser DevTools
@@ -222,4 +222,4 @@ If you encounter any issues:
 1. Check TROUBLESHOOTING.md
 2. Review console logs
 3. Visit /setup page to reinitialize
-4. Check Supabase dashboard for database status
+4. Check AWS RDS dashboard for database status

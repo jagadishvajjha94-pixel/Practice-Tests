@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import type { ExamScheduleRow } from '@/lib/exam-schedule';
 import type { EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
 import { isElevateXModule } from '@/lib/elevatex';
@@ -45,7 +45,7 @@ function examTypeForSchedule(schedule: ExamScheduleRow, source: LoadedScheduleFo
 }
 
 export async function loadScheduleForReport(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   scheduleId: string,
 ): Promise<LoadedScheduleForReport | null> {
   const { data: examRow } = await admin

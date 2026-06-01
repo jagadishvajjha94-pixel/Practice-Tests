@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { COLLEGE } from '@/lib/college-brand';
 import { facultyAuthEmail, studentAuthEmail } from '@/lib/college-auth';
 import {
@@ -8,18 +8,18 @@ import {
 } from '@/lib/demo-credentials';
 
 function getServiceRoleKey(): string | undefined {
-  const raw = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const raw = process.env.AUTH_SECRET?.trim();
   if (!raw || raw.includes('YOUR_')) return undefined;
   return raw;
 }
 
 async function upsertAuthUser(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   email: string,
   password: string,
   metadata: Record<string, string>,
 ): Promise<{ id: string; created: boolean } | { error: string }> {
-  const { data: listed, error: listError } = await supabase.auth.admin.listUsers({
+  const { data: listed, error: listError } = await db.auth.admin.listUsers({
     page: 1,
     perPage: 1000,
   });
@@ -28,7 +28,7 @@ async function upsertAuthUser(
   const existing = listed.users.find((u) => (u.email ?? '').toLowerCase() === email.toLowerCase());
 
   if (existing?.id) {
-    const { error: updateError } = await supabase.auth.admin.updateUserById(existing.id, {
+    const { error: updateError } = await db.auth.admin.updateUserById(existing.id, {
       password,
       email_confirm: true,
       user_metadata: metadata,
@@ -37,7 +37,7 @@ async function upsertAuthUser(
     return { id: existing.id, created: false };
   }
 
-  const { data: created, error: createError } = await supabase.auth.admin.createUser({
+  const { data: created, error: createError } = await db.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
@@ -51,19 +51,19 @@ async function upsertAuthUser(
 
 /** Creates demo student/faculty logins for UAT (not admin). */
 export async function POST() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const rdsUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
   const serviceRoleKey = getServiceRoleKey();
 
-  if (!supabaseUrl || !serviceRoleKey || !supabaseUrl.includes('.supabase.co')) {
+  if (!rdsUrl || !serviceRoleKey || !rdsUrl.includes('.db.co')) {
     return NextResponse.json(
       {
-        error: 'Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local',
+        error: 'Set NEXT_PUBLIC_APP_URL and AUTH_SECRET in .env.local',
       },
       { status: 500 },
     );
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  const db = createClient(rdsUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
@@ -84,12 +84,12 @@ export async function POST() {
       department: student.department,
       year: student.year,
     };
-    const outcome = await upsertAuthUser(supabase, email, student.password, metadata);
+    const outcome = await upsertAuthUser(db, email, student.password, metadata);
     if ('error' in outcome) {
       return NextResponse.json({ error: outcome.error, partial: results }, { status: 500 });
     }
 
-    await supabase.from('users').upsert(
+    await db.from('users').upsert(
       {
         id: outcome.id,
         email,
@@ -121,7 +121,7 @@ export async function POST() {
     department: DEMO_FACULTY_ACCOUNT.department,
   };
   const facultyOutcome = await upsertAuthUser(
-    supabase,
+    db,
     facultyEmail,
     DEMO_FACULTY_ACCOUNT.password,
     facultyMeta,
@@ -130,7 +130,7 @@ export async function POST() {
     return NextResponse.json({ error: facultyOutcome.error, partial: results }, { status: 500 });
   }
 
-  await supabase.from('faculty_profiles').upsert(
+  await db.from('faculty_profiles').upsert(
     {
       user_id: facultyOutcome.id,
       employee_id: DEMO_FACULTY_ACCOUNT.employeeId,

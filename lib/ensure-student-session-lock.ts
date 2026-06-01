@@ -1,6 +1,7 @@
-import type { PostgrestError } from '@supabase/supabase-js';
+import type { PostgrestError } from '@/lib/db/get-db-service';
+import { getDbService } from '@/lib/db/get-db-service';
 import postgres from 'postgres';
-import { getAdminSupabase } from '@/lib/admin-access';
+import { getDbService } from '@/lib/admin-access';
 import { resolvePostgresUrl } from '@/lib/postgres-url';
 
 export function isStudentSessionLockSchemaError(
@@ -68,7 +69,7 @@ export async function ensureStudentSessionLockTable(): Promise<{
 
 /** Create table via direct Postgres when missing; no-op if already present. */
 export async function ensureStudentSessionLockTableIfPossible(): Promise<boolean> {
-  const admin = getAdminSupabase();
+  const admin = getDbService();
   if (!admin) return false;
 
   const probe = await admin.from('student_active_sessions').select('roll_number').limit(1);

@@ -5,7 +5,6 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { parseMcqsFromAiText } from '@/lib/ai/parse-mcq-response';
 import {
   categorySlugFromValue,
@@ -103,7 +102,7 @@ export default function AdminAiGeneratorPage() {
     });
     const json = (await res.json()) as { id?: string; error?: string };
     if (!res.ok || !json.id) {
-      setMessage(json.error ?? 'Run POST /api/setup/seed to create categories in Supabase before import.');
+      setMessage(json.error ?? 'Run POST /api/setup/seed to create categories in AWS RDS before import.');
       return null;
     }
     return json.id;
@@ -171,8 +170,8 @@ Return ONLY a JSON array. Each item:
   };
 
   const importToBank = async () => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase || !categoryId || !raw.trim()) return;
+    const db = null;
+    if (!db || !categoryId || !raw.trim()) return;
 
     const resolvedId = await resolveCategoryIdForImport();
     if (!resolvedId) return;
@@ -192,7 +191,7 @@ Return ONLY a JSON array. Each item:
       explanation: q.explanation,
       tags: q.tags,
     }));
-    const { error } = await supabase.from('questions').insert(rows);
+    const { error } = await db.from('questions').insert(rows);
     if (error) {
       setMessage(error.message);
       return;

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ensureExamViolationsTable } from '@/lib/ensure-exam-violations';
-import { postgresUrlSetupHint, supabaseSqlEditorUrl } from '@/lib/postgres-url';
+import { postgresUrlSetupHint, rdsSqlEditorUrl } from '@/lib/postgres-url';
 
 /** Creates exam_violations table for live proctoring during exams. */
 export async function POST() {
@@ -11,8 +11,8 @@ export async function POST() {
       {
         error: result.error ?? 'Failed to ensure exam_violations',
         hint: postgresUrlSetupHint(),
-        sqlFile: 'supabase/migrations/012_proctoring_scale.sql',
-        sqlEditorUrl: supabaseSqlEditorUrl(),
+        sqlFile: 'db/migrations/012_proctoring_scale.sql',
+        sqlEditorUrl: rdsSqlEditorUrl(),
       },
       { status: result.error?.includes('not configured') ? 400 : 500 },
     );

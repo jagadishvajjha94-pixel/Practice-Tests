@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import {
   applyQuestionBankSchemaMigrations,
   questionBankSchemaMissingMessage,
@@ -25,7 +25,7 @@ async function needsColumnPatch(shape: QuestionsInsertShape): boolean {
 }
 
 /** Ensure public.questions exists and exposes bank MCQ columns in PostgREST. */
-export async function ensureBankSchemaReady(admin: SupabaseClient): Promise<BankSchemaReadyResult> {
+export async function ensureBankSchemaReady(admin: DbServiceClient): Promise<BankSchemaReadyResult> {
   const warnings: string[] = [];
 
   let tableErr = await waitForQuestionsTable(admin, 2);
@@ -58,13 +58,13 @@ export async function ensureBankSchemaReady(admin: SupabaseClient): Promise<Bank
 
   if (!hasBankMcqColumns(shape)) {
     throw new Error(
-      'The questions table is missing MCQ columns (option_a–d or options). Run supabase/migrations/029_questions_bank_column_patch.sql in the Supabase SQL editor, wait 30s, then retry.',
+      'The questions table is missing MCQ columns (option_a–d or options). Run prisma db push or scripts/01-initial-schema.sql on RDS
     );
   }
 
   if (await needsColumnPatch(shape)) {
     warnings.push(
-      'Some optional columns (e.g. difficulty) are still missing in the API schema. Seeding will omit them. Run migration 029 in Supabase SQL editor and reload the API schema.',
+      'Some optional columns (e.g. difficulty) are still missing in the API schema. Seeding will omit them. Run migration 029 in AWS RDS SQL editor and reload the API schema.',
     );
   }
 

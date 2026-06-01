@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { isElevateXModule } from '@/lib/elevatex';
 import {
   resolveExamScheduleStatus,
@@ -189,7 +189,7 @@ function sortTests(items: AdminTestOverviewItem[]): AdminTestOverviewItem[] {
 }
 
 export async function loadAdminTestsOverview(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
 ): Promise<AdminTestsOverviewPayload> {
   const now = Date.now();
   const items: AdminTestOverviewItem[] = [];

@@ -29,7 +29,7 @@ export function UsersTableSetupBanner({ onReady }: { onReady?: () => void }) {
           {busy ? 'Setting up…' : 'Create profile table'}
         </Button>
         <span className="text-xs text-muted-foreground">
-          Or run <code>supabase/migrations/001_users_resume.sql</code> in Supabase → SQL Editor
+          Or run <code>scripts/01-initial-schema.sql</code> in RDS SQL client
         </span>
       </div>
       {note ? <p className="text-xs text-sky-100/90">{note}</p> : null}

@@ -10,7 +10,7 @@ Everything is set up and ready to test. Follow these 5 simple steps to start:
 
 This lets users sign up instantly without email verification.
 
-**Go to:** https://app.supabase.com
+**Go to:** https://app.rds.com
 
 **Steps:**
 1. Select your PrepIndia project
@@ -102,7 +102,7 @@ Go to dashboard and see your result in "Recent Test Attempts"
 
 | Issue | Solution |
 |-------|----------|
-| **Can't signup** | Make sure you disabled "Confirm email" in Supabase |
+| **Can't signup** | Make sure you disabled "Confirm email" in AWS RDS |
 | **No tests showing** | Visit `/api/manual-setup` to seed database |
 | **Login fails** | Use exact email and password from signup |
 | **Timer not working** | Hard refresh: Ctrl+Shift+R |
@@ -182,7 +182,7 @@ Then we can add email confirmation for production.
 
 ## Next: Start Testing! 🚀
 
-👉 **First:** Go to https://app.supabase.com and disable email verification
+👉 **First:** Go to https://app.rds.com and disable email verification
 
 👉 **Second:** Visit http://localhost:3000/api/manual-setup
 

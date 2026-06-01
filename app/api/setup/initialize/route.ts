@@ -1,25 +1,25 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const isSupabaseConfigured =
-  !!supabaseUrl &&
+const rdsUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+const serviceRoleKey = process.env.AUTH_SECRET || '';
+const isDatabaseConfigured =
+  !!rdsUrl &&
   !!serviceRoleKey &&
-  supabaseUrl.includes('.supabase.co') &&
-  !supabaseUrl.includes('YOUR_') &&
+  rdsUrl.includes('.db.co') &&
+  !rdsUrl.includes('YOUR_') &&
   !serviceRoleKey.includes('YOUR_');
 
 export async function POST() {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isDatabaseConfigured) {
       return NextResponse.json(
-        { error: 'Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local' },
+        { error: 'Set NEXT_PUBLIC_APP_URL and AUTH_SECRET in .env.local' },
         { status: 500 }
       );
     }
 
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    const db = createClient(rdsUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
@@ -148,7 +148,7 @@ export async function POST() {
 
     for (const sql of sqlStatements) {
       try {
-        const { data, error } = await supabase.rpc('exec_sql', { sql });
+        const { data, error } = await db.rpc('exec_sql', { sql });
         if (!error) {
           dbInitialized = true;
           results.push({ success: true, sql: sql.substring(0, 40) });
@@ -162,7 +162,7 @@ export async function POST() {
     }
 
     // Check if users table exists, if so, database is initialized
-    const { data: usersCheck } = await supabase
+    const { data: usersCheck } = await db
       .from('users')
       .select('count', { count: 'exact', head: true });
 

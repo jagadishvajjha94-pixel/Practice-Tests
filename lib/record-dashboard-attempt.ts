@@ -1,7 +1,6 @@
 import { buildFeedEntry, pushDashboardFeedEntry } from '@/lib/dashboard-feed';
 import { LOCAL_ATTEMPT_GUEST_USER_ID, saveLocalTestAttempt } from '@/lib/local-test-attempts';
-import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { fetchWithSession, getClientUser } from '@/lib/client-auth';
 import type { Test } from '@/lib/types';
 import {
   cacheApiAttempts,
@@ -17,12 +16,10 @@ export type RecordDashboardAttemptInput = {
   rawNetScore?: number;
   elapsedSec?: number;
   examKind?: ExamKind;
-  /** Stored on test_attempts.answers (e.g. ElevateX scorecard JSON). */
   answers?: Record<string, unknown>;
   proctorSessionId?: string;
   proctorViolations?: number;
   proctorAutoSubmit?: boolean;
-  /** Minimal test row for local result / dashboard merge */
   test?: Pick<Test, 'id' | 'name' | 'category_id' | 'duration' | 'total_questions'>;
 };
 
@@ -49,19 +46,10 @@ function minimalTest(input: RecordDashboardAttemptInput): Test {
   };
 }
 
-/**
- * Persist an exam attempt for the student dashboard (feed, API, optional local).
- */
 export async function recordDashboardAttempt(
   input: RecordDashboardAttemptInput,
 ): Promise<RecordDashboardAttemptResult | null> {
-  const supabase = getSupabaseBrowserClient();
-  if (!supabase) return null;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getClientUser();
   const ownerId = user?.id ?? LOCAL_ATTEMPT_GUEST_USER_ID;
   const nowIso = new Date().toISOString();
   const elapsedSec = input.elapsedSec ?? 0;
@@ -104,14 +92,9 @@ export async function recordDashboardAttempt(
   let attemptId = `local-${input.examKind ?? 'practice'}-${Date.now()}`;
 
   try {
-    const authHeaders = await getSupabaseAuthHeaders(supabase);
-    const res = await fetch('/api/student/test-attempts', {
+    const res = await fetchWithSession('/api/student/test-attempts', {
       method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         testId: input.testId,
         testName: input.testName,
@@ -183,26 +166,25 @@ export async function recordDashboardAttempt(
       }
     }
   } catch {
-    // fall through to local-only save
+    /* fall through to local-only save */
   }
 
-  const localPayload = {
-    attempt: {
-      id: attemptId,
-      user_id: ownerId,
-      test_id: input.testId,
-      started_at: nowIso,
-      completed_at: nowIso,
-      score: input.scorePercent,
-      answers: null,
-      time_taken: elapsedSec,
-      status: 'completed' as const,
-      created_at: nowIso,
-    },
-    test,
-  };
-
   if (!savedToServer) {
+    const localPayload = {
+      attempt: {
+        id: attemptId,
+        user_id: ownerId,
+        test_id: input.testId,
+        started_at: nowIso,
+        completed_at: nowIso,
+        score: input.scorePercent,
+        answers: null,
+        time_taken: elapsedSec,
+        status: 'completed' as const,
+        created_at: nowIso,
+      },
+      test,
+    };
     saveLocalTestAttempt(ownerId, attemptId, localPayload);
     pushDashboardFeedEntry(
       ownerId,

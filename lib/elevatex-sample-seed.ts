@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { COLLEGE } from '@/lib/college-brand';
 import { studentAuthEmail } from '@/lib/college-auth';
 import { ELEVATEX_MODULE_KEY, isElevateXAttemptTitle, isElevateXTestId } from '@/lib/elevatex';
@@ -58,7 +58,7 @@ async function mapConcurrent<T, R>(
 }
 
 async function upsertAuthStudent(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   email: string,
   password: string,
   metadata: Record<string, string>,
@@ -67,7 +67,7 @@ async function upsertAuthStudent(
   const existing = usersByEmail.get(email.toLowerCase());
 
   if (existing?.id) {
-    const { error: updateError } = await supabase.auth.admin.updateUserById(existing.id, {
+    const { error: updateError } = await db.auth.admin.updateUserById(existing.id, {
       password,
       email_confirm: true,
       user_metadata: metadata,
@@ -76,7 +76,7 @@ async function upsertAuthStudent(
     return { id: existing.id, created: false };
   }
 
-  const { data: created, error: createError } = await supabase.auth.admin.createUser({
+  const { data: created, error: createError } = await db.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
@@ -90,12 +90,12 @@ async function upsertAuthStudent(
 }
 
 async function upsertStudentProfile(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userId: string,
   email: string,
   student: ElevateXSampleStudent,
 ): Promise<string | null> {
-  const { error } = await supabase.from('users').upsert(
+  const { error } = await db.from('users').upsert(
     {
       id: userId,
       email,
@@ -113,9 +113,9 @@ async function upsertStudentProfile(
 }
 
 async function loadAuthUsersByEmail(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
 ): Promise<{ usersByEmail: Map<string, { id: string }> } | { error: string }> {
-  const { data: listed, error: listError } = await supabase.auth.admin.listUsers({
+  const { data: listed, error: listError } = await db.auth.admin.listUsers({
     page: 1,
     perPage: 1000,
   });
@@ -130,32 +130,32 @@ async function loadAuthUsersByEmail(
 }
 
 async function deleteRosterRowsForRoll(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   roll: string,
 ): Promise<void> {
   const rollNorm = normalizeRoll(roll);
-  await supabase.from('student_active_sessions').delete().eq('roll_number', rollNorm);
-  await supabase.from('exam_student_roster').delete().eq('roll_number', rollNorm);
-  await supabase.from('exam_slot_roster_entries').delete().eq('roll_number', rollNorm);
+  await db.from('student_active_sessions').delete().eq('roll_number', rollNorm);
+  await db.from('exam_student_roster').delete().eq('roll_number', rollNorm);
+  await db.from('exam_slot_roster_entries').delete().eq('roll_number', rollNorm);
 }
 
 async function deleteAttemptsForUserIds(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userIds: string[],
 ): Promise<number> {
   if (userIds.length === 0) return 0;
 
-  const { data: attempts } = await supabase
+  const { data: attempts } = await db
     .from('test_attempts')
     .select('id')
     .in('user_id', userIds);
 
   const attemptIds = (attempts ?? []).map((row) => String(row.id)).filter(Boolean);
   if (attemptIds.length > 0) {
-    await supabase.from('exam_violations').delete().in('attempt_id', attemptIds);
+    await db.from('exam_violations').delete().in('attempt_id', attemptIds);
   }
 
-  const { data: deleted } = await supabase
+  const { data: deleted } = await db
     .from('test_attempts')
     .delete()
     .in('user_id', userIds)
@@ -167,7 +167,7 @@ async function deleteAttemptsForUserIds(
 async function deleteSampleStudentByRoll(
   roll: string,
   usersByEmail: Map<string, { id: string }>,
-  supabase: SupabaseClient,
+  db: DbServiceClient,
 ): Promise<{ deleted: boolean; userId?: string; error?: string }> {
   const email = studentAuthEmail(roll).toLowerCase();
   const user = usersByEmail.get(email);
@@ -175,28 +175,28 @@ async function deleteSampleStudentByRoll(
     return { deleted: false };
   }
 
-  await deleteRosterRowsForRoll(supabase, roll);
+  await deleteRosterRowsForRoll(db, roll);
 
-  const { error: delErr } = await supabase.auth.admin.deleteUser(user.id);
+  const { error: delErr } = await db.auth.admin.deleteUser(user.id);
   if (delErr) {
     return { deleted: false, userId: user.id, error: delErr.message };
   }
 
   usersByEmail.delete(email);
-  await supabase.from('users').delete().eq('id', user.id);
+  await db.from('users').delete().eq('id', user.id);
 
   return { deleted: true, userId: user.id };
 }
 
 async function deleteLegacySampleStudents(
   usersByEmail: Map<string, { id: string }>,
-  supabase: SupabaseClient,
+  db: DbServiceClient,
 ): Promise<{ deleted: string[]; errors: string[] }> {
   const deleted: string[] = [];
   const errors: string[] = [];
 
   for (const roll of LEGACY_ELEVATEX_SAMPLE_ROLLS) {
-    const outcome = await deleteSampleStudentByRoll(roll, usersByEmail, supabase);
+    const outcome = await deleteSampleStudentByRoll(roll, usersByEmail, db);
     if (outcome.error) {
       errors.push(`${roll}: ${outcome.error}`);
       continue;
@@ -230,9 +230,9 @@ function attemptMatchesElevateX(row: { test_id?: unknown; test_title?: unknown }
 
 /** Clear ElevateX attempts for demo students so they can take the paper again (keeps logins). */
 export async function resetElevateXSampleAttempts(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
 ): Promise<ElevateXAttemptsResetResult> {
-  const loaded = await loadAuthUsersByEmail(supabase);
+  const loaded = await loadAuthUsersByEmail(db);
   if ('error' in loaded) {
     return {
       studentsFound: 0,
@@ -267,7 +267,7 @@ export async function resetElevateXSampleAttempts(
 
   for (const roll of rollsFound) {
     const rollNorm = normalizeRoll(roll);
-    const { count, error } = await supabase
+    const { count, error } = await db
       .from('student_active_sessions')
       .delete({ count: 'exact' })
       .eq('roll_number', rollNorm);
@@ -276,7 +276,7 @@ export async function resetElevateXSampleAttempts(
   }
 
   for (const userId of userIds) {
-    const { data: attempts, error: fetchErr } = await supabase
+    const { data: attempts, error: fetchErr } = await db
       .from('test_attempts')
       .select('id, test_id, test_title')
       .eq('user_id', userId);
@@ -293,14 +293,14 @@ export async function resetElevateXSampleAttempts(
 
     if (elevatexAttemptIds.length === 0) continue;
 
-    const { error: violErr } = await supabase
+    const { error: violErr } = await db
       .from('exam_violations')
       .delete()
       .in('attempt_id', elevatexAttemptIds);
     if (violErr) errors.push(`violations ${userId}: ${violErr.message}`);
     else violationsDeleted += elevatexAttemptIds.length;
 
-    const { data: deleted, error: delErr } = await supabase
+    const { data: deleted, error: delErr } = await db
       .from('test_attempts')
       .delete()
       .in('id', elevatexAttemptIds)
@@ -322,9 +322,9 @@ export async function resetElevateXSampleAttempts(
 
 /** Remove all 42 ElevateX demo accounts (+ legacy rolls) so students can sign up again. */
 export async function resetElevateXSampleStudents(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
 ): Promise<ElevateXResetResult> {
-  const loaded = await loadAuthUsersByEmail(supabase);
+  const loaded = await loadAuthUsersByEmail(db);
   if ('error' in loaded) {
     return {
       deletedRolls: [],
@@ -341,7 +341,7 @@ export async function resetElevateXSampleStudents(
   const userIdsToPurge: string[] = [];
 
   for (const roll of allElevateXSampleRolls()) {
-    const outcome = await deleteSampleStudentByRoll(roll, usersByEmail, supabase);
+    const outcome = await deleteSampleStudentByRoll(roll, usersByEmail, db);
     if (outcome.error) {
       errors.push(`${roll}: ${outcome.error}`);
       continue;
@@ -351,11 +351,11 @@ export async function resetElevateXSampleStudents(
       if (outcome.userId) userIdsToPurge.push(outcome.userId);
     } else {
       notFoundRolls.push(roll);
-      await deleteRosterRowsForRoll(supabase, roll);
+      await deleteRosterRowsForRoll(db, roll);
     }
   }
 
-  const attemptsDeleted = await deleteAttemptsForUserIds(supabase, userIdsToPurge);
+  const attemptsDeleted = await deleteAttemptsForUserIds(db, userIdsToPurge);
 
   return { deletedRolls, notFoundRolls, errors, attemptsDeleted };
 }
@@ -370,7 +370,7 @@ export type ElevateXSeedAccountResult = {
 };
 
 export type ElevateXSeedResult = {
-  supabaseProject: string;
+  rdsProject: string;
   password: string;
   accounts: ElevateXSeedAccountResult[];
   scheduleId: string | null;
@@ -382,20 +382,20 @@ export type ElevateXSeedResult = {
 
 /** Create/update ElevateX test students; remove legacy EX26001–15; go live Slot 1 window. */
 export async function seedElevateXSample(
-  supabase: SupabaseClient,
-  supabaseUrl: string,
+  db: DbServiceClient,
+  rdsUrl: string,
   password: string = ELEVATEX_SAMPLE_PASSWORD,
   options?: { slotDateIso?: string },
 ): Promise<ElevateXSeedResult | { error: string; partial?: ElevateXSeedAccountResult[] }> {
   const project = (() => {
     try {
-      return new URL(supabaseUrl).hostname.split('.')[0] ?? supabaseUrl;
+      return new URL(rdsUrl).hostname.split('.')[0] ?? rdsUrl;
     } catch {
-      return supabaseUrl;
+      return rdsUrl;
     }
   })();
 
-  const loaded = await loadAuthUsersByEmail(supabase);
+  const loaded = await loadAuthUsersByEmail(db);
   if ('error' in loaded) {
     return { error: loaded.error };
   }
@@ -403,7 +403,7 @@ export async function seedElevateXSample(
   const { usersByEmail } = loaded;
 
   const { deleted: legacyRemoved, errors: legacyRemoveErrors } =
-    await deleteLegacySampleStudents(usersByEmail, supabase);
+    await deleteLegacySampleStudents(usersByEmail, db);
 
   const seedResults = await mapConcurrent(ELEVATEX_SAMPLE_STUDENTS, 6, async (student) => {
     const email = studentAuthEmail(student.roll);
@@ -418,12 +418,12 @@ export async function seedElevateXSample(
       academic_year: student.year,
     };
 
-    const outcome = await upsertAuthStudent(supabase, email, password, metadata, usersByEmail);
+    const outcome = await upsertAuthStudent(db, email, password, metadata, usersByEmail);
     if ('error' in outcome) {
       return { error: outcome.error, roll: student.roll } as const;
     }
 
-    const profileWarning = await upsertStudentProfile(supabase, outcome.id, email, student);
+    const profileWarning = await upsertStudentProfile(db, outcome.id, email, student);
 
     return {
       roll: student.roll,
@@ -449,14 +449,14 @@ export async function seedElevateXSample(
   let scheduleId: string | null = null;
   let scheduleWarning: string | null = null;
 
-  const { data: liveRows } = await supabase
+  const { data: liveRows } = await db
     .from('evalora_module_schedules')
     .select('id')
     .eq('module_key', ELEVATEX_MODULE_KEY)
     .eq('status', 'live');
 
   if (liveRows?.length) {
-    await supabase
+    await db
       .from('evalora_module_schedules')
       .update({ status: 'ended', updated_at: new Date().toISOString() })
       .in(
@@ -467,7 +467,7 @@ export async function seedElevateXSample(
 
   const rollRange = `${ELEVATEX_SAMPLE_STUDENTS[0]?.roll}–${ELEVATEX_SAMPLE_STUDENTS[ELEVATEX_SAMPLE_STUDENTS.length - 1]?.roll}`;
 
-  const { data: schedule, error: schedErr } = await supabase
+  const { data: schedule, error: schedErr } = await db
     .from('evalora_module_schedules')
     .insert({
       module_key: ELEVATEX_MODULE_KEY,
@@ -490,7 +490,7 @@ export async function seedElevateXSample(
   }
 
   return {
-    supabaseProject: project,
+    rdsProject: project,
     password,
     accounts,
     scheduleId,

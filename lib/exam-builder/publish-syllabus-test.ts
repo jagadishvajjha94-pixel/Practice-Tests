@@ -1,10 +1,10 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { linkTestQuestions } from '@/lib/exam-builder/link-test-questions';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 
 const SYLLABUS_CATEGORY_SLUG = 'syllabus-exams';
 
-async function ensureCategory(admin: SupabaseClient): Promise<string> {
+async function ensureCategory(admin: DbServiceClient): Promise<string> {
   const { data: existing } = await admin
     .from('test_categories')
     .select('id')
@@ -28,7 +28,7 @@ async function ensureCategory(admin: SupabaseClient): Promise<string> {
 }
 
 export async function publishSyllabusExam(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: {
     title: string;
     description?: string;

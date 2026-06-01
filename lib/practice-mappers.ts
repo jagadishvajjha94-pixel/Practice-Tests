@@ -11,7 +11,7 @@ export function answersMatchMcq(user: unknown, correct: unknown): boolean {
   return false;
 }
 
-/** Map Supabase `tests` rows (legacy column names) to UI `Test` shape */
+/** Map AWS RDS `tests` rows (legacy column names) to UI `Test` shape */
 export function adaptTestRow(row: Record<string, unknown>): Test {
   const title = (row.title as string | undefined) ?? (row.name as string | undefined) ?? 'Practice test';
   const durationMinutes = Number(

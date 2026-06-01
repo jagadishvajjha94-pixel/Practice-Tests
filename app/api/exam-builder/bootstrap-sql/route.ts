@@ -4,11 +4,11 @@ import {
   isPostgresConfigured,
   readQuestionBankBootstrapSql,
 } from '@/lib/question-bank/apply-bank-schema';
-import { supabaseSqlEditorUrl } from '@/lib/postgres-url';
+import { rdsSqlEditorUrl } from '@/lib/postgres-url';
 
 export const runtime = 'nodejs';
 
-/** Returns combined 020+021 SQL for Supabase SQL editor (when POSTGRES_URL is not configured). */
+/** Returns combined 020+021 SQL for AWS RDS SQL editor (when POSTGRES_URL is not configured). */
 export async function GET() {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
@@ -17,10 +17,10 @@ export async function GET() {
     const sql = readQuestionBankBootstrapSql();
     return NextResponse.json({
       sql,
-      sqlEditorUrl: supabaseSqlEditorUrl(),
+      sqlEditorUrl: rdsSqlEditorUrl(),
       postgresConfigured: isPostgresConfigured(),
       steps: [
-        'Open Supabase SQL editor (link below).',
+        'Open AWS RDS SQL editor (link below).',
         'Paste the SQL and click Run.',
         'Wait ~30 seconds for the API schema cache to refresh.',
         'Return here and click Load topic question bank.',

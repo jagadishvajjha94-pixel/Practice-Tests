@@ -6,7 +6,7 @@ Welcome to PrepIndia! Follow these steps to get started.
 
 - Node.js 18+ installed
 - pnpm package manager
-- Supabase account and project created
+- AWS RDS account and project created
 - Environment variables configured
 
 ## Quick Start
@@ -15,9 +15,9 @@ Welcome to PrepIndia! Follow these steps to get started.
 
 Make sure you have these environment variables set in your project:
 
-- `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anonymous key
-- `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key
+- `NEXT_PUBLIC_SUPABASE_URL` - Your AWS RDS project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your AWS RDS anonymous key
+- `SUPABASE_SERVICE_ROLE_KEY` - Your AWS RDS service role key
 - `NEXT_PUBLIC_RAZORPAY_KEY_ID` - Your Razorpay public key (optional for now)
 
 ### Step 2: Install Dependencies
@@ -111,7 +111,7 @@ If you get errors about missing tables:
 
 ### Sign Up Failing
 
-1. Check that Supabase environment variables are correctly set
+1. Check that AWS RDS environment variables are correctly set
 2. Ensure the user table exists (run setup again)
 3. Check browser console for specific error messages
 
@@ -145,7 +145,7 @@ app/
 └── page.tsx           # Homepage
 
 lib/
-├── supabase.ts        # Supabase client
+├── rds.ts        # AWS RDS client
 ├── auth.ts            # Authentication utilities
 ├── constants.ts       # App constants
 └── types.ts           # TypeScript types
@@ -187,7 +187,7 @@ For detailed error messages, check:
 
 1. Browser Console (F12)
 2. Server logs (terminal where you ran `pnpm dev`)
-3. Supabase Dashboard for database logs
+3. AWS RDS Dashboard for database logs
 
 ## Next Steps
 
@@ -203,7 +203,7 @@ When deploying to production:
 
 1. Set all environment variables in Vercel/hosting dashboard
 2. Run the setup API endpoints on the production URL
-3. Ensure Supabase is properly configured
+3. Ensure AWS RDS is properly configured
 4. Update Razorpay keys to production keys
 5. Test the complete flow including payments
 

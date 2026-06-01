@@ -1,6 +1,6 @@
 /**
  * Bulk / exam-period mode: hide public signup and reject POST /api/auth/signup.
- * Students already in Supabase Auth can sign in only (supports many concurrent logins).
+ * Students already in AWS RDS Auth can sign in only (supports many concurrent logins).
  *
  * Set in `.env.local`:
  * NEXT_PUBLIC_SIGNUP_DISABLED=true

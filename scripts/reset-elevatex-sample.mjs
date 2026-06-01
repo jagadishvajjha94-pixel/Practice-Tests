@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -80,21 +80,21 @@ async function main() {
     const user = byEmail.get(email.toLowerCase());
     const rollNorm = normalizeRoll(roll);
 
-    await supabase.from('student_active_sessions').delete().eq('roll_number', rollNorm);
-    await supabase.from('exam_student_roster').delete().eq('roll_number', rollNorm);
-    await supabase.from('exam_slot_roster_entries').delete().eq('roll_number', rollNorm);
+    await db.from('student_active_sessions').delete().eq('roll_number', rollNorm);
+    await db.from('exam_student_roster').delete().eq('roll_number', rollNorm);
+    await db.from('exam_slot_roster_entries').delete().eq('roll_number', rollNorm);
 
     if (!user?.id) {
       notFound += 1;
       continue;
     }
 
-    const { error } = await supabase.auth.admin.deleteUser(user.id);
+    const { error } = await db.auth.admin.deleteUser(user.id);
     if (error) {
       console.error(`${roll}: ${error.message}`);
       continue;
     }
-    await supabase.from('users').delete().eq('id', user.id);
+    await db.from('users').delete().eq('id', user.id);
     byEmail.delete(email.toLowerCase());
     deleted += 1;
     console.log(`Removed ${roll} (${email})`);

@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { COLLEGE } from '@/lib/college-brand';
 import { ADMIN_NAV_ITEMS } from '@/lib/admin-nav';
 import { useAdminGate } from '@/lib/use-admin-gate';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { LoadingScreen } from '@/components/ui/loading-screen';
+import { signOutClient } from '@/lib/client-auth';
 import { cn } from '@/lib/utils';
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -19,8 +19,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
 
   const signOut = async () => {
-    const supabase = createSupabaseBrowserClient();
-    await supabase?.auth.signOut();
+    await signOutClient();
     router.push('/auth/role');
   };
 

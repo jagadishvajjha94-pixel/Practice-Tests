@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import {
   detectQuestionsIdKind,
   looksLikeUuid,
@@ -18,7 +18,7 @@ function shuffle<T>(items: T[]): T[] {
   return copy;
 }
 
-async function ensureRmsetCategory(admin: SupabaseClient): Promise<string> {
+async function ensureRmsetCategory(admin: DbServiceClient): Promise<string> {
   const { data: existing } = await admin
     .from('test_categories')
     .select('id')
@@ -45,7 +45,7 @@ async function ensureRmsetCategory(admin: SupabaseClient): Promise<string> {
 }
 
 async function questionIdsForTopic(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   tagId: string,
   tagSlug: string,
 ): Promise<string[]> {
@@ -96,7 +96,7 @@ export type PublishRmsetInput = {
 };
 
 export async function publishRmsetPaper(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: PublishRmsetInput,
 ): Promise<{ paperId: string; testId: string; totalQuestions: number }> {
   if (!input.topicIds.length) {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getDbService } from '@/lib/db/get-db-service';
 import { partitionEvaloraModulesForStudent, type EvaloraModuleScheduleRow } from '@/lib/evalora/module-schedule';
 import { partitionSchedulesForStudent, type ExamScheduleRow } from '@/lib/exam-schedule';
 import { findStudentSlotAssignment, buildStudentSlotExamPortalNotices } from '@/lib/exam-schedule-slots';
@@ -7,13 +8,13 @@ import { syncExpiredLiveExamSchedules } from '@/lib/exam-schedule-sync';
 import { listLiveFacultyExamsForStudent } from '@/lib/live-faculty-exams';
 import { buildStudentPortalPayload } from '@/lib/student-portal';
 import { resolveStudentTargeting } from '@/lib/student-profile-sync';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 
 export async function GET() {
   const auth = await requireAuth(['student']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json(
       buildStudentPortalPayload({

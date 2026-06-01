@@ -1,11 +1,11 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { isScheduleWindowOpen, type ExamScheduleRow } from '@/lib/exam-schedule';
 
 /**
  * Persist status=ended when a live row's ends_at has passed so the DB matches the time window.
  */
 export async function syncExpiredLiveExamSchedules(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   schedules: ExamScheduleRow[],
   now = Date.now(),
 ): Promise<ExamScheduleRow[]> {

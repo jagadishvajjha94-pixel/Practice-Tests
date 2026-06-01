@@ -2,11 +2,9 @@
 
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BlogPost } from '@/lib/types';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import ReactMarkdown from 'react-markdown';
 
 export default function BlogPostPage({
@@ -15,26 +13,16 @@ export default function BlogPostPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
-  const router = useRouter();
   const [post, setPost] = useState<BlogPost | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchPost = async () => {
       try {
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) {
-          setLoading(false);
-          return;
-        }
-        const { data, error } = await supabase
-          .from('blog_posts')
-          .select('*')
-          .eq('slug', slug)
-          .single();
-
-        if (error) throw error;
-        setPost(data);
+        const res = await fetch(`/api/blog/${encodeURIComponent(slug)}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error('Post not found');
+        const json = (await res.json()) as { post?: BlogPost };
+        setPost(json.post ?? null);
       } catch (error) {
         console.error('Error fetching blog post:', error);
       } finally {
@@ -42,7 +30,7 @@ export default function BlogPostPage({
       }
     };
 
-    fetchPost();
+    void fetchPost();
   }, [slug]);
 
   if (loading) {
@@ -70,14 +58,12 @@ export default function BlogPostPage({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Back Button */}
       <div className="max-w-3xl mx-auto px-4 py-6">
         <Link href="/blog" className="text-blue-600 hover:text-blue-700 font-medium">
           ← Back to Blog
         </Link>
       </div>
 
-      {/* Article Header */}
       <div className="bg-white border-b border-gray-200 py-12">
         <div className="max-w-3xl mx-auto px-4">
           <div className="mb-4">
@@ -102,7 +88,6 @@ export default function BlogPostPage({
         </div>
       </div>
 
-      {/* Article Content */}
       <div className="max-w-3xl mx-auto px-4 py-12">
         {post.featured_image && (
           <img
@@ -130,7 +115,6 @@ export default function BlogPostPage({
           </ReactMarkdown>
         </div>
 
-        {/* Tags */}
         {post.tags && post.tags.length > 0 && (
           <div className="mt-8 flex gap-2 flex-wrap">
             {post.tags.map((tag) => (
@@ -145,7 +129,6 @@ export default function BlogPostPage({
         )}
       </div>
 
-      {/* Related Posts CTA */}
       <div className="bg-blue-600 text-white py-12">
         <div className="max-w-3xl mx-auto px-4 text-center">
           <h2 className="text-2xl font-bold mb-4">Continue Your Learning Journey</h2>

@@ -11,7 +11,7 @@ import { ElevateXLiveInfo } from '@/components/elevatex/elevatex-live-info';
 import { isElevateXModule } from '@/lib/elevatex';
 import type { PortalExamItem, StudentPortalPayload } from '@/lib/student-portal';
 import type { StudentSlotExamPortalNotice } from '@/lib/exam-schedule-slots';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { getClientUser } from '@/lib/client-auth';
 import { COLLEGE } from '@/lib/college-brand';
 import { formatCollegeDateTime } from '@/lib/college-timezone';
 
@@ -32,31 +32,18 @@ export function StudentExamsPortal() {
 
   useEffect(() => {
     const boot = async () => {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        setLoading(false);
-        return;
-      }
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getClientUser();
       if (!user) {
         router.replace('/auth/login/student');
         return;
       }
-      const role = String(user.user_metadata?.role ?? '');
-      if (role === 'faculty') {
-        router.replace('/auth/role');
-        return;
-      }
-      const { data: adminRow } = await supabase
-        .from('admin_users')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (adminRow || role === 'admin') {
-        router.replace('/admin/dashboard');
-        return;
+      const meRes = await fetch('/api/admin/me', { credentials: 'include' });
+      if (meRes.ok) {
+        const me = (await meRes.json()) as { isAdmin?: boolean };
+        if (me.isAdmin) {
+          router.replace('/admin/dashboard');
+          return;
+        }
       }
       await fetch('/api/student/sync-profile', { method: 'POST', credentials: 'include' }).catch(
         () => null,

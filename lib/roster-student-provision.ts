@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { COLLEGE } from '@/lib/college-brand';
 import { studentAuthEmail } from '@/lib/college-auth';
 import { normalizeRoll, type ExamScheduleSlotInput } from '@/lib/exam-schedule-slots';
@@ -42,12 +42,12 @@ async function mapConcurrent<T, R>(
 }
 
 async function loadAuthUsersByEmail(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
 ): Promise<Map<string, { id: string }>> {
   const usersByEmail = new Map<string, { id: string }>();
   let page = 1;
   while (page <= 50) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
     if (error || !data?.users?.length) break;
     for (const user of data.users) {
       if (user.email) usersByEmail.set(user.email.toLowerCase(), { id: user.id });
@@ -79,7 +79,7 @@ function collectUniqueRosterStudents(slots: ExamScheduleSlotInput[]): RosterStud
 }
 
 export async function provisionStudentsFromSlotRoster(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: {
     slots: ExamScheduleSlotInput[];
     defaultDepartment: string;
@@ -220,6 +220,6 @@ export function assertRosterProvisionSucceeded(
   throw new Error(
     detail
       ? `Could not create student login accounts: ${detail}`
-      : 'Could not create student login accounts. Check Supabase service role key and Auth settings.',
+      : 'Could not create student login accounts. Check DATABASE_URL and admin credentials key and Auth settings.',
   );
 }

@@ -9,15 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { InterviewErrorBoundary } from '@/components/interview-error-boundary';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { getClientUser } from '@/lib/client-auth';
 import {
-  buildInterviewPlanFromResume,
   fetchProfileViaApi,
   RESUME_MAX_CHARS,
   saveProfileViaApi,
 } from '@/lib/user-profile';
-import { StatusAlert } from '@/components/ui/status-alert';
-import { analyzeResumeText } from '@/lib/ai-interview/resume-analyzer';
+import { analyzeResumeText, buildInterviewPlanFromResume } from '@/lib/ai-interview/resume-analyzer';
 import { DEFAULT_INTERVIEW_QUESTIONS } from '@/lib/ai-interview/default-questions';
 import { formatScorePercentLabel, roundScorePercent } from '@/lib/format-score';
 import { useVoiceInterview } from '@/lib/ai-interview/use-voice-interview';
@@ -68,18 +66,12 @@ export default function AiInterviewPage() {
 
   const loadProfile = useCallback(async () => {
     try {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        return;
-      }
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getClientUser();
       if (!user) {
         router.replace('/auth/login?redirect=/ai/interview');
         return;
       }
-      const { profile } = await fetchProfileViaApi(supabase);
+      const { profile } = await fetchProfileViaApi();
       if (profile?.resume_text) setResumeText(profile.resume_text);
     } catch {
       /* show setup UI even if profile load fails */
@@ -93,12 +85,10 @@ export default function AiInterviewPage() {
   }, [loadProfile]);
 
   const saveResumeToProfile = async (text: string) => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) return;
     setSavingResume(true);
     try {
       const trimmed = text.trim().slice(0, RESUME_MAX_CHARS) || null;
-      const { ok, error } = await saveProfileViaApi(supabase, {
+      const { ok, error } = await saveProfileViaApi({
         resume_text: trimmed,
         resume_updated_at: trimmed ? new Date().toISOString() : null,
       });

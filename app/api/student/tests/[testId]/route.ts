@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
+import { getDbService } from '@/lib/db/get-db-service';
 import { useAwsStack } from '@/lib/aws/stack';
 import { loadQuestionsForTake, loadTestRowForTake } from '@/lib/load-test-for-take';
 import { loadTestSections } from '@/lib/exam-v2/load-sections';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import { findCompletedAttemptForTest } from '@/lib/test-attempts';
 import { checkStudentExamAccess } from '@/lib/exam-access';
 import { resolveStudentTargeting } from '@/lib/student-profile-sync';
@@ -74,7 +75,7 @@ export async function GET(_request: Request, context: RouteContext) {
     });
   }
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }

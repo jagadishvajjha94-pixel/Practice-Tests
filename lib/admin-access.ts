@@ -1,153 +1,103 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { getPublicSupabaseUrl } from '@/lib/supabase-public-env';
+/**
+ * Admin user bootstrap and role checks — AWS RDS + Prisma only.
+ */
+import bcrypt from 'bcryptjs';
+import { prisma } from '@/lib/prisma';
+import { getDbService, type DbServiceClient } from '@/lib/db/get-db-service';
 
-export function getServiceRoleKey(): string | undefined {
-  const raw = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!raw || raw.includes('YOUR_')) return undefined;
-  return raw;
+export function getAdminDb(): DbServiceClient {
+  return getDbService();
 }
 
-export function getAdminSupabase(): SupabaseClient | null {
-  const url = getPublicSupabaseUrl();
-  const key = getServiceRoleKey();
-  if (!url || !key) return null;
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
+/** @deprecated Use getAdminDb */
+export const getAdminDb = getAdminDb;
 
 export async function findAuthUserByEmail(
-  supabaseUrl: string,
-  serviceRoleKey: string,
   email: string,
 ): Promise<{ id: string; email?: string } | null> {
-  const res = await fetch(`${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(email)}`, {
-    method: 'GET',
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-    },
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() },
+    select: { id: true, email: true },
   });
-  if (!res.ok) return null;
-  const payload = (await res.json().catch(() => ({}))) as {
-    users?: Array<{ id?: string; email?: string }>;
-  };
-  if (!Array.isArray(payload.users)) return null;
-  const match = payload.users.find((u) => (u.email || '').toLowerCase() === email.toLowerCase());
-  return match?.id ? { id: match.id, email: match.email } : null;
+  return user ? { id: user.id, email: user.email ?? undefined } : null;
 }
 
 export async function createConfirmedAuthUser(
-  supabaseUrl: string,
-  serviceRoleKey: string,
   email: string,
   password: string,
   fullName: string,
 ): Promise<{ id: string } | { error: string }> {
-  const res = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
-    method: 'POST',
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: fullName },
-    }),
-  });
+  const normalized = email.toLowerCase();
+  const existing = await findAuthUserByEmail(normalized);
+  const hash = await bcrypt.hash(password, 12);
 
-  if (res.ok) {
-    const data = (await res.json()) as { id?: string };
-    if (data.id) return { id: data.id };
+  if (existing) {
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: { passwordHash: hash, fullName, updatedAt: new Date() },
+    });
+    return { id: existing.id };
   }
 
-  const existing = await findAuthUserByEmail(supabaseUrl, serviceRoleKey, email);
-  if (!existing) {
-    const errBody = (await res.json().catch(() => ({}))) as { msg?: string; message?: string };
-    return { error: errBody.msg ?? errBody.message ?? 'Could not create admin user' };
-  }
-
-  const updateRes = await fetch(
-    `${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(existing.id)}`,
-    {
-      method: 'PUT',
-      headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-        'Content-Type': 'application/json',
+  try {
+    const user = await prisma.user.create({
+      data: {
+        email: normalized,
+        passwordHash: hash,
+        fullName,
+        userRole: 'admin',
       },
-      body: JSON.stringify({
-        email_confirm: true,
-        password,
-        user_metadata: { full_name: fullName },
-      }),
-    },
-  );
-
-  if (!updateRes.ok) {
-    return { error: 'User exists but password could not be updated' };
+    });
+    return { id: user.id };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not create admin user' };
   }
-
-  return { id: existing.id };
 }
 
 export async function upsertPublicUser(
-  admin: SupabaseClient,
+  _db: DbServiceClient,
   userId: string,
   email: string,
   fullName: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await admin.from('users').upsert(
-    {
-      id: userId,
-      email,
-      full_name: fullName,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'id' },
-  );
-
-  if (!error) return { ok: true };
-
-  const msg = String(error.message ?? '').toLowerCase();
-  if (msg.includes('users') && (msg.includes('schema') || msg.includes('does not exist'))) {
-    return { ok: false, error: 'public.users table missing — run /api/setup/ensure-users first' };
+  try {
+    await prisma.user.upsert({
+      where: { id: userId },
+      create: {
+        id: userId,
+        email: email.toLowerCase(),
+        fullName,
+        userRole: 'student',
+      },
+      update: { email: email.toLowerCase(), fullName, updatedAt: new Date() },
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'User upsert failed' };
   }
-
-  return { ok: false, error: error.message };
 }
 
 export async function grantAdminRole(
-  admin: SupabaseClient,
+  _db: DbServiceClient,
   userId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await admin.from('admin_users').upsert(
-    { user_id: userId, role: 'admin' },
-    { onConflict: 'user_id' },
-  );
-
-  if (!error) return { ok: true };
-
-  const msg = String(error.message ?? '').toLowerCase();
-  if (msg.includes('admin_users') && (msg.includes('schema') || msg.includes('does not exist'))) {
-    return { ok: false, error: 'admin_users table missing — run /api/setup/ensure-admin first' };
+  try {
+    await prisma.adminUser.upsert({
+      where: { userId },
+      create: { userId, role: 'admin' },
+      update: { role: 'admin' },
+    });
+    await prisma.user.update({
+      where: { id: userId },
+      data: { userRole: 'admin' },
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Admin grant failed' };
   }
-
-  return { ok: false, error: error.message };
 }
 
-export async function isUserAdmin(
-  admin: SupabaseClient,
-  userId: string,
-): Promise<boolean> {
-  const { data, error } = await admin
-    .from('admin_users')
-    .select('id')
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (error) return false;
-  return !!data;
+export async function isUserAdmin(_db: DbServiceClient, userId: string): Promise<boolean> {
+  const row = await prisma.adminUser.findUnique({ where: { userId }, select: { id: true } });
+  return !!row;
 }

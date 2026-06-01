@@ -1,14 +1,14 @@
-# Fresh AWS RDS — automatic tables (no Supabase, no manual SQL)
+# Fresh AWS RDS — automatic tables (no AWS RDS, no manual SQL)
 
 > **Full step-by-step from zero:** see **[DEPLOY_RDS_FROM_SCRATCH.md](./DEPLOY_RDS_FROM_SCRATCH.md)** (recommended starting point).
 
-# Fresh AWS RDS — automatic tables (no Supabase, no manual SQL)
+# Fresh AWS RDS — automatic tables (no AWS RDS, no manual SQL)
 
 For a **new empty RDS** database you do **not** need:
 
-- Supabase migration scripts  
+- AWS RDS migration scripts  
 - Manual `CREATE TABLE` in SQL editors  
-- Copying old Supabase data  
+- Copying old AWS RDS data  
 
 Tables and columns are created **automatically** from `prisma/schema.prisma`.
 
@@ -68,7 +68,7 @@ PREPINDIA_ADMIN_PASSWORD=YourSecurePassword
 NEXT_PUBLIC_SIGNUP_DISABLED=true
 ```
 
-Do **not** set Supabase variables.
+Do **not** set AWS RDS variables.
 
 ### 3. Deploy
 

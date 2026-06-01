@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import {
   partitionEvaloraModulesForStudent,
   type EvaloraModuleScheduleRow,
@@ -9,7 +10,7 @@ export async function GET() {
   const auth = await requireAuth(['student']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ live: [], upcoming: [], department: null, year: null });
   }

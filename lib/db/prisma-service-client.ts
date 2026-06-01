@@ -1,5 +1,5 @@
 /**
- * Prisma-backed replacement for Supabase service-role client (RDS / Vercel trial).
+ * Prisma-backed RDS service client (RDS / Vercel trial).
  * Implements the subset of PostgREST-style chaining used across app/api and lib.
  */
 import postgres from 'postgres';
@@ -8,7 +8,7 @@ import { verifyPassword } from '@/lib/password';
 import bcrypt from 'bcryptjs';
 
 type Row = Record<string, unknown>;
-type SupabaseResult<T> = { data: T; error: { message: string; code?: string } | null };
+type DbResult<T> = { data: T; error: { message: string; code?: string } | null };
 type Filter =
   | { kind: 'eq'; col: string; val: unknown }
   | { kind: 'neq'; col: string; val: unknown }
@@ -44,6 +44,7 @@ const TABLE_NAMES = new Set([
   'department_group_members',
   'rmset_papers',
   'coding_submissions',
+  'blog_posts',
 ]);
 
 let sql: ReturnType<typeof postgres> | null = null;
@@ -229,7 +230,7 @@ class TableQuery {
     return { clause, values, next: i };
   }
 
-  private async runSelect(): Promise<SupabaseResult<Row[] | Row | null>> {
+  private async runSelect(): Promise<DbResult<Row[] | Row | null>> {
     const db = getSql();
     const { clause, values } = this.buildWhere(1);
     let sqlText = `SELECT ${this.headCount ? 'COUNT(*)::int AS count' : this.columns} FROM public.${quoteIdent(this.table)}${clause}`;
@@ -241,7 +242,7 @@ class TableQuery {
     try {
       const rows = await db.unsafe(sqlText, values);
       if (this.headCount) {
-        return { data: null, error: null, count: rows[0]?.count ?? 0 } as SupabaseResult<null> & {
+        return { data: null, error: null, count: rows[0]?.count ?? 0 } as DbResult<null> & {
           count?: number;
         };
       }
@@ -251,7 +252,7 @@ class TableQuery {
     }
   }
 
-  private async runInsert(): Promise<SupabaseResult<Row[]>> {
+  private async runInsert(): Promise<DbResult<Row[]>> {
     const db = getSql();
     const results: Row[] = [];
     try {
@@ -270,7 +271,7 @@ class TableQuery {
     }
   }
 
-  private async runUpdate(): Promise<SupabaseResult<Row[]>> {
+  private async runUpdate(): Promise<DbResult<Row[]>> {
     const db = getSql();
     const snake = payloadToSnake(this.updatePatch);
     const sets = Object.keys(snake);
@@ -288,7 +289,7 @@ class TableQuery {
     }
   }
 
-  private async runDelete(): Promise<SupabaseResult<Row[]>> {
+  private async runDelete(): Promise<DbResult<Row[]>> {
     const db = getSql();
     const { clause, values } = this.buildWhere(1);
     const sqlText = `DELETE FROM public.${quoteIdent(this.table)}${clause} RETURNING *`;
@@ -300,7 +301,7 @@ class TableQuery {
     }
   }
 
-  private async runUpsert(): Promise<SupabaseResult<Row[]>> {
+  private async runUpsert(): Promise<DbResult<Row[]>> {
     const db = getSql();
     try {
       const snake = payloadToSnake(this.insertRows[0] ?? {});
@@ -319,7 +320,7 @@ class TableQuery {
     }
   }
 
-  async maybeSingle(): Promise<SupabaseResult<Row | null>> {
+  async maybeSingle(): Promise<DbResult<Row | null>> {
     this.limitN = 1;
     const res = await this.execute();
     if (res.error) return { data: null, error: res.error };
@@ -327,18 +328,18 @@ class TableQuery {
     return { data: rows[0] ?? null, error: null };
   }
 
-  single(): Promise<SupabaseResult<Row>> {
-    return this.maybeSingle() as Promise<SupabaseResult<Row>>;
+  single(): Promise<DbResult<Row>> {
+    return this.maybeSingle() as Promise<DbResult<Row>>;
   }
 
-  then<TResult1 = SupabaseResult<Row[]>, TResult2 = never>(
-    onfulfilled?: ((value: SupabaseResult<Row[]>) => TResult1 | PromiseLike<TResult1>) | null,
+  then<TResult1 = DbResult<Row[]>, TResult2 = never>(
+    onfulfilled?: ((value: DbResult<Row[]>) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): Promise<TResult1 | TResult2> {
     return this.execute().then(onfulfilled, onrejected);
   }
 
-  async execute(): Promise<SupabaseResult<Row[]>> {
+  async execute(): Promise<DbResult<Row[]>> {
     if (this.op === 'select') {
       const res = await this.runSelect();
       if (res.error) return { data: null, error: res.error };
@@ -352,7 +353,7 @@ class TableQuery {
   }
 }
 
-async function authUserToSupabaseShape(user: {
+async function authUserToClientShape(user: {
   id: string;
   email: string;
   fullName: string | null;
@@ -385,7 +386,7 @@ export function createPrismaServiceClient() {
           const user = await prisma.user.findUnique({ where: { id } });
           if (!user) return { data: { user: null }, error: { message: 'User not found' } };
           return {
-            data: { user: await authUserToSupabaseShape(user) },
+            data: { user: await authUserToClientShape(user) },
             error: null,
           };
         },
@@ -399,7 +400,7 @@ export function createPrismaServiceClient() {
           });
           return {
             data: {
-              users: await Promise.all(users.map((u) => authUserToSupabaseShape(u))),
+              users: await Promise.all(users.map((u) => authUserToClientShape(u))),
             },
             error: null,
           };
@@ -422,7 +423,7 @@ export function createPrismaServiceClient() {
               rollNumber: (meta.roll_number as string) ?? null,
             },
           });
-          return { data: { user: await authUserToSupabaseShape(user) }, error: null };
+          return { data: { user: await authUserToClientShape(user) }, error: null };
         },
         async updateUserById(id: string, patch: { user_metadata?: Record<string, unknown> }) {
           const meta = patch.user_metadata ?? {};
@@ -435,7 +436,7 @@ export function createPrismaServiceClient() {
               rollNumber: meta.roll_number != null ? String(meta.roll_number) : undefined,
             },
           });
-          return { data: { user: await authUserToSupabaseShape(user) }, error: null };
+          return { data: { user: await authUserToClientShape(user) }, error: null };
         },
         async deleteUser(id: string) {
           await prisma.user.delete({ where: { id } }).catch(() => undefined);
@@ -451,7 +452,7 @@ export function createPrismaServiceClient() {
         if (!sub) return { data: { user: null }, error: null };
         const user = await prisma.user.findUnique({ where: { id: String(sub) } });
         if (!user) return { data: { user: null }, error: null };
-        return { data: { user: await authUserToSupabaseShape(user) }, error: null };
+        return { data: { user: await authUserToClientShape(user) }, error: null };
       },
       async signInWithPassword(opts: { email: string; password: string }) {
         const user = await prisma.user.findUnique({
@@ -462,7 +463,7 @@ export function createPrismaServiceClient() {
         }
         const ok = await verifyPassword(opts.password, user.passwordHash);
         if (!ok) return { data: { user: null }, error: { message: 'Invalid credentials' } };
-        return { data: { user: await authUserToSupabaseShape(user) }, error: null };
+        return { data: { user: await authUserToClientShape(user) }, error: null };
       },
       async signUp() {
         return { data: { user: null }, error: { message: 'Use /api/auth/signup on AWS stack' } };

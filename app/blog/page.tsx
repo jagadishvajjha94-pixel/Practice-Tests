@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { BlogPost } from '@/lib/types';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 export default function BlogPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -13,19 +12,10 @@ export default function BlogPage() {
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) {
-          setLoading(false);
-          return;
-        }
-        const { data, error } = await supabase
-          .from('blog_posts')
-          .select('*')
-          .not('published_at', 'is', null)
-          .order('published_at', { ascending: false });
-
-        if (error) throw error;
-        setPosts(data as BlogPost[]);
+        const res = await fetch('/api/blog', { cache: 'no-store' });
+        if (!res.ok) throw new Error('Failed to load blog posts');
+        const json = (await res.json()) as { posts?: BlogPost[] };
+        setPosts(json.posts ?? []);
       } catch (error) {
         console.error('Error fetching blog posts:', error);
       } finally {
@@ -33,7 +23,7 @@ export default function BlogPage() {
       }
     };
 
-    fetchPosts();
+    void fetchPosts();
   }, []);
 
   if (loading) {
@@ -46,7 +36,6 @@ export default function BlogPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-12">
         <div className="max-w-6xl mx-auto px-4">
           <h1 className="text-4xl font-bold mb-4">PrepIndia Blog</h1>
@@ -54,7 +43,6 @@ export default function BlogPage() {
         </div>
       </div>
 
-      {/* Blog Posts */}
       <div className="max-w-6xl mx-auto px-4 py-12">
         {posts.length === 0 ? (
           <div className="text-center py-12">

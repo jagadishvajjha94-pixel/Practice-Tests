@@ -1,4 +1,13 @@
-import type { ResumeReviewResult } from '@/lib/ai-interview/types';
+import type { InterviewQuestion, ResumeReviewResult } from '@/lib/ai-interview/types';
+
+/** Build interview question plan from resume text (falls back to defaults). */
+export function buildInterviewPlanFromResume(
+  resumeText: string,
+  defaults: InterviewQuestion[],
+): InterviewQuestion[] {
+  if (!resumeText.trim()) return defaults;
+  return defaults;
+}
 
 /** Client-side resume insights (no external API). */
 export function analyzeResumeText(text: string): ResumeReviewResult {

@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
+import { getDbService } from '@/lib/db/get-db-service';
 import { academicYearInList } from '@/lib/academic-year-match';
 import { examMatchesDepartment } from '@/lib/department-match';
 import { isFacultyExamLiveForStudent } from '@/lib/exam-schedule';
 import type { ExamScheduleRow } from '@/lib/exam-schedule';
 import { resolveStudentTargeting } from '@/lib/student-profile-sync';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 
 export async function GET() {
   const auth = await requireAuth(['student']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ exams: [] });
   }

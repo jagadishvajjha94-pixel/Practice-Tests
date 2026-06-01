@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const checks: Record<string, string> = {
     app: 'ok',
-    auth_mode: useAwsStack() ? 'prisma_jwt' : 'supabase_legacy',
+    auth_mode: 'prisma_jwt',
   };
 
   if (isAutoRdsSchemaEnabled()) {

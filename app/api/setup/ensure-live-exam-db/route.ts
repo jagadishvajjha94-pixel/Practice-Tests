@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ensureLiveExamDb, probeLiveExamDb } from '@/lib/ensure-live-exam-db';
-import { postgresUrlSetupHint, supabaseSqlEditorUrl } from '@/lib/postgres-url';
+import { postgresUrlSetupHint, rdsSqlEditorUrl } from '@/lib/postgres-url';
 
 /** Bootstrap tables for live leaderboard, attempts, and proctoring. */
 export async function POST() {
@@ -13,7 +13,7 @@ export async function POST() {
         error: result.error ?? 'Bootstrap failed',
         missingBefore: before.missing,
         hint: postgresUrlSetupHint(),
-        sqlEditorUrl: supabaseSqlEditorUrl(),
+        sqlEditorUrl: rdsSqlEditorUrl(),
       },
       { status: result.error?.includes('not configured') ? 400 : 500 },
     );

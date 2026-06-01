@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import { getLiveRmsetSchedule } from '@/lib/rmset/access';
 import type { StudentRmsetPaper } from '@/lib/rmset/types';
 
@@ -7,7 +8,7 @@ export async function GET() {
   const auth = await requireAuth(['student']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ paper: null, is_live: false });
   }
@@ -43,7 +44,7 @@ export async function GET() {
     return NextResponse.json({
       paper: null,
       is_live: false,
-      message: 'RMSET is not configured yet. Ask admin to run migration 027 in Supabase.',
+      message: 'RMSET is not configured yet. Ask admin to run migration 027 in AWS RDS.',
     });
   }
 

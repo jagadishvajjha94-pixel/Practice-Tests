@@ -1,6 +1,6 @@
 # Deploy PrepIndia from scratch — Vercel + AWS RDS
 
-Complete step-by-step plan. **No Supabase.** **No manual SQL.**  
+Complete step-by-step plan. **No AWS RDS.** **No manual SQL.**  
 Tables and columns are created automatically from the app.
 
 ---
@@ -28,7 +28,7 @@ Tables and columns are created automatically from the app.
 | **Vercel** | Hosts the website and all API routes |
 | **AWS RDS** | Stores users, tests, questions, attempts, schedules |
 | **Prisma** | Creates/updates tables from `prisma/schema.prisma` |
-| **NextAuth** | Login (no Supabase Auth) |
+| **NextAuth** | Login (no AWS RDS Auth) |
 
 **You do not deploy a separate backend server.** Vercel + RDS is enough for the student trial.
 
@@ -176,14 +176,14 @@ openssl rand -base64 32
 
 Paste the result into `AUTH_SECRET`.
 
-### Step 2.4 — Remove Supabase variables (if present)
+### Step 2.4 — Remove AWS RDS variables (if present)
 
 Delete from Vercel (if they exist):
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `POSTGRES_URL` (old Supabase postgres)
+- `POSTGRES_URL` (old AWS RDS postgres)
 
 ### Step 2.5 — Build settings (from `vercel.json`)
 
@@ -454,7 +454,7 @@ Most common: bad `DATABASE_URL` or RDS not reachable.
 
 ```
 □ Phase 1  RDS created, public, port 5432 open, connection URL saved
-□ Phase 2  Vercel env vars set, Supabase vars removed, build command set, deployed
+□ Phase 2  Vercel env vars set, AWS RDS vars removed, build command set, deployed
 □ Phase 3  /api/health healthy, /setup completed
 □ Phase 4  Admin login works, exam flow tested
 □ Phase 5  Students briefed, roster ready, trial URL shared

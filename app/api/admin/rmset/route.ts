@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import { publishRmsetPaper } from '@/lib/rmset/publish-paper';
 import type { RmsetPaperWithTopics, RmsetTopic } from '@/lib/rmset/types';
 import { buildSyllabusCatalogForGroup } from '@/lib/exam-builder/build-syllabus-catalog';
@@ -9,7 +10,7 @@ export async function GET() {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }
@@ -40,7 +41,7 @@ export async function GET() {
       return NextResponse.json({
         topics,
         papers: [],
-        warning: 'Run supabase/migrations/027_ensure_rmset_papers.sql in Supabase SQL editor, wait 30s, retry.',
+        warning: 'Run prisma db push or scripts/01-initial-schema.sql on RDS
       });
     }
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }

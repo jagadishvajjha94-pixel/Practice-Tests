@@ -4,7 +4,7 @@
 
 ### ✅ Phase 1: Foundation & Core Test Engine
 - **Database Schema**: All tables created with proper RLS policies
-- **Authentication**: Supabase Auth integration (email/password)
+- **Authentication**: AWS RDS Auth integration (email/password)
   - Sign up page with validation
   - Login page with error handling
   - Protected routes via auth checks
@@ -76,7 +76,7 @@
 - `/api/tests/[testId]` - Fetch specific test with all questions
 
 ### Libraries Created
-- **lib/supabase.ts** - Supabase client and user management utilities
+- **lib/rds.ts** - AWS RDS client and user management utilities
 - **lib/auth.ts** - Authentication functions (signUp, signIn, resetPassword, isAdmin)
 - **lib/types.ts** - TypeScript interfaces for all data models
 - **lib/constants.ts** - Routes, pricing plans, test categories, and constants
@@ -89,7 +89,7 @@
 - Reusable UI components from shadcn/ui
 
 ## Database Schema Highlights
-- **Users**: Extended Supabase auth with subscription info
+- **Users**: Extended AWS RDS auth with subscription info
 - **Tests & Questions**: Complete question bank with category organization
 - **Test Attempts & Answers**: Comprehensive attempt tracking with instant scoring
 - **Blog Posts**: Markdown-ready content with SEO fields

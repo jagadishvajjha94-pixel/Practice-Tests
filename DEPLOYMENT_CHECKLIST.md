@@ -73,15 +73,15 @@ git push origin main
 Add in Vercel Dashboard → Settings → Environment Variables:
 
 ```
-NEXT_PUBLIC_SUPABASE_URL = your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY = your_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_URL = your_rds_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY = your_rds_anon_key
 SUPABASE_SERVICE_ROLE_KEY = your_service_role_key
 POSTGRES_URL = your_postgres_url (optional)
 NEXT_PUBLIC_RAZORPAY_KEY_ID = your_razorpay_key (optional)
 ```
 
 **Important:** 
-- [ ] Copy exact values from Supabase dashboard
+- [ ] Copy exact values from AWS RDS dashboard
 - [ ] Don't include quotes or extra spaces
 - [ ] Use production keys, not test keys
 
@@ -123,7 +123,7 @@ Click "Start Setup" button.
 
 ### Monitoring
 - [ ] Set up error monitoring (Sentry recommended)
-- [ ] Monitor Supabase dashboard for queries
+- [ ] Monitor AWS RDS dashboard for queries
 - [ ] Check Vercel analytics
 - [ ] Monitor server response times
 
@@ -167,8 +167,8 @@ Example: prepindia.com → your-app.vercel.app
 
 ## Database Backups
 
-### Supabase Backups
-- [ ] Enable automated backups in Supabase
+### AWS RDS Backups
+- [ ] Enable automated backups in AWS RDS
 - [ ] Test restore procedure
 - [ ] Document backup policy
 
@@ -179,8 +179,8 @@ Example: prepindia.com → your-app.vercel.app
 - [ ] Monitor for errors
 - [ ] Set up alerts (Pro plan)
 
-### Supabase Logs
-- [ ] Go to Supabase Dashboard → Logs
+### AWS RDS Logs
+- [ ] Go to AWS RDS Dashboard → Logs
 - [ ] Monitor slow queries
 - [ ] Check API requests
 
@@ -265,13 +265,13 @@ Or in Vercel Dashboard:
 ### Database Connection Failed
 - [ ] Verify `NEXT_PUBLIC_SUPABASE_URL`
 - [ ] Verify `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- [ ] Check Supabase project is active
+- [ ] Check AWS RDS project is active
 - [ ] Verify IP whitelist (if configured)
 
 ### Setup Fails on Production
 - [ ] Check service role key is correct
 - [ ] Verify database has correct permissions
-- [ ] Check Supabase logs for errors
+- [ ] Check AWS RDS logs for errors
 - [ ] Try running via curl first
 
 ### Tests Not Showing
@@ -282,7 +282,7 @@ Or in Vercel Dashboard:
 
 ### Sign Up/Login Not Working
 - [ ] Check environment variables
-- [ ] Verify auth settings in Supabase
+- [ ] Verify auth settings in AWS RDS
 - [ ] Check browser console errors
 - [ ] Verify email is valid format
 

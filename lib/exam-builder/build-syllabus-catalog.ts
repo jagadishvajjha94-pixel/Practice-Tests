@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { syllabusUnitsForGroup, type SyllabusGroupKey } from '@/lib/exam-builder/syllabus';
 import { looksLikeUuid } from '@/lib/exam-builder/id-utils';
 
@@ -10,7 +10,7 @@ export type SyllabusCatalogTopic = {
 };
 
 async function countForSlug(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   slug: string,
   tagId?: string,
 ): Promise<number> {
@@ -33,7 +33,7 @@ async function countForSlug(
 
 /** Build syllabus picker options for a test type with live bank counts. */
 export async function buildSyllabusCatalogForGroup(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   group: SyllabusGroupKey,
 ): Promise<SyllabusCatalogTopic[]> {
   const units = syllabusUnitsForGroup(group);

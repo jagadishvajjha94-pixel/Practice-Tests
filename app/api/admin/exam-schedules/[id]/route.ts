@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import { examSchedulesMigrationHint } from '@/lib/db-migration-hints';
 import { goLiveExamScheduleSlotSequential } from '@/lib/exam-schedule-slots';
 import { goLiveElevateXSlot } from '@/lib/elevatex-admin';
@@ -13,7 +14,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if ('response' in auth) return auth.response;
 
   const { id } = await context.params;
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }
@@ -99,7 +100,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   if ('response' in auth) return auth.response;
 
   const { id } = await context.params;
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }

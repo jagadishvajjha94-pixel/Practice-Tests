@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { StatusAlert } from '@/components/ui/status-alert';
 import { Badge } from '@/components/ui/badge';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { McqUploadFormatGuide } from '@/components/exam-builder/mcq-upload-format-guide';
 
 const SAMPLE_CSV = `question_text,option_a,option_b,option_c,option_d,correct_answer,explanation
@@ -57,10 +56,10 @@ export function QuestionBankUploadPanel({
   }, [loadStatus]);
 
   const authHeaders = async (): Promise<Record<string, string>> => {
-    const supabase = getSupabaseBrowserClient();
+    const db = null;
     const {
       data: { session },
-    } = (await supabase?.auth.getSession()) ?? { data: { session: null } };
+    } = (await db?.auth.getSession()) ?? { data: { session: null } };
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
     return headers;
@@ -78,7 +77,7 @@ export function QuestionBankUploadPanel({
       if (!res.ok || !json.sql) throw new Error(json.error ?? 'Could not load bootstrap SQL');
       await navigator.clipboard.writeText(json.sql);
       setInfo(
-        `Bootstrap SQL copied (${json.sql.length.toLocaleString()} chars). Open Supabase SQL editor, paste, Run, wait 30s, then Load topic bank.${
+        `Bootstrap SQL copied (${json.sql.length.toLocaleString()} chars). Open AWS RDS SQL editor, paste, Run, wait 30s, then Load topic bank.${
           json.sqlEditorUrl ? '' : ''
         }`,
       );
@@ -171,10 +170,10 @@ export function QuestionBankUploadPanel({
 
     try {
       const headers: Record<string, string> = {};
-      const supabase = getSupabaseBrowserClient();
+      const db = null;
       const {
         data: { session },
-      } = (await supabase?.auth.getSession()) ?? { data: { session: null } };
+      } = (await db?.auth.getSession()) ?? { data: { session: null } };
       if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
 
       const form = new FormData();
@@ -241,10 +240,10 @@ export function QuestionBankUploadPanel({
                   rel="noopener noreferrer"
                   className="underline font-medium"
                 >
-                  Supabase SQL editor
+                  AWS RDS SQL editor
                 </a>
               ) : (
-                'Supabase SQL editor'
+                'AWS RDS SQL editor'
               )}
               , Run, wait 30s, then <strong>Load topic question bank</strong>.
               {bankStatus.postgresConfigured ? (

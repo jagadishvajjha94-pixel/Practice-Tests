@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '@/lib/supabase-server';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth } from '@/lib/server-auth';
 
 export async function POST(request: Request) {
   try {
-    const supabase = await getSupabaseServerClient();
-    if (!supabase) {
-      return NextResponse.json({ ok: true, stored: false });
-    }
+    const auth = await requireAuth(['student', 'admin'], request);
+    const userId = 'response' in auth ? null : auth.ctx.user.id;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const db = getDbService();
     const body = (await request.json()) as {
       testId?: string;
       attemptId?: string;
@@ -23,8 +19,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'type required' }, { status: 400 });
     }
 
-    const { error } = await supabase.from('exam_violations').insert({
-      user_id: user?.id ?? null,
+    const { error } = await db.from('exam_violations').insert({
+      user_id: userId,
       test_id: body.testId ?? null,
       attempt_id: body.attemptId ?? null,
       violation_type: body.type,

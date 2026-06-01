@@ -39,11 +39,11 @@ export async function POST(request: Request, context: RouteCtx) {
   }
 
   if (!useAwsStack()) {
-    const supabase = auth.ctx.supabase;
-    if (!supabase) {
+    const db = auth.ctx.db;
+    if (!db) {
       return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
     }
-    const { data: row, error: fetchErr } = await supabase
+    const { data: row, error: fetchErr } = await db
       .from('test_attempts')
       .select('id, user_id, status')
       .eq('id', attemptId)
@@ -59,7 +59,7 @@ export async function POST(request: Request, context: RouteCtx) {
       return NextResponse.json({ error: 'Attempt already submitted' }, { status: 409 });
     }
 
-    const { error } = await supabase
+    const { error } = await db
       .from('test_attempts')
       .update({
         answers: parsed.data.answers,

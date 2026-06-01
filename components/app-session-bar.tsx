@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { getBrowserAuthUser, getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { getBrowserAuthUser, signOutClient } from '@/lib/client-auth';
 import { isExamFocusRoute } from '@/lib/exam-routes';
 
 export default function AppSessionBar() {
@@ -18,24 +18,14 @@ export default function AppSessionBar() {
   }, []);
 
   useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) {
-      setEmail(null);
-      return undefined;
-    }
-
     const refresh = async () => {
       const user = await getBrowserAuthUser();
       setEmail(user?.email ?? null);
     };
 
     void refresh();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void refresh();
-    });
-    return () => subscription.unsubscribe();
+    const interval = window.setInterval(() => void refresh(), 30_000);
+    return () => window.clearInterval(interval);
   }, []);
 
   if (!mounted) return null;
@@ -46,13 +36,7 @@ export default function AppSessionBar() {
   if (pathname !== '/exams') return null;
 
   const handleLogout = async () => {
-    const supabase = getSupabaseBrowserClient();
-    const isStudent = email?.includes('@student.');
-    if (isStudent) {
-      await fetch('/api/auth/student/signout', { method: 'POST', credentials: 'include' });
-    } else if (supabase) {
-      await supabase.auth.signOut();
-    }
+    await signOutClient();
     setEmail(null);
     router.push('/');
     router.refresh();

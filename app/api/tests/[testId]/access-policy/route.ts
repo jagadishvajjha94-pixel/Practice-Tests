@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { getDbService } from '@/lib/server-auth';
 import { useAwsStack } from '@/lib/aws/stack';
 import { getLiveExamAccessPolicyPrisma } from '@/lib/db/exam-access-policy-prisma';
 import { isScheduleWindowOpen, type ExamScheduleRow } from '@/lib/exam-schedule';
@@ -17,7 +18,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json(policy);
   }
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin || !testId?.trim()) {
     return NextResponse.json({ loginRequired: false });
   }

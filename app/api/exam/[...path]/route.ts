@@ -1,32 +1,8 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { useAwsStack } from '@/lib/aws/stack';
-import {
-  getPublicSupabaseAnonKey,
-  getPublicSupabaseUrl,
-  isSupabasePublicEnvConfigured,
-} from '@/lib/supabase-public-env';
 import { isExamProxyPathAllowed } from '@/lib/exam-gateway-allowlist';
 
 const gatewayBase = () => (process.env.EXAM_GATEWAY_URL || 'http://127.0.0.1:4000').replace(/\/$/, '');
-
-async function getSupabaseUser(request: NextRequest) {
-  if (!isSupabasePublicEnvConfigured()) return null;
-  const supabase = createServerClient(getPublicSupabaseUrl()!, getPublicSupabaseAnonKey()!, {
-    cookies: {
-      get(name: string) {
-        return request.cookies.get(name)?.value;
-      },
-      set(_name: string, _value: string, _options: CookieOptions) {},
-      remove(_name: string, _options: CookieOptions) {},
-    },
-  });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
 
 function mergeUserIdIntoJsonBody(bodyText: string, userId: string): string {
   try {
@@ -53,14 +29,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ path: 
     return NextResponse.json({ error: 'Path not allowed on exam proxy' }, { status: 403 });
   }
 
-  let userId: string | null = null;
-  if (useAwsStack()) {
-    const session = await auth();
-    userId = session?.user?.id ?? null;
-  } else {
-    const user = await getSupabaseUser(request);
-    userId = user?.id ?? null;
-  }
+  const session = await auth();
+  const userId = session?.user?.id ?? null;
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -83,5 +53,5 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ path: 
 
   const outCt = upstream.headers.get('content-type') || 'application/json';
   const outBody = await upstream.text();
-  return new NextResponse(outBody, { status: upstream.status, headers: { 'content-type': outCt } });
+  return new NextResponse(outBody, { status: upstream.status, headers: { 'Content-Type': outCt } });
 }

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import { getDbService } from '@/lib/db/get-db-service';
 import { checkIsAdmin } from '@/lib/admin-verify';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
-import { fetchTestCategories } from '@/lib/supabase-catalog-queries';
+import { requireAuth, getDbService } from '@/lib/server-auth';
+import { fetchTestCategories } from '@/lib/db-catalog-queries';
 
 const FALLBACK_CATEGORIES = [
   { id: 'fallback-quantitative', name: 'Quantitative Ability', slug: 'quantitative', description: null, icon: '📊', order: 1 },
@@ -18,13 +19,13 @@ export async function GET() {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const service = getServiceSupabase();
+  const service = getDbService();
   if (!service) {
     return NextResponse.json({
       categories: FALLBACK_CATEGORIES,
       source: 'fallback',
       warning:
-        'Using built-in categories. Run supabase/migrations/006_test_categories_and_exam_core.sql in Supabase SQL Editor, then NOTIFY pgrst, \'reload schema\';',
+        'Using built-in categories. Run prisma db push or scripts/01-initial-schema.sql on RDS
     });
   }
 
@@ -41,7 +42,7 @@ export async function GET() {
       source: 'fallback',
       warning:
         error ??
-        'No categories in database. Run supabase/migrations/006_test_categories_and_exam_core.sql in Supabase SQL Editor.',
+        'No categories in database. Run prisma db push or scripts/01-initial-schema.sql on RDS
     });
   }
 

@@ -148,7 +148,7 @@ After deployment:
 | Login issues | Check email/password |
 | Admin panel error | Check if logged in |
 | Payment not working | Configure Razorpay keys |
-| Performance slow | Check Supabase dashboard |
+| Performance slow | Check AWS RDS dashboard |
 
 See **TROUBLESHOOTING.md** for detailed help.
 
@@ -277,8 +277,8 @@ If you get stuck:
 - [React Documentation](https://react.dev)
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
 
-### For Supabase
-- [Supabase Docs](https://supabase.com/docs)
+### For AWS RDS
+- [AWS RDS Docs](https://rds.com/docs)
 - [PostgreSQL Docs](https://www.postgresql.org/docs/)
 
 ### For Tailwind CSS

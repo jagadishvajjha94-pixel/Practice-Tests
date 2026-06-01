@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { linkTestQuestions } from '@/lib/exam-builder/link-test-questions';
 import {
   isElevateXBuilderTestType,
@@ -27,7 +27,7 @@ import { enrichSlotsWithPasswords } from '@/lib/roster-credentials-export';
 
 const DEPT_EXAMS_SLUG = 'department-exams';
 
-async function ensureDepartmentExamsCategory(admin: SupabaseClient): Promise<string> {
+async function ensureDepartmentExamsCategory(admin: DbServiceClient): Promise<string> {
   const { data: existing } = await admin
     .from('test_categories')
     .select('id')
@@ -54,7 +54,7 @@ async function ensureDepartmentExamsCategory(admin: SupabaseClient): Promise<str
 }
 
 async function finalizeSlotSchedulesOnPublish(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   request: Record<string, unknown>,
   requestId: string,
   testIdStr: string,
@@ -142,7 +142,7 @@ async function finalizeSlotSchedulesOnPublish(
 }
 
 export async function publishFacultyExamRequest(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   requestId: string,
   adminUserId: string,
 ): Promise<{ testId: string }> {

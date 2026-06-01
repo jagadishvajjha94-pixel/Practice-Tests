@@ -1,6 +1,6 @@
 # AWS Migration Guide — PrepIndia Exam Platform
 
-Production migration from Supabase to **EC2 + ALB + RDS PostgreSQL + S3 + CloudFront + NextAuth JWT + Prisma**.
+Production migration from AWS RDS to **EC2 + ALB + RDS PostgreSQL + S3 + CloudFront + NextAuth JWT + Prisma**.
 
 ## Architecture
 
@@ -74,15 +74,15 @@ pnpm db:push          # or pnpm db:migrate after first migration
 pnpm bootstrap:admin:aws
 ```
 
-### Phase 2 — Data migration from Supabase
+### Phase 2 — Data migration from AWS RDS
 
 ```bash
 # In .env.local add:
-# SUPABASE_DATABASE_URL=postgresql://postgres:...@db.xxx.supabase.co:5432/postgres
+# SUPABASE_DATABASE_URL=postgresql://postgres:...@db.xxx.rds.co:5432/postgres
 # MIGRATION_DEFAULT_PASSWORD=TempPass@2025  # students reset on first login
 
-node scripts/migrate-supabase-to-rds.mjs --dry-run
-node scripts/migrate-supabase-to-rds.mjs
+node scripts/migrate-rds-to-rds.mjs --dry-run
+node scripts/migrate-rds-to-rds.mjs
 ```
 
 ### Phase 3 — Enable AWS stack (canary)
@@ -92,7 +92,7 @@ On one EC2 instance:
 ```bash
 USE_AWS_STACK=true
 USE_PRISMA_AUTH=true
-# Remove or comment Supabase env vars
+# Remove or comment AWS RDS env vars
 pm2 restart all
 ```
 
@@ -102,13 +102,13 @@ Verify:
 - Student login + exam take + autosave
 - Proctor screenshot upload via S3 presigned URL
 
-### Phase 4 — Remove Supabase
+### Phase 4 — Remove AWS RDS
 
 After 48h stable production:
 
-1. Remove `@supabase/ssr`, `@supabase/supabase-js` from `package.json`
-2. Delete `lib/supabase*.ts`, `proxy.ts` Supabase branch
-3. Refactor remaining ~150 files still calling Supabase (see file list below)
+1. Remove `@rds/ssr`, `@rds/rds-js` from `package.json`
+2. Delete `lib/rds*.ts`, `proxy.ts` AWS RDS branch
+3. Refactor remaining ~150 files still calling AWS RDS (see file list below)
 
 ## EC2 setup
 
@@ -156,9 +156,9 @@ See [`.env.aws.example`](../../.env.aws.example).
 | Storage | `lib/aws/s3.ts`, `app/api/storage/proctor-upload` |
 | Exam | `hooks/use-exam-autosave.ts`, `app/api/exam/attempts/*/autosave` |
 | Ops | `deploy/*`, `load-tests/k6-exam-load.js`, `app/api/health` |
-| Scripts | `scripts/bootstrap-admin-aws.mjs`, `scripts/migrate-supabase-to-rds.mjs` |
+| Scripts | `scripts/bootstrap-admin-aws.mjs`, `scripts/migrate-rds-to-rds.mjs` |
 
-## Remaining Supabase refactor (incremental)
+## Remaining AWS RDS refactor (incremental)
 
 High-traffic paths to migrate next:
 
@@ -166,7 +166,7 @@ High-traffic paths to migrate next:
 - `lib/admin/*` — dashboard, reports
 - `lib/question-bank/seed-curated-bank.ts` — Prisma inserts
 - `hooks/use-exam-proctoring.ts` — S3 screenshot upload
-- `components/auth/use-student-sign-in.ts` — remove Supabase env check when AWS-only
+- `components/auth/use-student-sign-in.ts` — remove AWS RDS env check when AWS-only
 
 Pattern for API routes:
 
@@ -182,8 +182,8 @@ if (useAwsStack()) {
   const db = getPrismaDb();
   // prisma queries...
 } else {
-  const supabase = auth.ctx.supabase!;
-  // legacy supabase...
+  const rds = auth.ctx.rds!;
+  // legacy rds...
 }
 ```
 

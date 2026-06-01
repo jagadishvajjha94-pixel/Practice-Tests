@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 
 const POOL_TEST_TITLE = 'Question Bank Pool';
 const POOL_CATEGORY_SLUG = 'question-bank-pool';
@@ -10,7 +10,7 @@ let cachedPoolTestId: string | number | null = null;
  * (creates category + test if needed). Works with UUID or BIGINT ids.
  */
 export async function ensureQuestionBankPoolTestId(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
 ): Promise<string | number | null> {
   if (cachedPoolTestId != null) return cachedPoolTestId;
 
@@ -103,7 +103,7 @@ export async function ensureQuestionBankPoolTestId(
 
 /** Attach pool test_id to bank question rows (required on legacy schemas). */
 export async function attachPoolTestIdToRows(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   rows: Record<string, unknown>[],
 ): Promise<{ rows: Record<string, unknown>[]; poolTestId: string | number | null }> {
   const poolTestId = await ensureQuestionBankPoolTestId(admin);

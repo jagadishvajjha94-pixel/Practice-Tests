@@ -142,7 +142,7 @@ export default function SetupPage() {
       let json: {
         error?: string;
         password?: string;
-        supabaseProject?: string;
+        rdsProject?: string;
         scheduleLabel?: string;
         scheduleWarning?: string;
         legacyRemoved?: string[];
@@ -163,7 +163,7 @@ export default function SetupPage() {
       setElevatexPassword(json.password ?? ELEVATEX_SAMPLE_PASSWORD);
       setElevatexAccounts(json.accounts ?? defaultElevatexAccounts);
       const parts = [
-        `Created ${json.accounts?.length ?? 42} accounts on Supabase project "${json.supabaseProject}".`,
+        `Created ${json.accounts?.length ?? 42} accounts on AWS RDS project "${json.rdsProject}".`,
         json.scheduleLabel ? `Schedule: ${json.scheduleLabel}.` : null,
         json.scheduleWarning ? `Schedule note: ${json.scheduleWarning}` : null,
         json.legacyRemoved?.length
@@ -215,7 +215,7 @@ export default function SetupPage() {
         return;
       }
 
-      setStatus('Initializing database (legacy Supabase path)...');
+      setStatus('Initializing database (legacy AWS RDS path)...');
       const initResponse = await fetch('/api/setup/init-direct', { method: 'POST' });
       if (!initResponse.ok) {
         const errorData = await initResponse.json();
@@ -245,7 +245,7 @@ export default function SetupPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Database Setup</h1>
           <p className="text-gray-600">
-            AWS RDS: creates all tables/columns from Prisma, admin, and sample tests. Supabase: legacy
+            AWS RDS: creates all tables/columns from Prisma, admin, and sample tests. AWS RDS: legacy
             path below.
           </p>
             </div>
@@ -374,7 +374,7 @@ export default function SetupPage() {
                 </table>
               </div>
               <p className="text-xs text-gray-500">
-                Click &quot;Seed / refresh&quot; above to create these accounts in Supabase (required before
+                Click &quot;Seed / refresh&quot; above to create these accounts in AWS RDS (required before
                 login works on this deployment).
               </p>
             </div>

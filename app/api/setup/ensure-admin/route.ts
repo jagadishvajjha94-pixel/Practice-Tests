@@ -11,9 +11,9 @@ export async function POST() {
         {
           error: 'Database connection not configured',
           hint: postgresUrlSetupHint(),
-          sqlFile: 'supabase/migrations/004_users_and_admin_setup.sql',
+          sqlFile: 'db/migrations/004_users_and_admin_setup.sql',
           sqlEditorUrl:
-            'https://supabase.com/dashboard/project/lwkmfpcewpisezmcsext/sql/new',
+            'https://console.aws.amazon.com/rds/project/lwkmfpcewpisezmcsext/sql/new',
         },
         { status: 400 },
       );

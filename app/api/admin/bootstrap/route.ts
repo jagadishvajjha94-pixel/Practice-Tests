@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPublicSupabaseUrl, SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
+import { getDbService } from '@/lib/db/get-db-service';
 import {
   createConfirmedAuthUser,
-  getAdminSupabase,
+  getDbService,
   getServiceRoleKey,
   grantAdminRole,
   isUserAdmin,
@@ -27,16 +27,16 @@ function bootstrapAllowed(adminCount: number): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const supabaseUrl = getPublicSupabaseUrl();
+  const rdsUrl = getAuthUrl();
   const serviceRoleKey = getServiceRoleKey();
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    return NextResponse.json({ error: SUPABASE_PUBLIC_ENV_MESSAGE }, { status: 500 });
+  if (!rdsUrl || !serviceRoleKey) {
+    return NextResponse.json({ error: 'Configure AUTH_SECRET and DATABASE_URL' }, { status: 500 });
   }
 
-  const admin = getAdminSupabase();
+  const admin = getDbService();
   if (!admin) {
-    return NextResponse.json({ error: SUPABASE_PUBLIC_ENV_MESSAGE }, { status: 500 });
+    return NextResponse.json({ error: 'Configure AUTH_SECRET and DATABASE_URL' }, { status: 500 });
   }
 
   let body: BootstrapBody;
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Admin bootstrap is disabled in production after the first admin exists.',
-        hint: 'Add your user_id to admin_users in Supabase, or set ALLOW_ADMIN_BOOTSTRAP=true.',
+        hint: 'Add your user_id to admin_users in AWS RDS, or set ALLOW_ADMIN_BOOTSTRAP=true.',
       },
       { status: 403 },
     );
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
   await fetch(new URL('/api/setup/ensure-users', request.url), { method: 'POST' }).catch(() => null);
   await fetch(new URL('/api/setup/ensure-admin', request.url), { method: 'POST' }).catch(() => null);
 
-  const created = await createConfirmedAuthUser(supabaseUrl, serviceRoleKey, email, password, fullName);
+  const created = await createConfirmedAuthUser(rdsUrl, serviceRoleKey, email, password, fullName);
   if ('error' in created) {
     return NextResponse.json({ error: created.error }, { status: 400 });
   }
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: granted.error ?? 'Could not grant admin role',
-        hint: 'Run supabase/migrations/004_users_and_admin_setup.sql in Supabase SQL Editor, then NOTIFY pgrst, reload schema;',
+        hint: 'Run prisma db push or scripts/01-initial-schema.sql on RDS
         profileWarning,
       },
       { status: 500 },
@@ -115,9 +115,9 @@ export async function POST(request: NextRequest) {
 
 /** Promote the currently signed-in user (service role verifies session from cookie). */
 export async function PATCH(request: NextRequest) {
-  const admin = getAdminSupabase();
+  const admin = getDbService();
   if (!admin) {
-    return NextResponse.json({ error: SUPABASE_PUBLIC_ENV_MESSAGE }, { status: 500 });
+    return NextResponse.json({ error: 'Configure AUTH_SECRET and DATABASE_URL' }, { status: 500 });
   }
 
   const authHeader = request.headers.get('authorization');

@@ -3,7 +3,7 @@
  * Seed ~150 unique MCQs per syllabus topic into Supabase.
  * Usage: node scripts/seed-question-bank.mjs [--per-topic=150] [--keep-existing]
  */
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';

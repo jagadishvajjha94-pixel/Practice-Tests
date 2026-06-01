@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import {
   applyQuestionBankSchemaMigrations,
   isPostgresConfigured,
   readQuestionBankBootstrapSql,
   waitForQuestionsTable,
 } from '@/lib/question-bank/apply-bank-schema';
-import { supabaseSqlEditorUrl } from '@/lib/postgres-url';
+import { rdsSqlEditorUrl } from '@/lib/postgres-url';
 
 export const runtime = 'nodejs';
 
-/** Creates question bank tables (migrations 020 + 021) when POSTGRES_URL or SUPABASE_DB_PASSWORD is set. */
+/** Creates question bank tables (migrations 020 + 021) when POSTGRES_URL or DATABASE_PASSWORD is set. */
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(['admin'], request);
   if ('response' in auth) return auth.response;
@@ -31,9 +32,9 @@ export async function POST(request: NextRequest) {
         error: result.error,
         hint:
           result.error === 'Database connection not configured'
-            ? 'Add SUPABASE_DB_PASSWORD to .env.local for one-click setup, or use Copy bootstrap SQL below.'
+            ? 'Add DATABASE_PASSWORD to .env.local for one-click setup, or use Copy bootstrap SQL below.'
             : result.hint,
-        sqlEditorUrl: result.sqlEditorUrl ?? supabaseSqlEditorUrl(),
+        sqlEditorUrl: result.sqlEditorUrl ?? rdsSqlEditorUrl(),
         postgresConfigured: isPostgresConfigured(),
         bootstrapSql,
         applied: result.applied ?? [],
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   let tableReady = true;
   let waitError: string | null = null;
   if (admin) {

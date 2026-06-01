@@ -1,12 +1,12 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import type { Question } from '@/lib/types';
 import type { TestSectionConfig } from '@/lib/exam-v2/section-timer';
 
 export async function loadTestSections(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   testId: string,
 ): Promise<TestSectionConfig[]> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('test_sections')
     .select('*')
     .eq('test_id', testId)

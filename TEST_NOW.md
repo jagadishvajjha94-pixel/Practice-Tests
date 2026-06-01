@@ -2,7 +2,7 @@
 
 ## Step 1: Disable Email Verification (2 minutes)
 
-Go to Supabase Console: https://app.supabase.com
+Go to AWS RDS Console: https://app.rds.com
 1. Select your PrepIndia project
 2. Click **Authentication** (left sidebar)
 3. Click **Providers**
@@ -137,7 +137,7 @@ You'll see helpful debug logs:
 ## Common Issues & Quick Fixes
 
 ### "Database initialization failed"
-**Fix:** Make sure you have proper Supabase environment variables set
+**Fix:** Make sure you have proper AWS RDS environment variables set
 
 ### "Email not found"
 **Fix:** This means signup didn't create the user profile. Run `/api/manual-setup` endpoint
@@ -149,7 +149,7 @@ You'll see helpful debug logs:
 **Fix:** Hard refresh browser (Ctrl+Shift+R or Cmd+Shift+R)
 
 ### "Can't login after signup"
-**Fix:** Make sure "Confirm email" is turned OFF in Supabase Authentication settings
+**Fix:** Make sure "Confirm email" is turned OFF in AWS RDS Authentication settings
 
 ---
 
@@ -167,7 +167,7 @@ Once you've tested everything:
 ## Ready to Test?
 
 Start here:
-1. Disable email verification in Supabase (2 min)
+1. Disable email verification in AWS RDS (2 min)
 2. Run `/api/manual-setup` endpoint (1 min)
 3. Sign up at `/auth/signup` (2 min)
 4. Take a test and see results (5 min)

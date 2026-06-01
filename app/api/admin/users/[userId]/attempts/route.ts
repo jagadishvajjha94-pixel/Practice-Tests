@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import { loadAllAttemptsRollup } from '@/lib/admin/attempts-rollup';
 import { averageScorePercent } from '@/lib/format-score';
 import { resolveStoredPercent } from '@/lib/test-attempts';
@@ -21,7 +22,7 @@ export async function GET(
   if ('response' in auth) return auth.response;
 
   const { userId } = await params;
-  const admin = getServiceSupabase();
+  const admin = getDbService();
   if (!admin) {
     return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
   }

@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
+import { getDbService } from '@/lib/db/get-db-service';
 import { checkIsAdmin } from '@/lib/admin-verify';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 
 export async function GET(request: Request) {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
 
-  const service = getServiceSupabase();
+  const service = getDbService();
   if (!service) {
     return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
   }
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
   if (error) {
     const hint =
       error.message.includes('schema cache') || error.message.includes('test_categories')
-        ? ' Run supabase/migrations/006_test_categories_and_exam_core.sql in Supabase SQL Editor, then NOTIFY pgrst, \'reload schema\';'
+        ? ' Run prisma db push or scripts/01-initial-schema.sql on RDS
         : '';
     return NextResponse.json({ error: error.message + hint }, { status: 500 });
   }

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import {
   classifyExamAttempt,
   matchesAdminExamType,
@@ -78,7 +78,7 @@ export type TestReportsPayload = {
 };
 
 export async function loadTestReportsPayload(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   examType: AdminExamType,
   testIdFilter?: string,
   scheduleIdFilter?: string,

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import {
   detectQuestionsIdKind,
   isUuidTypeMismatchError,
@@ -7,7 +7,7 @@ import {
 
 /** Link published questions to a test via test_questions (handles legacy BIGINT question ids). */
 export async function linkTestQuestions(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   testId: string | number,
   insertedRows: Array<{ id: unknown }>,
 ): Promise<void> {

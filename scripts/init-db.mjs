@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 import postgres from 'postgres';
 
 const supabaseUrl = process.env.SUPABASE_URL;

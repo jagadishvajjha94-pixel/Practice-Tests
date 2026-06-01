@@ -6,8 +6,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/** Supabase/PostgREST errors often log as `{}` in DevTools unless message/code are read explicitly. */
-export function formatSupabaseError(err: unknown): string {
+/** PostgREST errors often log as `{}` in DevTools unless message/code are read explicitly. */
+export function formatDbError(err: unknown): string {
   if (err == null) return 'Unknown error'
   if (err instanceof Error) return err.message
   if (typeof err === 'object') {

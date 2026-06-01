@@ -1,19 +1,11 @@
 /**
- * Student profile API.
- *
- * Reads/writes go through the service role so they are not blocked by RLS, and
- * fall back to `auth.users.user_metadata` whenever `public.users` is missing.
- * This lets students edit and save their profile even if migration
- * `001_users_resume.sql` has not yet been run in Supabase.
+ * Student profile API — AWS RDS + Prisma + NextAuth.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { useAwsStack } from '@/lib/aws/stack';
-import { getAdminSupabase } from '@/lib/admin-access';
-import { getServiceSupabase } from '@/lib/server-auth';
-import { getSupabaseServerClient } from '@/lib/supabase-server';
+import { getDbService } from '@/lib/db/get-db-service';
 import type { UserProfile } from '@/lib/types';
-import type { SupabaseClient, User as AuthUser } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 
 export const runtime = 'nodejs';
 
@@ -33,6 +25,13 @@ type AllowedField = (typeof ALLOWED_FIELDS)[number];
 
 type ProfileUpdate = Partial<Record<AllowedField, string | number | null | undefined>>;
 
+type AuthUser = {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+  created_at?: string;
+};
+
 function isTableMissingError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; message?: string; status?: number };
@@ -48,48 +47,33 @@ function isTableMissingError(err: unknown): boolean {
   );
 }
 
-async function resolveAuthUser(
-  request: NextRequest,
-): Promise<{ user: AuthUser | null; admin: SupabaseClient | null }> {
-  const admin = (useAwsStack() ? getServiceSupabase() : getAdminSupabase()) as SupabaseClient | null;
+async function resolveAuthUser(): Promise<{ user: AuthUser | null; admin: DbServiceClient | null }> {
+  const admin = getDbService();
+  const session = await auth();
+  if (!session?.user?.id) return { user: null, admin };
 
-  if (useAwsStack()) {
-    const session = await auth();
-    if (session?.user?.id && admin) {
-      const { data } = await admin.auth.admin.getUserById(session.user.id);
-      const u = data?.user;
-      if (u) {
-        return {
-          user: {
-            id: u.id,
-            email: u.email,
-            user_metadata: u.user_metadata ?? {},
-            created_at: new Date().toISOString(),
-          } as AuthUser,
-          admin,
-        };
-      }
-    }
-    return { user: null, admin };
+  const { data } = await admin.auth.admin.getUserById(session.user.id);
+  const u = data?.user;
+  if (!u) {
+    return {
+      user: {
+        id: session.user.id,
+        email: session.user.email,
+        user_metadata: {},
+      },
+      admin,
+    };
   }
 
-  const bearer = request.headers
-    .get('authorization')
-    ?.replace(/^Bearer\s+/i, '')
-    .trim();
-
-  if (bearer && admin) {
-    const { data, error } = await admin.auth.getUser(bearer);
-    if (!error && data.user) return { user: data.user, admin };
-  }
-
-  const supabase = await getSupabaseServerClient();
-  if (supabase) {
-    const { data } = await supabase.auth.getUser();
-    if (data.user) return { user: data.user, admin: getAdminSupabase() };
-  }
-
-  return { user: null, admin };
+  return {
+    user: {
+      id: u.id,
+      email: u.email,
+      user_metadata: u.user_metadata ?? {},
+      created_at: new Date().toISOString(),
+    },
+    admin,
+  };
 }
 
 function profileFromMetadata(user: AuthUser): UserProfile {
@@ -130,7 +114,7 @@ function profileFromMetadata(user: AuthUser): UserProfile {
 }
 
 async function writeMetadataProfile(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   user: AuthUser,
   updates: ProfileUpdate,
 ): Promise<{ ok: boolean; error: string | null }> {
@@ -157,13 +141,13 @@ async function writeMetadataProfile(
   return { ok: true, error: null };
 }
 
-export async function GET(request: NextRequest) {
-  const { user, admin } = await resolveAuthUser(request);
+export async function GET(_request: NextRequest) {
+  const { user, admin } = await resolveAuthUser();
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
   if (!admin) {
-    return NextResponse.json({ error: 'Service role key missing' }, { status: 500 });
+    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
   }
 
   const { data: row, error } = await admin
@@ -184,7 +168,6 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Table exists but no row yet (PGRST116 / null). Create it.
   if (!row) {
     const payload = {
       id: user.id,
@@ -224,12 +207,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { user, admin } = await resolveAuthUser(request);
+  const { user, admin } = await resolveAuthUser();
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
   if (!admin) {
-    return NextResponse.json({ error: 'Service role key missing' }, { status: 500 });
+    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
   }
 
   let body: Record<string, unknown>;
@@ -253,11 +236,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Always backup to user_metadata so the profile survives even if the table
-  // is dropped or RLS blocks the row.
   const metaResult = await writeMetadataProfile(admin, user, updates);
 
-  // Try the canonical `public.users` table next.
   const upsertPayload: Record<string, unknown> = {
     id: user.id,
     email: user.email ?? '',
@@ -289,8 +269,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       source: 'user_metadata',
       tableMissing: true,
-      note:
-        'Saved to your auth account. Run supabase/migrations/001_users_resume.sql for full features.',
+      note: 'Saved to your auth account. Run prisma db push to create public.users on RDS.',
     });
   }
 

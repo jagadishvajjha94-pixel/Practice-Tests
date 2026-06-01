@@ -7,9 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { UserProfile } from '@/lib/types';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
-import { formatSupabaseError } from '@/lib/utils';
+import { getClientUser } from '@/lib/client-auth';
+import { formatDbError } from '@/lib/utils';
 import { StatusAlert } from '@/components/ui/status-alert';
 import {
   fetchProfileViaApi,
@@ -39,21 +38,14 @@ export default function ProfilePage() {
     setLoading(true);
     setFetchError(null);
     try {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        setEnvMissing(true);
-        return;
-      }
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
+      const authUser = await getClientUser();
 
       if (!authUser) {
         router.push('/auth/login?redirect=/profile');
         return;
       }
 
-      const { profile, error } = await fetchProfileViaApi(supabase);
+      const { profile, error } = await fetchProfileViaApi();
 
       if (error && !profile) {
         setFetchError(error);
@@ -80,7 +72,7 @@ export default function ProfilePage() {
         resume_text: resolved.resume_text || '',
       });
     } catch (error) {
-      setFetchError(formatSupabaseError(error));
+      setFetchError(formatDbError(error));
     } finally {
       setLoading(false);
     }
@@ -106,13 +98,8 @@ export default function ProfilePage() {
     setMessage(null);
 
     try {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        setMessage({ type: 'error', text: SUPABASE_PUBLIC_ENV_MESSAGE });
-        return;
-      }
       const resume_text = formData.resume_text.trim().slice(0, RESUME_MAX_CHARS) || null;
-      const { ok, error } = await saveProfileViaApi(supabase, {
+      const { ok, error } = await saveProfileViaApi({
         full_name: formData.full_name.trim(),
         phone: formData.phone.trim() || null,
         college: formData.college.trim() || null,
@@ -136,7 +123,7 @@ export default function ProfilePage() {
     } catch (error) {
       setMessage({
         type: 'error',
-        text: formatSupabaseError(error),
+        text: formatDbError(error),
       });
     } finally {
       setSaving(false);
@@ -151,24 +138,18 @@ export default function ProfilePage() {
     setMessage(null);
 
     try {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        setMessage({ type: 'error', text: SUPABASE_PUBLIC_ENV_MESSAGE });
-        return;
-      }
-
       const ext = file.name.split('.').pop()?.toLowerCase() ?? 'dat';
       let resumeText = formData.resume_text;
       if (ext === 'txt' || ext === 'md' || file.type.startsWith('text/')) {
         resumeText = (await file.text()).slice(0, RESUME_MAX_CHARS);
       }
 
-      const upload = await uploadResumeViaApi(supabase, file);
+      const upload = await uploadResumeViaApi( file);
 
       const nextResumeText = resumeText.trim() || formData.resume_text.trim() || null;
       const nowIso = new Date().toISOString();
 
-      const save = await saveProfileViaApi(supabase, {
+      const save = await saveProfileViaApi( {
         resume_file_name: upload.fileName ?? file.name,
         resume_storage_path: upload.storagePath,
         resume_text: nextResumeText,
@@ -207,7 +188,7 @@ export default function ProfilePage() {
       }
       setMessage({ type: 'success', text: successText });
     } catch (error) {
-      setMessage({ type: 'error', text: formatSupabaseError(error) });
+      setMessage({ type: 'error', text: formatDbError(error) });
     } finally {
       setUploadingResume(false);
       e.target.value = '';
@@ -225,7 +206,7 @@ export default function ProfilePage() {
   if (envMissing) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
-        <p className="text-muted-foreground text-center max-w-md">{SUPABASE_PUBLIC_ENV_MESSAGE}</p>
+        <p className="text-muted-foreground text-center max-w-md">{'Configure AUTH_SECRET and DATABASE_URL'}</p>
       </div>
     );
   }

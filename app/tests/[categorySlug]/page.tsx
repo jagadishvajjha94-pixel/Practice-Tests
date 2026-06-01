@@ -1,18 +1,17 @@
 'use client';
 
-import type { Session } from '@supabase/supabase-js';
 import { use, useEffect, useLayoutEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Test, TestCategory } from '@/lib/types';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import {
-  isMissingPublicSupabaseConfigError,
-  isSupabasePublicEnvConfigured,
-} from '@/lib/supabase-public-env';
+  getClientUser,
+  isClientAuthConfigured,
+  isMissingPublicDbConfigError,
+} from '@/lib/client-auth';
 import { adaptTestRow } from '@/lib/practice-mappers';
-import { formatSupabaseError } from '@/lib/utils';
+import { formatDbError } from '@/lib/utils';
 import {
   getFallbackCategoryBySlug,
   getFallbackTestsByCategorySlug,
@@ -40,51 +39,20 @@ export default function CategoryTestsPage({
   const [listAccess, setListAccess] = useState<ListAccessState>('pending');
 
   useLayoutEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) {
-      setListAccess('full');
-    }
+    void getClientUser().then((user) => {
+      setListAccess(user ? 'full' : 'guest');
+    });
   }, []);
 
   useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) return undefined;
-
-    const applySession = (session: Session | null) => {
-      setListAccess(session?.user ? 'full' : 'guest');
-    };
-
     const refreshAccess = async () => {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData.session?.user) {
-          setListAccess('full');
-          return;
-        }
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
-        if (error) {
-          setListAccess('guest');
-          return;
-        }
-        setListAccess(user ? 'full' : 'guest');
-      } catch {
-        setListAccess('guest');
-      }
+      const user = await getClientUser();
+      setListAccess(user ? 'full' : 'guest');
     };
 
     void refreshAccess();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySession(session);
-    });
-    const onFocus = () => {
-      void refreshAccess();
-    };
+    const interval = window.setInterval(() => void refreshAccess(), 30_000);
+    const onFocus = () => void refreshAccess();
     window.addEventListener('focus', onFocus);
     const onVisibility = () => {
       if (document.visibilityState === 'visible') void refreshAccess();
@@ -92,7 +60,7 @@ export default function CategoryTestsPage({
     document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
-      subscription.unsubscribe();
+      window.clearInterval(interval);
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };
@@ -108,74 +76,27 @@ export default function CategoryTestsPage({
       }
       setLoadError(null);
       try {
-        if (!isSupabasePublicEnvConfigured()) {
+        if (!isClientAuthConfigured()) {
           const fallbackCategory = getFallbackCategoryBySlug(categorySlug);
           setCategory(fallbackCategory);
           setTests(getFallbackTestsByCategorySlug(categorySlug));
           return;
         }
 
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) {
+        const catRes = await fetch(`/api/tests?categoryId=${encodeURIComponent(categorySlug)}`, {
+          cache: 'no-store',
+        });
+        if (!catRes.ok) {
           const fallbackCategory = getFallbackCategoryBySlug(categorySlug);
           setCategory(fallbackCategory);
           setTests(getFallbackTestsByCategorySlug(categorySlug));
           return;
         }
-        const { data: categoryData, error: categoryError } = await supabase
-          .from('test_categories')
-          .select('*')
-          .eq('slug', categorySlug)
-          .single();
-
-        if (categoryError) {
-          if (isSchemaMissingError(categoryError)) {
-            const fallbackCategory = getFallbackCategoryBySlug(categorySlug);
-            setCategory(fallbackCategory);
-            setTests(getFallbackTestsByCategorySlug(categorySlug));
-            return;
-          }
-          if (categoryError.code === 'PGRST116') {
-            setCategory(null);
-            setTests([]);
-          } else {
-            const msg = formatSupabaseError(categoryError);
-            console.error(
-              'Error fetching category:',
-              msg,
-              categoryError
-            );
-            setLoadError(msg);
-            setCategory(null);
-            setTests([]);
-          }
-          return;
-        }
-
-        setCategory(categoryData);
-
-        const { data: testsData, error: testsError } = await supabase
-          .from('tests')
-          .select('*')
-          .eq('category_id', categoryData.id)
-          .order('created_at', { ascending: false });
-
-        if (testsError) {
-          if (isSchemaMissingError(testsError)) {
-            setTests(getFallbackTestsByCategorySlug(categorySlug));
-            return;
-          }
-          const msg = formatSupabaseError(testsError);
-          console.error('Error fetching tests for category:', msg, testsError);
-          setLoadError(msg);
-          setTests([]);
-          return;
-        }
-
+        const testsData = (await catRes.json()) as Record<string, unknown>[];
+        const fallbackCategory = getFallbackCategoryBySlug(categorySlug);
+        setCategory(fallbackCategory);
         setTests(
-          (testsData || []).map((row) =>
-            adaptTestRow(row as unknown as Record<string, unknown>)
-          )
+          (testsData || []).map((row) => adaptTestRow(row as Record<string, unknown>)),
         );
       } catch (error) {
         if (isSchemaMissingError(error)) {
@@ -184,13 +105,13 @@ export default function CategoryTestsPage({
           setTests(getFallbackTestsByCategorySlug(categorySlug));
           return;
         }
-        if (isMissingPublicSupabaseConfigError(error)) {
+        if (isMissingPublicDbConfigError(error)) {
           const fallbackCategory = getFallbackCategoryBySlug(categorySlug);
           setCategory(fallbackCategory);
           setTests(getFallbackTestsByCategorySlug(categorySlug));
           return;
         }
-        const msg = formatSupabaseError(error);
+        const msg = formatDbError(error);
         console.error('Error fetching category tests:', msg, error);
         setLoadError(msg);
         setCategory(null);

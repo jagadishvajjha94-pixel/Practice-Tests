@@ -83,7 +83,7 @@ export async function requirePrismaAuth(
   };
 }
 
-/** Admin/student sign-in for migration period (replaces Supabase signInWithPassword). */
+/** Admin/student sign-in for migration period (replaces AWS RDS signInWithPassword). */
 export async function signInWithCredentials(
   email: string,
   password: string,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, getServiceSupabase } from '@/lib/server-auth';
+import { getDbService } from '@/lib/db/get-db-service';
+import { requireAuth, getDbService } from '@/lib/server-auth';
 import { findCompletedElevateXAttempt } from '@/lib/test-attempts';
 
 export const dynamic = 'force-dynamic';
@@ -8,7 +9,7 @@ export async function GET(request: Request) {
   const auth = await requireAuth(undefined, request);
   if ('response' in auth) return auth.response;
 
-  const service = getServiceSupabase();
+  const service = getDbService();
   if (!service) {
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
   }

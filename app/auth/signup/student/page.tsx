@@ -29,7 +29,7 @@ import {
 } from '@/lib/college-auth';
 import { collegeEmailDomainHint } from '@/lib/college-signup';
 import { useCollegeSignUp } from '@/components/auth/use-college-sign-up';
-import { isSupabasePublicEnvConfigured, SUPABASE_PUBLIC_ENV_MESSAGE } from '@/lib/supabase-public-env';
+import { isClientAuthConfigured } from '@/lib/client-auth';
 
 function StudentSignupForm() {
   const searchParams = useSearchParams();
@@ -63,8 +63,8 @@ function StudentSignupForm() {
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
 
-    if (!isSupabasePublicEnvConfigured()) {
-      setError(SUPABASE_PUBLIC_ENV_MESSAGE);
+    if (!isClientAuthConfigured()) {
+      setError('Configure AUTH_SECRET and DATABASE_URL');
       return;
     }
 

@@ -65,7 +65,7 @@ if (migrateSupabase) {
     process.exit(1);
   }
   console.log('▶ Full data migration from Supabase → RDS...');
-  execSync('node scripts/migrate-supabase-to-rds.mjs', { cwd: root, stdio: 'inherit' });
+  execSync('node scripts/migrate-legacy-to-rds.mjs', { cwd: root, stdio: 'inherit' });
 } else {
   console.log('ℹ️  Skipping data migration. To copy Supabase data:');
   console.log('   node scripts/setup-rds-vercel-trial.mjs --migrate-supabase');

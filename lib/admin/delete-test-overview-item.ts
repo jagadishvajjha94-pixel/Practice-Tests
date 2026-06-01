@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { deleteExamScheduleById, deleteFacultyExamRequest } from '@/lib/delete-faculty-exam';
 
 export type ParsedOverviewItemId =
@@ -20,7 +20,7 @@ export function parseOverviewItemId(overviewId: string): ParsedOverviewItemId | 
 }
 
 export async function deleteAdminTestOverviewItem(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   overviewId: string,
 ): Promise<{ ok: true; message: string } | { error: string }> {
   const parsed = parseOverviewItemId(overviewId);

@@ -1,6 +1,7 @@
-import type { PostgrestError } from '@supabase/supabase-js';
+import type { PostgrestError } from '@/lib/db/get-db-service';
+import { getDbService } from '@/lib/db/get-db-service';
 import postgres from 'postgres';
-import { getAdminSupabase } from '@/lib/admin-access';
+import { getDbService } from '@/lib/admin-access';
 import { resolvePostgresUrl } from '@/lib/postgres-url';
 
 export function isExamViolationsSchemaError(
@@ -109,7 +110,7 @@ export async function ensureExamViolationsTable(): Promise<{
 }
 
 export async function ensureExamViolationsTableIfPossible(): Promise<boolean> {
-  const admin = getAdminSupabase();
+  const admin = getDbService();
   if (!admin) return false;
 
   const probe = await admin.from('exam_violations').select('id').limit(1);

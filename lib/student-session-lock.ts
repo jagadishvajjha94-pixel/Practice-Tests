@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { isStudentSessionLockSchemaError } from '@/lib/ensure-student-session-lock';
 
 /** No heartbeat for this long → session lock is released automatically. */
@@ -38,7 +38,7 @@ function staleCutoffIso(now = Date.now()): string {
 }
 
 export async function purgeStaleStudentSessions(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   now = Date.now(),
 ): Promise<void> {
   const { error } = await admin
@@ -49,7 +49,7 @@ export async function purgeStaleStudentSessions(
 }
 
 export async function getActiveStudentSession(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   rollNumber: string,
   now = Date.now(),
 ): Promise<StudentSessionRow | null> {
@@ -76,14 +76,14 @@ export type ClaimStudentSessionResult =
   | { ok: true; lockActive: boolean }
   | { ok: false; code: 'already_logged_in'; message: string };
 
-async function sessionLockTableReady(admin: SupabaseClient): Promise<boolean> {
+async function sessionLockTableReady(admin: DbServiceClient): Promise<boolean> {
   const { error } = await admin.from('student_active_sessions').select('roll_number').limit(1);
   if (!error) return true;
   return !isStudentSessionLockSchemaError(error);
 }
 
 export async function claimStudentSession(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   rollNumber: string,
   userId: string,
   sessionId: string,
@@ -142,7 +142,7 @@ export async function claimStudentSession(
 }
 
 export async function touchStudentSession(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   rollNumber: string,
   sessionId: string,
 ): Promise<void> {
@@ -159,7 +159,7 @@ export async function touchStudentSession(
 }
 
 export async function releaseStudentSession(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   rollNumber: string,
   sessionId?: string | null,
 ): Promise<void> {

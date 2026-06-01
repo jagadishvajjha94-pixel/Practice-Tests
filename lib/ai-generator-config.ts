@@ -7,7 +7,7 @@ export type CategoryOption = {
   icon?: string | null;
 };
 
-/** Always available in the UI when Supabase categories cannot be loaded. */
+/** Always available in the UI when AWS RDS categories cannot be loaded. */
 export const DEFAULT_CATEGORY_OPTIONS: CategoryOption[] = [
   { id: 'slug:quantitative', name: 'Quantitative Ability', slug: 'quantitative', icon: '📊' },
   { id: 'slug:verbal', name: 'Verbal Ability', slug: 'verbal', icon: '📖' },

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import type { Question, Test, TestAttempt } from '@/lib/types';
 import { adaptQuestionRow, adaptTestRow, extractJoinedQuestion } from '@/lib/practice-mappers';
 import { getDashboardFeedEntries, type DashboardFeedEntry } from '@/lib/dashboard-feed';
@@ -129,11 +129,11 @@ function findRichLocalPayload(userId: string, attemptId: string): LocalTestAttem
 }
 
 async function loadFromTestAttemptsTable(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   userId: string,
   attemptId: string,
 ): Promise<LoadedAttemptResult | null> {
-  const { data: attempt, error } = await supabase
+  const { data: attempt, error } = await db
     .from('test_attempts')
     .select('*')
     .eq('id', attemptId)
@@ -148,7 +148,7 @@ async function loadFromTestAttemptsTable(
   let questions: Question[] = [];
 
   if (row.test_id) {
-    const { data: testRow } = await supabase
+    const { data: testRow } = await db
       .from('tests')
       .select('*')
       .eq('id', row.test_id)
@@ -157,7 +157,7 @@ async function loadFromTestAttemptsTable(
     if (testRow) {
       test = adaptTestRow(testRow as Record<string, unknown>);
 
-      const { data: testQuestions } = await supabase
+      const { data: testQuestions } = await db
         .from('test_questions')
         .select('question:questions(*)')
         .eq('test_id', test.id)
@@ -169,7 +169,7 @@ async function loadFromTestAttemptsTable(
         .map(adaptQuestionRow);
 
       if (questions.length === 0) {
-        const { data: directQs } = await supabase
+        const { data: directQs } = await db
           .from('questions')
           .select('*')
           .eq('test_id', row.test_id)
@@ -190,7 +190,7 @@ async function loadFromTestAttemptsTable(
       ? { ...(row.answers as Record<string, unknown>) }
       : {};
 
-  const { data: qaRows } = await supabase
+  const { data: qaRows } = await db
     .from('question_answers')
     .select('question_id,user_answer,marked_for_review')
     .eq('attempt_id', attemptNorm.id);
@@ -198,7 +198,7 @@ async function loadFromTestAttemptsTable(
     mergedAnswers = mergeRowsIntoAnswers(mergedAnswers, qaRows as AnswerRow[]);
   }
 
-  const { data: taRows } = await supabase
+  const { data: taRows } = await db
     .from('test_answers')
     .select('question_id,user_answer')
     .eq('attempt_id', attemptNorm.id);
@@ -243,7 +243,7 @@ function pickRicher(
 }
 
 export async function loadAttemptResult(
-  supabase: SupabaseClient,
+  db: DbServiceClient,
   attemptId: string,
   userId?: string,
 ): Promise<LoadedAttemptResult | null> {
@@ -257,7 +257,7 @@ export async function loadAttemptResult(
   }
 
   if (userId) {
-    const fromDb = await loadFromTestAttemptsTable(supabase, userId, attemptId);
+    const fromDb = await loadFromTestAttemptsTable(db, userId, attemptId);
     best = pickRicher(best, fromDb);
 
     for (const entry of getDashboardFeedEntries(userId)) {
@@ -267,7 +267,7 @@ export async function loadAttemptResult(
       }
     }
 
-    const stats = await fetchStudentDashboardStats(supabase, userId);
+    const stats = await fetchStudentDashboardStats(db, userId);
     const fromStats = stats.find((row) => String(row.id) === String(attemptId));
     if (fromStats) {
       best = pickRicher(best, {

@@ -11,7 +11,6 @@ import { createProctorSessionId } from '@/lib/exam-v2/proctoring';
 import { isElevateXAttemptTitle, isElevateXTestId } from '@/lib/elevatex';
 import { clearLocalElevateXAttemptsForUser } from '@/lib/local-test-attempts';
 import { getElevateXTestId } from '@/lib/placement/elevatex-attempt';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { COLLEGE } from '@/lib/college-brand';
 import {
   PLACEMENT_EXAM_NAME,
@@ -54,13 +53,13 @@ export default function PlacementAssessmentStartPage() {
   const totalMinutes = Math.round(PLACEMENT_TOTAL_SEC / 60);
 
   const loadStudent = useCallback(async () => {
-    const supabase = createSupabaseBrowserClient();
-    if (!supabase) {
+    const db = null;
+    if (!db) {
       router.replace('/auth/login/student?redirect=/placement/assessment');
       return;
     }
 
-    const { data: authData } = await supabase.auth.getUser();
+    const { data: authData } = await db.auth.getUser();
     if (!authData.user) {
       router.replace('/auth/login/student?redirect=/placement/assessment');
       return;

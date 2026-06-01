@@ -1,25 +1,25 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/db/get-db-service';
 import { NextResponse } from 'next/server';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const isSupabaseConfigured =
-  !!supabaseUrl &&
+const rdsUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+const serviceRoleKey = process.env.AUTH_SECRET || '';
+const isDatabaseConfigured =
+  !!rdsUrl &&
   !!serviceRoleKey &&
-  supabaseUrl.includes('.supabase.co') &&
-  !supabaseUrl.includes('YOUR_') &&
+  rdsUrl.includes('.db.co') &&
+  !rdsUrl.includes('YOUR_') &&
   !serviceRoleKey.includes('YOUR_');
 
 export async function POST(request: Request) {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isDatabaseConfigured) {
       return NextResponse.json(
-        { error: 'Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local' },
+        { error: 'Set NEXT_PUBLIC_APP_URL and AUTH_SECRET in .env.local' },
         { status: 500 }
       );
     }
 
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    const db = createClient(rdsUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     });
 
     // Create tables
-    const { error: createTablesError } = await supabase.rpc('exec', {
+    const { error: createTablesError } = await db.rpc('exec', {
       sql: `
         -- Users table
         CREATE TABLE IF NOT EXISTS users (
@@ -184,9 +184,9 @@ export async function POST(request: Request) {
     });
 
     if (createTablesError) {
-      // RPC might not be available on some Supabase projects
+      // RPC might not be available on some AWS RDS projects
       try {
-        await supabase.rpc('exec', { sql: 'SELECT 1' });
+        await db.rpc('exec', { sql: 'SELECT 1' });
       } catch {
         // ignore — tables may still exist from dashboard SQL
       }

@@ -32,8 +32,7 @@ import {
   saveSession,
 } from '@/lib/placement/session';
 import { recordDashboardAttempt } from '@/lib/record-dashboard-attempt';
-import { getSupabaseAuthHeaders } from '@/lib/supabase-auth-headers';
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { fetchWithSession } from '@/lib/client-auth';
 import type {
   PlacementMcqAnswerMap,
   PlacementSectionId,
@@ -198,12 +197,12 @@ export default function PlacementTakePage() {
       const current = sessionRef.current;
       if (!current || current.submitted) return;
 
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) return;
+      const db = null;
+      if (!db) return;
 
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await db.auth.getUser();
       if (!user) return;
 
       let scorePercent = 0;
@@ -219,7 +218,7 @@ export default function PlacementTakePage() {
       const violations = activeProctorSession ? getExamViolations(activeProctorSession) : [];
 
       try {
-        const headers = await getSupabaseAuthHeaders(supabase);
+        const headers = await fetchWithSession;
         const res = await fetch('/api/student/test-attempts/progress', {
           method: 'POST',
           credentials: 'include',

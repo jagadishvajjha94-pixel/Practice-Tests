@@ -6,8 +6,8 @@
  *   DATABASE_URL — RDS connection string
  *
  * Usage:
- *   node scripts/migrate-supabase-to-rds.mjs --dry-run
- *   node scripts/migrate-supabase-to-rds.mjs
+ *   node scripts/migrate-legacy-to-rds.mjs --dry-run
+ *   node scripts/migrate-legacy-to-rds.mjs
  */
 import fs from 'fs';
 import path from 'path';

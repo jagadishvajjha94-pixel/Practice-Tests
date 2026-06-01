@@ -7,7 +7,7 @@ import { CollegeLogo } from '@/components/auth/college-logo';
 import { COLLEGE } from '@/lib/college-brand';
 import { isExamFocusRoute } from '@/lib/exam-routes';
 import { defaultRedirectForRole, type AppRole } from '@/lib/roles';
-import { createSupabaseBrowserClient, getBrowserAuthUser } from '@/lib/supabase-browser';
+import { getBrowserAuthUser } from '@/lib/client-auth';
 
 function homeHrefForRole(role: AppRole | null): string {
   if (!role || role === 'guest') return '/';
@@ -20,32 +20,20 @@ export default function CollegeSiteHeader() {
   const [homeHref, setHomeHref] = useState('/');
 
   useEffect(() => {
-    const supabase = createSupabaseBrowserClient();
-    if (!supabase) {
-      setHomeHref('/');
-      return undefined;
-    }
-
     const sync = async () => {
       const user = await getBrowserAuthUser();
       if (!user) {
         setHomeHref('/');
         return;
       }
-      const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
-      const metaRole = String(meta.role ?? '').toLowerCase();
-      let role: AppRole = 'student';
-      if (metaRole === 'admin') role = 'admin';
+      const metaRole = String(user.role ?? user.user_metadata?.role ?? '').toLowerCase();
+      const role: AppRole = metaRole === 'admin' ? 'admin' : 'student';
       setHomeHref(homeHrefForRole(role));
     };
 
     void sync();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void sync();
-    });
-    return () => subscription.unsubscribe();
+    const id = window.setInterval(() => void sync(), 60_000);
+    return () => window.clearInterval(id);
   }, []);
 
   if (isExamFocusRoute(pathname)) {

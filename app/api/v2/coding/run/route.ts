@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
+import { getDbService } from '@/lib/db/get-db-service';
 import { executeCode } from '@/lib/coding/execute';
 import { parseCodingRunRequest } from '@/lib/coding/parse-run-request';
 import { auth } from '@/auth';
 import { useAwsStack } from '@/lib/aws/stack';
-import { getServiceSupabase } from '@/lib/server-auth';
-import { getSupabaseServerClient } from '@/lib/supabase-server';
+import { getDbService } from '@/lib/server-auth';
+
 
 export const runtime = 'nodejs';
 
@@ -27,12 +28,12 @@ export async function POST(request: Request) {
 
     // Optional run log (never block execution on DB / schema errors)
     try {
-      const service = getServiceSupabase();
+      const service = getDbService();
       let userId: string | undefined;
       if (useAwsStack()) {
         userId = (await auth())?.user?.id;
       } else {
-        const session = await getSupabaseServerClient();
+        const session = await getDbService();
         userId = session ? (await session.auth.getUser()).data.user?.id : undefined;
       }
       if (service && userId) {

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { detectTestsIdKind, normalizeTestId } from '@/lib/exam-builder/id-utils';
 
 export type InsertTestInput = {
@@ -12,7 +12,7 @@ export type InsertTestInput = {
 
 /** Insert into tests across legacy schemas (title vs name, optional columns). */
 export async function insertTestRow(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: InsertTestInput,
 ): Promise<{ testId: string; rawId: string | number }> {
   const base: Record<string, unknown> = {

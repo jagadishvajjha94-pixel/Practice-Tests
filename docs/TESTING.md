@@ -44,4 +44,4 @@ GitHub Actions runs `test:unit` and `test:e2e` for `apps/prepindia-web` on push/
 
 ## Optional: authenticated flows
 
-For flows that need Supabase login, use test credentials from `docs/ELEVATEX_SAMPLE_CREDENTIALS.md` and set env vars in a local `.env.test.local` (not committed). Extend `e2e/` with a `storageState` fixture when you add stable test users.
+For flows that need AWS RDS login, use test credentials from `docs/ELEVATEX_SAMPLE_CREDENTIALS.md` and set env vars in a local `.env.test.local` (not committed). Extend `e2e/` with a `storageState` fixture when you add stable test users.

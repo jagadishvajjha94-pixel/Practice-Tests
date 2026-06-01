@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import type { FacultyExamQuestion } from '@/lib/faculty-exams';
 import {
   detectQuestionsIdKind,
@@ -21,7 +21,7 @@ function looksLikeUuidLocal(s: string): boolean {
 }
 
 async function upsertQuestionTag(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   slug: string,
   name: string,
 ): Promise<{ id: string; slug: string; name: string } | null> {
@@ -70,7 +70,7 @@ async function upsertQuestionTag(
 const QUESTION_FETCH_PAGE = 900;
 
 async function getExcludedQuestionIds(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   testType: string,
   slotKey: string,
 ): Promise<Set<string>> {
@@ -92,7 +92,7 @@ async function getExcludedQuestionIds(
 }
 
 export async function questionIdsMatchingTagSlug(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   tagSlug: string,
 ): Promise<string[]> {
   const out: string[] = [];
@@ -118,7 +118,7 @@ export async function questionIdsMatchingTagSlug(
 }
 
 export async function questionIdsForTag(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   tagId: string,
   tagSlug: string,
 ): Promise<string[]> {
@@ -169,7 +169,7 @@ export type ResolvedSyllabusTopic = { id: string; name: string; slug: string };
 
 /** Resolve picker topic ids (UUID or slug) to tag rows for prompts and bank draws. */
 export async function resolveSyllabusTopicsForBuilder(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   topicIds: string[],
 ): Promise<ResolvedSyllabusTopic[]> {
   if (!topicIds.length) {
@@ -244,7 +244,7 @@ export type DrawExamQuestionsResult = {
 };
 
 export async function drawExamQuestionsFromTopics(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   input: DrawExamQuestionsInput,
 ): Promise<DrawExamQuestionsResult> {
   if (!input.topicIds.length) {
@@ -274,7 +274,7 @@ export async function drawExamQuestionsFromTopics(
     if (picked.length === 0) {
       if (fullForTag.length === 0) {
         throw new Error(
-          `No questions in the bank for "${tag.name}" (slug: ${tag.slug}). Ensure your Supabase has question_tags + MCQs (e.g. run migration 019 or upload questions for this topic).`,
+          `No questions in the bank for "${tag.name}" (slug: ${tag.slug}). Ensure your AWS RDS has question_tags + MCQs (e.g. run migration 019 or upload questions for this topic).`,
         );
       }
       throw new Error(

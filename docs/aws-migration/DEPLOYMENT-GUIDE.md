@@ -169,18 +169,18 @@ pnpm db:push          # creates all tables from prisma/schema.prisma
 pnpm bootstrap:admin:aws
 ```
 
-### Migrate data from Supabase (one-time)
+### Migrate data from AWS RDS (one-time)
 
 Add to `.env.local`:
 ```env
-SUPABASE_DATABASE_URL=postgresql://postgres:...@db.xxx.supabase.co:5432/postgres
+SUPABASE_DATABASE_URL=postgresql://postgres:...@db.xxx.rds.co:5432/postgres
 DATABASE_URL=<your RDS URL>
 MIGRATION_DEFAULT_PASSWORD=TempReset@2025
 ```
 
 ```bash
-node scripts/migrate-supabase-to-rds.mjs --dry-run
-node scripts/migrate-supabase-to-rds.mjs
+node scripts/migrate-rds-to-rds.mjs --dry-run
+node scripts/migrate-rds-to-rds.mjs
 ```
 
 Tell students to reset passwords after migration (or run a password reset campaign).
@@ -466,7 +466,7 @@ Scale up instance sizes on exam day if needed.
 - [ ] RDS + Proxy running
 - [ ] S3 bucket + IAM role
 - [ ] `pnpm db:push` / migrate on RDS
-- [ ] Data migrated from Supabase
+- [ ] Data migrated from AWS RDS
 - [ ] `USE_AWS_STACK=true` on all EC2
 - [ ] 2+ EC2 behind ALB
 - [ ] HTTPS + DNS working
@@ -474,4 +474,4 @@ Scale up instance sizes on exam day if needed.
 - [ ] Admin + student login tested
 - [ ] Full exam flow tested
 - [ ] k6 load test passed
-- [ ] Remove Supabase env vars from production
+- [ ] Remove AWS RDS env vars from production

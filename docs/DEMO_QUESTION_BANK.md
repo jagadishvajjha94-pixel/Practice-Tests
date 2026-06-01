@@ -26,14 +26,14 @@ If migration 020 fails with **uuid and bigint incompatible** on `question_tag_li
 
 ```bash
 cd apps/prepindia-web
-supabase db push
+rds db push
 ```
 
-Or in the **Supabase SQL editor** (Dashboard → SQL):
+Or in the **AWS RDS SQL editor** (Dashboard → SQL):
 
-1. Paste and run **`supabase/migrations/020_ensure_questions_table.sql`**
-2. Paste and run **`supabase/migrations/021_questions_test_id_nullable.sql`** (legacy DBs with `questions.test_id NOT NULL`)
-3. Paste and run **`supabase/migrations/019_demo_question_bank_seed.sql`** (optional large SQL seed)
+1. Paste and run **`rds/migrations/020_ensure_questions_table.sql`**
+2. Paste and run **`rds/migrations/021_questions_test_id_nullable.sql`** (legacy DBs with `questions.test_id NOT NULL`)
+3. Paste and run **`rds/migrations/019_demo_question_bank_seed.sql`** (optional large SQL seed)
 
 Wait ~30 seconds after step 1 so the API schema cache reloads (migration ends with `NOTIFY pgrst, 'reload schema'`).
 
@@ -46,7 +46,7 @@ DELETE FROM public.questions
 WHERE COALESCE(tags, '[]'::jsonb) @> '["seed-demo-v1"]'::jsonb;
 ```
 
-…then paste the **current** contents of `019_demo_question_bank_seed.sql` (`DO $$ ... $$` block + `NOTIFY`), **or** use `supabase db reset` in a dev project.
+…then paste the **current** contents of `019_demo_question_bank_seed.sql` (`DO $$ ... $$` block + `NOTIFY`), **or** use `rds db reset` in a dev project.
 
 ## Remove demo data only
 

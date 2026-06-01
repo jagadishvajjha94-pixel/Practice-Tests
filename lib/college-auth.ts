@@ -2,7 +2,7 @@ import { COLLEGE } from '@/lib/college-brand';
 
 const domain = COLLEGE.emailDomain;
 
-/** Map roll number to Supabase auth email (backward compatible if full email entered). */
+/** Map roll number to AWS RDS auth email (backward compatible if full email entered). */
 export function studentAuthEmail(rollOrEmail: string): string {
   const v = rollOrEmail.trim().toLowerCase();
   if (v.includes('@')) return v;
@@ -10,7 +10,7 @@ export function studentAuthEmail(rollOrEmail: string): string {
   return `${roll}@student.${domain}`;
 }
 
-/** Map employee ID to Supabase auth email. */
+/** Map employee ID to AWS RDS auth email. */
 export function facultyAuthEmail(employeeId: string): string {
   const v = employeeId.trim().toLowerCase();
   if (v.includes('@')) return v;
@@ -18,7 +18,7 @@ export function facultyAuthEmail(employeeId: string): string {
   return `${id}@faculty.${domain}`;
 }
 
-/** Map admin username to Supabase auth email. */
+/** Map admin username to AWS RDS auth email. */
 export function adminAuthEmail(username: string): string {
   const v = username.trim().toLowerCase();
   if (v.includes('@')) return v;

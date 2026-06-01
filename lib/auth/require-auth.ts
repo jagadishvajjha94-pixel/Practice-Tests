@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { useAwsStack } from '@/lib/aws/stack';
-import { requireAuth as requireAuthSupabase } from '@/lib/server-auth';
+import { requireAuth as requireAuthRds } from '@/lib/server-auth';
 import type { AppRole } from '@/lib/roles';
 
 export type AwsAuthContext = {
@@ -11,14 +11,14 @@ export type AwsAuthContext = {
 };
 
 /**
- * Unified auth gate: Prisma/NextAuth when USE_AWS_STACK=true, else legacy Supabase.
+ * Unified auth gate: Prisma/NextAuth when USE_AWS_STACK=true, else legacy AWS RDS.
  */
 export async function requireAppAuth(
   allowedRoles?: AppRole[],
   request?: Request,
 ): Promise<{ ctx: AwsAuthContext } | { response: NextResponse }> {
   if (!useAwsStack()) {
-    const legacy = await requireAuthSupabase(allowedRoles, request);
+    const legacy = await requireAuthRds(allowedRoles, request);
     if ('response' in legacy) return legacy;
     return {
       ctx: {

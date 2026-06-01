@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { allSyllabusTagDefs, CURATED_BANK_MARKER } from '@/lib/question-bank/curated-mcqs';
 import {
   DEFAULT_SYLLABUS_QUESTIONS_PER_TOPIC,
@@ -20,7 +20,7 @@ export type SeedCuratedBankResult = {
 const INSERT_BATCH = 40;
 
 async function upsertTag(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   def: { slug: string; name: string },
 ): Promise<{ id: string; slug: string; name: string } | null> {
   const { data: existing } = await admin
@@ -57,7 +57,7 @@ async function upsertTag(
 }
 
 export async function seedCuratedQuestionBank(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   options?: { questionsPerTopic?: number; replaceExisting?: boolean },
 ): Promise<SeedCuratedBankResult> {
   const questionsPerTopic = Math.min(
@@ -73,7 +73,7 @@ export async function seedCuratedQuestionBank(
   const poolTestId = shape.has('test_id') ? await ensureQuestionBankPoolTestId(admin) : null;
   if (shape.has('test_id') && poolTestId == null) {
     throw new Error(
-      'Could not create Question Bank Pool test (questions.test_id is required on this database). Ensure test_categories/tests exist, or run migration 021_questions_test_id_nullable.sql in Supabase SQL editor.',
+      'Could not create Question Bank Pool test (questions.test_id is required on this database). Ensure test_categories/tests exist, or run migration 021_questions_test_id_nullable.sql in AWS RDS SQL editor.',
     );
   }
 
@@ -82,7 +82,7 @@ export async function seedCuratedQuestionBank(
       await admin.from('questions').delete().contains('tags', [CURATED_BANK_MARKER]);
     } else {
       warnings.push(
-        'Could not remove previous curated bank (tags column missing). Run migration 029 in Supabase, then re-seed.',
+        'Could not remove previous curated bank (tags column missing). Run migration 029 in AWS RDS, then re-seed.',
       );
     }
   }

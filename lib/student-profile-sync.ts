@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbServiceClient } from '@/lib/db/get-db-service';
 import { COLLEGE } from '@/lib/college-brand';
 
 export type StudentProfileFields = {
@@ -35,7 +35,7 @@ export function studentFieldsFromMetadata(
 
 /** Upsert public.users for a student (service role). Safe to call repeatedly. */
 export async function ensureStudentProfileRow(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   userId: string,
   fields: StudentProfileFields,
 ): Promise<StudentProfileFields> {
@@ -67,7 +67,7 @@ export async function ensureStudentProfileRow(
 
 /** Prefer public.users row; fall back to auth metadata; optionally backfill users table. */
 export async function resolveStudentTargeting(
-  admin: SupabaseClient,
+  admin: DbServiceClient,
   userId: string,
   authMeta?: Record<string, unknown>,
   email?: string | null,
