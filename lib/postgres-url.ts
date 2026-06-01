@@ -1,5 +1,30 @@
+/** AWS RDS rejects non-SSL clients (pg_hba "no encryption"). */
+export function withAwsRdsSsl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+  const isRds =
+    trimmed.includes('rds.amazonaws.com') ||
+    trimmed.includes('.amazonaws.com') ||
+    process.env.USE_AWS_STACK === 'true';
+  if (!isRds) return trimmed;
+  if (/[?&]sslmode=/i.test(trimmed)) return trimmed;
+  const sep = trimmed.includes('?') ? '&' : '?';
+  return `${trimmed}${sep}sslmode=require`;
+}
+
+/** Patch env before Prisma/postgres clients connect (safe to call repeatedly). */
+export function normalizeDatabaseEnvUrls(): void {
+  for (const key of ['DATABASE_URL', 'DIRECT_URL', 'POSTGRES_URL'] as const) {
+    const raw = process.env[key]?.trim();
+    if (!raw || raw.includes('YOUR_') || raw.includes('REPLACE_WITH')) continue;
+    process.env[key] = withAwsRdsSsl(raw);
+  }
+}
+
 /** Resolve Postgres connection string from env (DATABASE_URL or POSTGRES_URL). */
 export function resolvePostgresUrl(): string | null {
+  normalizeDatabaseEnvUrls();
+
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (databaseUrl && !databaseUrl.includes('YOUR_')) return databaseUrl;
 

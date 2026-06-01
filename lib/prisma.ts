@@ -1,4 +1,7 @@
+import { normalizeDatabaseEnvUrls } from '@/lib/postgres-url';
 import { PrismaClient } from '@prisma/client';
+
+normalizeDatabaseEnvUrls();
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 

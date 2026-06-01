@@ -5,6 +5,9 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
+  const { normalizeDatabaseEnvUrls } = await import('@/lib/postgres-url');
+  normalizeDatabaseEnvUrls();
+
   const { autoEnsureRdsSchema, isAutoRdsSchemaEnabled } = await import('@/lib/db/auto-ensure-rds');
   if (!isAutoRdsSchemaEnabled()) return;
 

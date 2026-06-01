@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbService } from '@/lib/db/get-db-service';
 import { checkIsAdmin } from '@/lib/admin-verify';
-import { requireAuth, getDbService } from '@/lib/server-auth';
+import { requireAuth } from '@/lib/server-auth';
 import { fetchTestCategories } from '@/lib/db-catalog-queries';
 
 const FALLBACK_CATEGORIES = [
@@ -15,6 +15,9 @@ const FALLBACK_CATEGORIES = [
   { id: 'fallback-mock', name: 'Mock Interview Prep', slug: 'mock-interviews', description: null, icon: '🎤', order: 8 },
 ] as const;
 
+const RDS_SETUP_HINT =
+  'Run prisma db push or scripts/01-initial-schema.sql on RDS. Ensure DATABASE_URL includes ?sslmode=require.';
+
 export async function GET() {
   const auth = await requireAuth(['admin']);
   if ('response' in auth) return auth.response;
@@ -24,8 +27,7 @@ export async function GET() {
     return NextResponse.json({
       categories: FALLBACK_CATEGORIES,
       source: 'fallback',
-      warning:
-        'Using built-in categories. Run prisma db push or scripts/01-initial-schema.sql on RDS
+      warning: `Using built-in categories. ${RDS_SETUP_HINT}`,
     });
   }
 
@@ -40,9 +42,7 @@ export async function GET() {
     return NextResponse.json({
       categories: FALLBACK_CATEGORIES,
       source: 'fallback',
-      warning:
-        error ??
-        'No categories in database. Run prisma db push or scripts/01-initial-schema.sql on RDS
+      warning: error ?? `No categories in database. ${RDS_SETUP_HINT}`,
     });
   }
 

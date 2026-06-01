@@ -18,6 +18,7 @@ const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono'
 export const metadata: Metadata = {
   title: 'Ramachandra College — Training & Placement Department',
   description: 'Training & Placement Department — internal online assessment for Ramachandra College of Engineering.',
+  icons: { icon: '/favicon.svg' },
   keywords: 'Ramachandra College, assessment, placement, aptitude, internal examination',
   openGraph: {
     title: 'Ramachandra College — Training & Placement Department',
@@ -45,7 +46,7 @@ export default function RootLayout({
         <StudentSessionHeartbeat />
         <AppSessionBar />
         {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        {process.env.VERCEL === '1' && <Analytics />}
       </body>
     </html>
   )

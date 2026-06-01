@@ -111,6 +111,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           navOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none',
         )}
         aria-hidden={!navOpen}
+        inert={!navOpen || undefined}
       >
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <p className="text-sm font-bold tracking-tight">Admin menu</p>

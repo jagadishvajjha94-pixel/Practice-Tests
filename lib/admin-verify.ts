@@ -9,6 +9,19 @@ function isMissingAdminTableError(message: string): boolean {
   );
 }
 
+/** RDS/EC2 misconfiguration — do not treat as "not an admin". */
+function isDatabaseConnectionError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('pg_hba') ||
+    m.includes('no encryption') ||
+    m.includes('ssl') ||
+    m.includes('econnrefused') ||
+    m.includes('connection refused') ||
+    m.includes('database_url is not configured')
+  );
+}
+
 /** Grant admin when DB table is unavailable but email is allowlisted (dev / migration recovery). */
 export async function ensureAdminAccess(
   admin: DbServiceClient,
@@ -25,7 +38,12 @@ export async function ensureAdminAccess(
     return { isAdmin: true, via: 'table' };
   }
 
-  if (error && !isMissingAdminTableError(String(error.message ?? ''))) {
+  const errMsg = String(error?.message ?? '');
+  if (error && isDatabaseConnectionError(errMsg) && isAllowlistedAdminEmail(email)) {
+    return { isAdmin: true, via: 'allowlist' };
+  }
+
+  if (error && !isMissingAdminTableError(errMsg)) {
     return { isAdmin: false, via: 'none' };
   }
 

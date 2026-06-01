@@ -3,6 +3,7 @@
  * Implements the subset of PostgREST-style chaining used across app/api and lib.
  */
 import postgres from 'postgres';
+import { resolvePostgresUrl } from '@/lib/postgres-url';
 import { prisma } from '@/lib/prisma';
 import { verifyPassword } from '@/lib/password';
 import bcrypt from 'bcryptjs';
@@ -50,10 +51,17 @@ const TABLE_NAMES = new Set([
 let sql: ReturnType<typeof postgres> | null = null;
 
 function getSql() {
-  const url = process.env.DATABASE_URL;
+  const url = resolvePostgresUrl();
   if (!url) throw new Error('DATABASE_URL is not configured');
   if (!sql) {
-    sql = postgres(url, { max: 5, prepare: false });
+    const needsSsl =
+      url.includes('rds.amazonaws.com') ||
+      /[?&]sslmode=require/i.test(url);
+    sql = postgres(url, {
+      max: 5,
+      prepare: false,
+      ...(needsSsl ? { ssl: 'require' as const } : {}),
+    });
   }
   return sql;
 }
